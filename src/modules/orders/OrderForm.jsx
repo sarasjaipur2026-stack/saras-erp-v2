@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { orders, lineItems } from '../../lib/db';
 import { useAuth } from '../../contexts/AuthContext';
@@ -8,7 +8,7 @@ import { Plus, X } from 'lucide-react';
 import { CustomerSearch } from './components/CustomerSearch';
 import { LineItemRow } from './components/LineItemRow';
 
-export const OrderForm = () => {
+const OrderForm = () => {
   const navigate = useNavigate();
   const { orderId } = useParams();
   const { user } = useAuth();
@@ -290,3 +290,5 @@ export const OrderForm = () => {
     </div>
   );
 };
+
+export default OrderForm;

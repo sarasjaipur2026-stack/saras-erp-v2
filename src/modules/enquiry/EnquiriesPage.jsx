@@ -6,7 +6,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { Button, DataTable, Tabs, Badge } from '../../components/ui';
 import { Plus, Check, X } from 'lucide-react';
 
-export const EnquiriesPage = () => {
+const EnquiriesPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { addToast } = useToast();
@@ -131,3 +131,5 @@ export const EnquiriesPage = () => {
     </div>
   );
 };
+
+export default EnquiriesPage;

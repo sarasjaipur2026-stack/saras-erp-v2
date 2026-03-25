@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { enquiries } from '../../lib/db';
 import { useAuth } from '../../contexts/AuthContext';
@@ -7,7 +7,7 @@ import { Button, Input, Textarea, Select } from '../../components/ui';
 import { CustomerSearch } from '../orders/components/CustomerSearch';
 import { PhotoUpload } from '../../components/ui';
 
-export const EnquiryForm = () => {
+const EnquiryForm = () => {
   const navigate = useNavigate();
   const { enquiryId } = useParams();
   const { user } = useAuth();
@@ -174,3 +174,5 @@ export const EnquiryForm = () => {
     </div>
   );
 };
+
+export default EnquiryForm;

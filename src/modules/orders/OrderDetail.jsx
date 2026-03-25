@@ -6,7 +6,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { Button, Modal, Input, DataTable, Badge } from '../../components/ui';
 import { ArrowLeft, Plus } from 'lucide-react';
 
-export const OrderDetail = () => {
+const OrderDetail = () => {
   const { orderId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -334,3 +334,5 @@ export const OrderDetail = () => {
     </div>
   );
 };
+
+export default OrderDetail;

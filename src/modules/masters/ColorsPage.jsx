@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { colors } from '../../lib/db';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { Button, Input, Modal } from '../../components/ui';
 import { Plus } from 'lucide-react';
 
-export const ColorsPage = () => {
+const ColorsPage = () => {
   const { user } = useAuth();
   const { addToast } = useToast();
   const [colorList, setColorList] = useState([]);
@@ -132,3 +132,5 @@ export const ColorsPage = () => {
     </div>
   );
 };
+
+export default ColorsPage;

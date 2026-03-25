@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { customers } from '../../lib/db';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { Button, Input, DataTable, Modal } from '../../components/ui';
 import { Plus, Edit, Trash2 } from 'lucide-react';
 
-export const CustomersPage = () => {
+const CustomersPage = () => {
   const { user } = useAuth();
   const { addToast } = useToast();
   const [customerList, setCustomerList] = useState([]);
@@ -218,3 +218,5 @@ export const CustomersPage = () => {
     </div>
   );
 };
+
+export default CustomersPage;

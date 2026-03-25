@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { orders } from '../../lib/db';
 import { useAuth } from '../../contexts/AuthContext';
@@ -6,7 +6,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { Button, DataTable, Tabs, Badge } from '../../components/ui';
 import { Plus, Copy, Trash2 } from 'lucide-react';
 
-export const OrdersPage = () => {
+const OrdersPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { addToast } = useToast();
@@ -120,3 +120,5 @@ export const OrdersPage = () => {
     </div>
   );
 };
+
+export default OrdersPage;

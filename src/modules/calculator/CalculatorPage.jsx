@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { products, materials, machines, calculatorProfiles } from '../../lib/db';
 import { useAuth } from '../../contexts/AuthContext';
@@ -6,7 +6,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { Button, Input, Select, Tabs } from '../../components/ui';
 import { Save, Plus } from 'lucide-react';
 
-export const CalculatorPage = () => {
+const CalculatorPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { addToast } = useToast();
@@ -342,3 +342,5 @@ export const CalculatorPage = () => {
     </div>
   );
 };
+
+export default CalculatorPage;
