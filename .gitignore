@@ -1,5 +1,7 @@
-node_modules
-dist
+node_modules/
+dist/
 .env
+.env.local
+*.log
+_old_app_backup/
 .DS_Store
-_old_app_backup
