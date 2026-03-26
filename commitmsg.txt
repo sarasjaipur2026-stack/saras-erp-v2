@@ -1,0 +1,14 @@
+Fix: Add getAll() methods to products, materials, machines, colors, and suppliers in db.js
+
+The AppContext.jsx and SuppliersPage.jsx were calling getAll() methods that did not exist in db.js.
+These entities only had list(userId) methods. Added getAll() async methods for these entities that
+leverage Supabase RLS policies (user_id = auth.uid()) to automatically filter results by the
+authenticated user without requiring userId parameter.
+
+- products.getAll()
+- materials.getAll()
+- machines.getAll()
+- colors.getAll()
+- suppliers.getAll()
+
+This fixes the critical bug preventing the app from loading master data at startup.

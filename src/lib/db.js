@@ -79,6 +79,20 @@ export const customers = {
 };
 // PRODUCTS
 export const products = {
+  getAll: async () => {
+    try {
+      const { data, error } = await withRetry(() =>
+        supabase
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: false })
+      );
+      return { data, error };
+    } catch (error) {
+      return { data: null, error };
+    }
+  },
+
   list: async (userId) => {
     try {
       const { data, error } = await withRetry(() =>
@@ -156,6 +170,20 @@ export const products = {
 };
 // MATERIALS
 export const materials = {
+  getAll: async () => {
+    try {
+      const { data, error } = await withRetry(() =>
+        supabase
+          .from('materials')
+          .select('*')
+          .order('created_at', { ascending: false })
+      );
+      return { data, error };
+    } catch (error) {
+      return { data: null, error };
+    }
+  },
+
   list: async (userId) => {
     try {
       const { data, error } = await withRetry(() =>
@@ -233,6 +261,20 @@ export const materials = {
 };
 // MACHINES
 export const machines = {
+  getAll: async () => {
+    try {
+      const { data, error } = await withRetry(() =>
+        supabase
+          .from('machines')
+          .select('*')
+          .order('code', { ascending: true })
+      );
+      return { data, error };
+    } catch (error) {
+      return { data: null, error };
+    }
+  },
+
   list: async (userId) => {
     try {
       const { data, error } = await withRetry(() =>
@@ -266,6 +308,20 @@ export const machines = {
 
 // COLORS
 export const colors = {
+  getAll: async () => {
+    try {
+      const { data, error } = await withRetry(() =>
+        supabase
+          .from('colors')
+          .select('*')
+          .order('created_at', { ascending: false })
+      );
+      return { data, error };
+    } catch (error) {
+      return { data: null, error };
+    }
+  },
+
   list: async (userId) => {
     try {
       const { data, error } = await withRetry(() =>
@@ -824,6 +880,20 @@ export const stock = {
 };
 // SUPPLIERS
 export const suppliers = {
+  getAll: async () => {
+    try {
+      const { data, error } = await withRetry(() =>
+        supabase
+          .from('suppliers')
+          .select('*')
+          .order('created_at', { ascending: false })
+      );
+      return { data, error };
+    } catch (error) {
+      return { data: null, error };
+    }
+  },
+
   list: async (userId) => {
     try {
       const { data, error } = await withRetry(() =>
