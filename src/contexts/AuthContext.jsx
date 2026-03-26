@@ -15,26 +15,47 @@ export function AuthProvider({ children }) {
   }, [])
 
   useEffect(() => {
+    let mounted = true
+
+    // Safety timeout - never hang forever
+    const timeout = setTimeout(() => {
+      if (mounted && loading) {
+        console.warn('Auth loading timeout - forcing ready state')
+        setLoading(false)
+      }
+    }, 5000)
+
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return
       if (session?.user) {
         setUser(session.user)
-        fetchProfile(session.user.id).finally(() => setLoading(false))
+        fetchProfile(session.user.id).catch(console.error).finally(() => {
+          if (mounted) setLoading(false)
+        })
       } else {
         setLoading(false)
       }
+    }).catch((err) => {
+      console.error('Auth getSession error:', err)
+      if (mounted) setLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user)
-        await fetchProfile(session.user.id)
+        await fetchProfile(session.user.id).catch(console.error)
       } else if (event === 'SIGNED_OUT') {
         setUser(null)
         setProfile(null)
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      clearTimeout(timeout)
+      subscription.unsubscribe()
+    }
   }, [fetchProfile])
 
   const signIn = async (email, password) => {
