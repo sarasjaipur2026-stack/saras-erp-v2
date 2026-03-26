@@ -3,10 +3,40 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+// Custom storage adapter compatible with all supabase-js versions
+const customStorage = {
+  getItem: (key) => {
+    if (typeof window === 'undefined') return null;
+    return globalThis.localStorage.getItem(key);
+  },
+  setItem: (key, value) => {
+    if (typeof window === 'undefined') return;
+    globalThis.localStorage.setItem(key, value);
+  },
+  removeItem: (key) => {
+    if (typeof window === 'undefined') return;
+    globalThis.localStorage.removeItem(key);
+  },
+  getAll: () => {
+    if (typeof window === 'undefined') return [];
+    const items = [];
+    for (let i = 0; i < globalThis.localStorage.length; i++) {
+      const key = globalThis.localStorage.key(i);
+      items.push({ name: key, value: globalThis.localStorage.getItem(key) });
+    }
+    return items;
+  },
+  setAll: (items) => {
+    if (typeof window === 'undefined') return;
+    items.forEach(({ name, value }) => globalThis.localStorage.setItem(name, value));
+  },
+};
+
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+    storage: customStorage,
   },
   global: {
     headers: {
