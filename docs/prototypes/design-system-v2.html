@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SARAS ERP v2 — Design System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        /* ══════════════════════════════════════════════
+           TOKENS
+        ══════════════════════════════════════════════ */
+        :root {
+            --primary: #4f46e5; --primary-h: #6366f1; --primary-a: #4338ca;
+            --primary-50: #eef2ff; --primary-100: #e0e7ff; --primary-200: #c7d2fe; --primary-300: #a5b4fc;
+            --primary-glow: rgba(79,70,229,0.18);
+
+            --emerald: #059669; --emerald-l: #d1fae5; --emerald-50: #ecfdf5;
+            --amber: #d97706; --amber-l: #fef3c7; --amber-50: #fffbeb;
+            --red: #dc2626; --red-l: #fee2e2; --red-50: #fef2f2;
+            --blue: #2563eb; --blue-l: #dbeafe; --blue-50: #eff6ff;
+            --purple: #7c3aed; --purple-l: #f3e8ff;
+            --cyan: #0891b2; --cyan-l: #cffafe;
+            --pink: #db2777; --pink-l: #fce7f3;
+
+            --bg: #f8fafc; --bg2: #f1f5f9; --surface: #ffffff; --elevated: #ffffff;
+            --border: #e2e8f0; --border-l: #f1f5f9; --border-h: #cbd5e1;
+            --text: #0f172a; --text-2: #475569; --text-3: #94a3b8; --text-inv: #ffffff;
+
+            --radius-xs: 4px; --radius-sm: 6px; --radius: 8px; --radius-lg: 12px; --radius-xl: 16px; --radius-2xl: 20px; --radius-full: 9999px;
+            --shadow-1: 0 1px 2px rgba(0,0,0,0.04);
+            --shadow-2: 0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);
+            --shadow-3: 0 4px 6px -1px rgba(0,0,0,0.07),0 2px 4px -2px rgba(0,0,0,0.05);
+            --shadow-4: 0 10px 15px -3px rgba(0,0,0,0.08),0 4px 6px -4px rgba(0,0,0,0.04);
+            --shadow-5: 0 20px 25px -5px rgba(0,0,0,0.08),0 8px 10px -6px rgba(0,0,0,0.04);
+            --shadow-pri: 0 4px 14px -2px rgba(79,70,229,0.28);
+            --shadow-up: 0 -4px 12px rgba(0,0,0,0.04);
+
+            --ease: cubic-bezier(0.4,0,0.2,1); --ease-out: cubic-bezier(0,0,0.2,1);
+            --ease-spring: cubic-bezier(0.34,1.56,0.64,1); --ease-bounce: cubic-bezier(0.68,-0.55,0.265,1.55);
+            --dur-1: 120ms; --dur-2: 200ms; --dur-3: 300ms; --dur-4: 400ms;
+        }
+
+        [data-theme="dark"] {
+            --bg: #0c0f1a; --bg2: #141829; --surface: #1a1f35; --elevated: #222845;
+            --border: #2a3050; --border-l: #1e2340; --border-h: #3a4065;
+            --text: #eef0f6; --text-2: #a0a8c4; --text-3: #6b7394; --text-inv: #0c0f1a;
+            --primary-50: rgba(99,102,241,0.12); --primary-100: rgba(99,102,241,0.18); --primary-200: rgba(99,102,241,0.25);
+            --primary-glow: rgba(99,102,241,0.25);
+            --shadow-1: 0 1px 3px rgba(0,0,0,0.3); --shadow-2: 0 2px 6px rgba(0,0,0,0.3);
+            --shadow-3: 0 4px 12px rgba(0,0,0,0.35); --shadow-4: 0 8px 24px rgba(0,0,0,0.4);
+            --shadow-5: 0 16px 40px rgba(0,0,0,0.45); --shadow-pri: 0 4px 20px rgba(99,102,241,0.35);
+        }
+
+        /* ══════════════════════════════════════════════
+           RESET & BASE
+        ══��═══════════════════════════════════════════ */
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        html{scroll-behavior:smooth;scroll-padding-top:72px}
+        body{font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;-webkit-font-smoothing:antialiased;transition:background var(--dur-3) var(--ease),color var(--dur-3) var(--ease)}
+        ::selection{background:var(--primary-200);color:var(--primary-a)}
+        ::-webkit-scrollbar{width:6px;height:6px}
+        ::-webkit-scrollbar-track{background:transparent}
+        ::-webkit-scrollbar-thumb{background:var(--border-h);border-radius:3px}
+        ::-webkit-scrollbar-thumb:hover{background:var(--text-3)}
+        .mono{font-family:'JetBrains Mono',monospace}
+        img{display:block;max-width:100%}
+        button{font-family:inherit}
+
+        /* ══════════════════════════════════════════════
+           NAV
+        ══════════════════════════════════════════════ */
+        .nav{position:sticky;top:0;z-index:100;background:color-mix(in srgb,var(--surface) 88%,transparent);backdrop-filter:blur(16px) saturate(180%);border-bottom:1px solid var(--border);padding:0 clamp(16px,3vw,40px)}
+        .nav-inner{max-width:1320px;margin:0 auto;display:flex;align-items:center;height:56px;gap:0}
+        .nav .logo{font-weight:800;font-size:17px;color:var(--primary);letter-spacing:-0.5px;margin-right:28px;flex-shrink:0;display:flex;align-items:center;gap:8px}
+        .nav .logo-dot{width:8px;height:8px;border-radius:50%;background:var(--primary);animation:pulse-dot 2s infinite}
+        .nav-links{display:flex;gap:0;overflow-x:auto;scrollbar-width:none;flex:1}
+        .nav-links::-webkit-scrollbar{display:none}
+        .nav-links a{text-decoration:none;color:var(--text-3);font-size:13px;font-weight:500;padding:17px 13px;border-bottom:2px solid transparent;transition:color var(--dur-2),border-color var(--dur-2);white-space:nowrap}
+        .nav-links a:hover{color:var(--text)}
+        .nav-links a.active{color:var(--primary);border-bottom-color:var(--primary)}
+        .nav-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0}
+        .theme-btn{width:36px;height:36px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);transition:all var(--dur-2)}
+        .theme-btn:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-50)}
+        @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.4}}
+
+        /* ══════════════════════════════════════════════
+           LAYOUT
+        ══════════════════════════════════════════════ */
+        .container{max-width:1320px;margin:0 auto;padding:0 clamp(16px,3vw,40px)}
+        .page-padding{padding-top:48px;padding-bottom:80px}
+        section{margin-bottom:80px}
+        .section-tag{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.8px;color:var(--primary);margin-bottom:6px;display:flex;align-items:center;gap:8px}
+        .section-tag::before{content:'';width:20px;height:2px;background:var(--primary);border-radius:1px}
+        .section-h{font-size:30px;font-weight:800;letter-spacing:-0.6px;margin-bottom:6px;background:linear-gradient(135deg,var(--text),var(--text-2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+        .section-p{color:var(--text-2);font-size:15px;max-width:560px;line-height:1.7;margin-bottom:40px}
+
+        .g2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+        .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+        .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+        .g5{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+        .g6{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+        @media(max-width:900px){.g4,.g5,.g6{grid-template-columns:repeat(3,1fr)}}
+        @media(max-width:640px){.g2,.g3,.g4,.g5,.g6{grid-template-columns:1fr 1fr}.container{padding:0 16px}}
+
+        .flex{display:flex}.items-c{align-items:center}.jc-between{justify-content:space-between}.gap-1{gap:4px}.gap-2{gap:8px}.gap-3{gap:12px}.gap-4{gap:16px}
+        .mb-2{margin-bottom:8px}.mb-3{margin-bottom:12px}.mb-4{margin-bottom:16px}.mb-5{margin-bottom:20px}.mt-3{margin-top:12px}.mt-4{margin-top:16px}.mt-6{margin-top:24px}
+        .divider{height:1px;background:var(--border);margin:0}
+
+        /* ══════════════════════════════════════════════
+           REVEAL ANIMATION
+        ══════════════════════════════════════════════ */
+        .reveal{opacity:0;transform:translateY(20px);transition:opacity var(--dur-4) var(--ease-out),transform var(--dur-4) var(--ease-out)}
+        .reveal.visible{opacity:1;transform:translateY(0)}
+        .reveal-delay-1{transition-delay:80ms}.reveal-delay-2{transition-delay:160ms}.reveal-delay-3{transition-delay:240ms}
+
+        /* ══════════════════════════════════════════════
+           SWATCHES
+        ══════════════════════════════════════════════ */
+        .sg{margin-bottom:28px}
+        .sg-label{font-size:11px;font-weight:700;color:var(--text-2);margin-bottom:12px;text-transform:uppercase;letter-spacing:.8px}
+        .sw{border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border);transition:transform var(--dur-2) var(--ease),box-shadow var(--dur-2);cursor:pointer}
+        .sw:hover{transform:translateY(-3px);box-shadow:var(--shadow-3)}
+        .sw-c{height:72px;display:flex;align-items:flex-end;padding:8px 12px}
+        .sw-c span{font-size:10px;font-weight:600;letter-spacing:.3px}
+        .sw-i{padding:10px 12px;background:var(--surface)}
+        .sw-n{font-size:12px;font-weight:600}
+        .sw-h{font-size:11px;font-weight:500;color:var(--text-3);font-family:'JetBrains Mono',monospace}
+        .sw-r{font-size:10px;color:var(--text-3);margin-top:1px}
+        .sw-copy{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);color:white;font-size:11px;font-weight:700;opacity:0;transition:opacity var(--dur-2);border-radius:var(--radius-lg)}
+        .sw:hover .sw-copy{opacity:1}
+        .sw{position:relative}
+
+        /* ══════════════════════════════════════════════
+           TYPE SPECIMENS
+        ══════════════════════════════════════════════ */
+        .ts{padding:24px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--surface);margin-bottom:14px;transition:border-color var(--dur-2),box-shadow var(--dur-2)}
+        .ts:hover{border-color:var(--border-h);box-shadow:var(--shadow-2)}
+        .ts-label{font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px}
+        .ts-meta{font-size:11px;color:var(--text-3);margin-top:8px;font-family:'JetBrains Mono',monospace;opacity:.7}
+
+        /* ══════════════════════════════════════════════
+           BUTTONS
+        ══════════════════════════════════════════════ */
+        .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;font-family:inherit;font-weight:600;border:none;cursor:pointer;transition:all var(--dur-2) var(--ease);white-space:nowrap;border-radius:var(--radius);font-size:14px;padding:10px 20px;line-height:1;position:relative;outline:none}
+        .btn:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+        .btn:active{transform:scale(.97);transition-duration:80ms}
+        .btn svg{flex-shrink:0}
+
+        .btn-pri{background:var(--primary);color:white;box-shadow:0 1px 2px rgba(79,70,229,.3),inset 0 1px 0 rgba(255,255,255,.12)}
+        .btn-pri:hover{background:var(--primary-a);box-shadow:var(--shadow-pri);transform:translateY(-1px)}
+        .btn-pri:active{transform:translateY(0) scale(.98);box-shadow:var(--shadow-1)}
+
+        .btn-sec{background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:var(--shadow-1)}
+        .btn-sec:hover{background:var(--bg2);border-color:var(--border-h);transform:translateY(-1px);box-shadow:var(--shadow-2)}
+
+        .btn-soft{background:var(--primary-50);color:var(--primary);border:1px solid var(--primary-200)}
+        .btn-soft:hover{background:var(--primary-100)}
+
+        .btn-danger{background:var(--red);color:white;box-shadow:0 1px 2px rgba(220,38,38,.25)}
+        .btn-danger:hover{background:#b91c1c;transform:translateY(-1px);box-shadow:0 4px 12px rgba(220,38,38,.25)}
+
+        .btn-success{background:var(--emerald);color:white;box-shadow:0 1px 2px rgba(5,150,105,.25)}
+        .btn-success:hover{background:#047857;transform:translateY(-1px)}
+
+        .btn-ghost{background:transparent;color:var(--text-2)}
+        .btn-ghost:hover{background:var(--bg2);color:var(--text)}
+
+        .btn-sm{font-size:13px;padding:7px 14px;gap:6px}
+        .btn-xs{font-size:12px;padding:5px 10px;border-radius:var(--radius-sm);gap:5px}
+        .btn-lg{font-size:15px;padding:13px 28px;border-radius:var(--radius-lg)}
+
+        .btn-icon{width:36px;height:36px;padding:0}.btn-icon.btn-sm{width:32px;height:32px}
+
+        /* ══════════════════════════════════════════════
+           FORMS
+        ══════════════════════════════════════════════ */
+        .fg{margin-bottom:18px}
+        .fl{display:block;font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px}
+        .fl .req{color:var(--red);margin-left:2px}
+        .fh{font-size:12px;color:var(--text-3);margin-top:5px;line-height:1.4}
+
+        .fi{width:100%;padding:9px 13px;border:1px solid var(--border);border-radius:var(--radius);font-family:inherit;font-size:14px;color:var(--text);background:var(--surface);transition:border-color var(--dur-1),box-shadow var(--dur-1);outline:none}
+        .fi::placeholder{color:var(--text-3)}
+        .fi:hover{border-color:var(--border-h)}
+        .fi:focus{border-color:var(--primary-h);box-shadow:0 0 0 3px var(--primary-glow)}
+        .fi:disabled{background:var(--bg2);color:var(--text-3);cursor:not-allowed}
+        .fi-err{border-color:var(--red)}.fi-err:focus{box-shadow:0 0 0 3px rgba(220,38,38,.1)}
+        .fi-auto{background:var(--bg2);border-style:dashed;color:var(--text-2)}
+        .f-err{font-size:12px;color:var(--red);margin-top:5px;display:flex;align-items:center;gap:5px}
+
+        .fi-select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:36px;cursor:pointer}
+
+        .toggle{position:relative;width:44px;height:24px;background:var(--border-h);border-radius:12px;cursor:pointer;border:none;padding:0;transition:background var(--dur-2)}
+        .toggle::after{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;background:white;border-radius:50%;transition:transform var(--dur-2) var(--ease-spring);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+        .toggle.on{background:var(--primary)}.toggle.on::after{transform:translateX(20px)}
+
+        .input-icon{position:relative}
+        .input-icon .fi{padding-left:38px}
+        .input-icon svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--text-3);pointer-events:none}
+
+        .input-sfx{position:relative}
+        .input-sfx .fi{padding-right:48px}
+        .input-sfx .sfx{position:absolute;right:13px;top:50%;transform:translateY(-50%);font-size:13px;font-weight:500;color:var(--text-3);pointer-events:none}
+
+        /* ══════════════════════════════════════════════
+           CARDS
+        ══════════════════════════════════════════════ */
+        .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;transition:box-shadow var(--dur-2),border-color var(--dur-2)}
+        .card:hover{border-color:var(--border-h)}
+        .card-t{font-size:15px;font-weight:700}
+
+        .stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;display:flex;flex-direction:column;gap:2px;transition:all var(--dur-2);position:relative;overflow:hidden;cursor:default}
+        .stat:hover{box-shadow:var(--shadow-3);transform:translateY(-3px);border-color:var(--border-h)}
+        .stat::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:3px 3px 0 0}
+        .stat.a-indigo::before{background:linear-gradient(90deg,var(--primary),var(--primary-h))}
+        .stat.a-green::before{background:linear-gradient(90deg,#047857,var(--emerald))}
+        .stat.a-amber::before{background:linear-gradient(90deg,#b45309,var(--amber))}
+        .stat.a-blue::before{background:linear-gradient(90deg,#1d4ed8,var(--blue))}
+        .stat-icon{width:42px;height:42px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;margin-bottom:12px}
+        .stat-label{font-size:12px;font-weight:500;color:var(--text-3);letter-spacing:.2px}
+        .stat-val{font-size:30px;font-weight:800;letter-spacing:-.5px;line-height:1.1}
+        .stat-trend{font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:4px;margin-top:6px}
+        .trend-up{color:var(--emerald)}.trend-dn{color:var(--red)}.trend-flat{color:var(--text-3)}
+
+        /* ══════════════════════════════════════════════
+           BADGES
+        ══════════════════════════════════════════════ */
+        .badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:var(--radius-full);font-size:12px;font-weight:600;line-height:1.4;letter-spacing:.1px;gap:6px}
+        .b-pri{background:var(--primary-50);color:var(--primary)}
+        .b-ok{background:var(--emerald-l);color:var(--emerald)}
+        .b-warn{background:var(--amber-l);color:var(--amber)}
+        .b-err{background:var(--red-l);color:var(--red)}
+        .b-info{background:var(--blue-l);color:var(--blue)}
+        .b-muted{background:var(--bg2);color:var(--text-2)}
+        .b-purple{background:var(--purple-l);color:var(--purple)}
+        .b-cyan{background:var(--cyan-l);color:var(--cyan)}
+        .b-dark{background:var(--text);color:var(--text-inv)}
+        .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
+        /* ══════════════════════════════════════════════
+           TABLE
+        ══════════════════════════════════════════════ */
+        .tw{border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;background:var(--surface)}
+        .tt{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border-l);gap:12px;flex-wrap:wrap}
+        table{width:100%;border-collapse:collapse}
+        th{text-align:left;padding:10px 20px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);background:var(--bg);border-bottom:1px solid var(--border)}
+        td{padding:13px 20px;font-size:14px;border-bottom:1px solid var(--border-l);transition:background var(--dur-1)}
+        tbody tr:hover td{background:var(--primary-50)}
+        tbody tr:last-child td{border-bottom:none}
+        .td-pri{font-weight:600}.td-sub{color:var(--text-2);font-size:12px;margin-top:1px}
+        .td-mono{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-2)}
+        .row-sel td{background:var(--primary-50) !important}
+        .row-sel td:first-child{box-shadow:inset 3px 0 0 var(--primary)}
+
+        /* ══════════════════════════════════════════════
+           TABS
+        ══════════════════════════════════════════════ */
+        .tabs{display:flex;border-bottom:2px solid var(--border)}
+        .tab{padding:10px 18px;font-size:14px;font-weight:500;color:var(--text-3);border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;transition:color var(--dur-1),border-color var(--dur-1);display:flex;align-items:center;gap:6px}
+        .tab:hover{color:var(--text)}
+        .tab.on{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+        .tab-c{background:var(--bg2);color:var(--text-3);font-size:11px;font-weight:600;padding:1px 7px;border-radius:var(--radius-full)}
+        .tab.on .tab-c{background:var(--primary-50);color:var(--primary)}
+
+        /* ══════════════════════════════════════════════
+           LAYOUT PREVIEW
+        ══════════════════════════════════════════════ */
+        .lp{border:1px solid var(--border);border-radius:var(--radius-2xl);overflow:hidden;background:var(--bg);height:560px;display:flex;box-shadow:var(--shadow-4);position:relative}
+        .lp::before{content:'';position:absolute;top:0;left:0;right:0;height:120px;background:linear-gradient(180deg,var(--primary-50),transparent);opacity:.5;pointer-events:none;z-index:0}
+        .lp-sb{width:252px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;position:relative;z-index:1}
+        .lp-logo{padding:16px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border-l)}
+        .lp-logo-ic{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--primary),#818cf8);display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:15px;box-shadow:0 2px 8px rgba(79,70,229,.3);flex-shrink:0}
+        .lp-logo-t{font-weight:700;font-size:16px;letter-spacing:-.3px}
+        .lp-logo-s{font-size:10px;color:var(--text-3);font-weight:500}
+        .lp-nav{padding:8px;flex:1;overflow-y:auto}
+        .lp-ns{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-3);padding:14px 12px 6px}
+        .lp-ni{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--radius);font-size:13px;font-weight:500;color:var(--text-2);cursor:pointer;transition:all var(--dur-1);position:relative}
+        .lp-ni:hover{background:var(--bg2);color:var(--text)}
+        .lp-ni.on{background:var(--primary-50);color:var(--primary);font-weight:600}
+        .lp-ni.on::before{content:'';position:absolute;left:-8px;width:3px;height:24px;background:var(--primary);border-radius:0 3px 3px 0}
+        .lp-ni svg{width:18px;height:18px;opacity:.5;flex-shrink:0}.lp-ni.on svg{opacity:1}
+        .lp-ni-badge{margin-left:auto;font-size:10px;font-weight:700;padding:2px 8px;border-radius:var(--radius-full);background:var(--red-l);color:var(--red);min-width:20px;text-align:center}
+        .lp-ni-soon{margin-left:auto;font-size:9px;font-weight:700;padding:2px 6px;border-radius:var(--radius-xs);background:var(--bg2);color:var(--text-3);text-transform:uppercase;letter-spacing:.3px}
+
+        .lp-main{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;z-index:1}
+        .lp-top{height:56px;background:color-mix(in srgb,var(--surface) 90%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:12px;flex-shrink:0}
+        .lp-search{flex:1;max-width:320px;padding:7px 12px 7px 34px;border:1px solid var(--border);border-radius:var(--radius-full);font-size:13px;background:var(--bg);outline:none;font-family:inherit;color:var(--text);transition:border-color var(--dur-1),box-shadow var(--dur-1)}
+        .lp-search:focus{border-color:var(--primary-h);box-shadow:0 0 0 3px var(--primary-glow)}
+        .lp-notif{width:36px;height:36px;border-radius:var(--radius);border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;position:relative;transition:background var(--dur-1);color:var(--text-3)}
+        .lp-notif:hover{background:var(--bg2)}
+        .lp-notif-dot{position:absolute;top:6px;right:7px;width:8px;height:8px;background:var(--red);border-radius:50%;border:2px solid var(--surface);animation:pulse-dot 2s infinite}
+        .lp-av{width:34px;height:34px;border-radius:var(--radius-full);background:var(--primary-100);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;cursor:pointer;transition:box-shadow var(--dur-1)}
+        .lp-av:hover{box-shadow:0 0 0 3px var(--primary-glow)}
+        .lp-ct{flex:1;padding:24px;overflow-y:auto;background:var(--bg)}
+
+        /* ══════════════════════════════════════════════
+           MODAL
+        ══════════════════════════════════════════════ */
+        .modal-wrap{position:relative;background:color-mix(in srgb,var(--text) 4%,transparent);border-radius:var(--radius-xl);padding:48px;display:flex;justify-content:center}
+        .modal{background:var(--surface);border-radius:var(--radius-xl);box-shadow:var(--shadow-5);width:520px;max-width:95vw;overflow:hidden;display:flex;flex-direction:column;border:1px solid var(--border)}
+        .modal-hd{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--border-l)}
+        .modal-t{font-size:17px;font-weight:700}
+        .modal-x{width:32px;height:32px;border:none;background:none;border-radius:var(--radius-sm);cursor:pointer;color:var(--text-3);display:flex;align-items:center;justify-content:center;transition:all var(--dur-1)}
+        .modal-x:hover{background:var(--bg2);color:var(--text)}
+        .modal-bd{padding:24px}
+        .modal-ft{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid var(--border-l);background:var(--bg)}
+
+        /* ══════════════════════════════════════════════
+           TOAST
+        ══════════════════════════════════════════════ */
+        .toast{display:flex;align-items:flex-start;gap:12px;padding:14px 18px;border-radius:var(--radius-lg);background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow-4);font-size:14px;min-width:340px;position:relative;overflow:hidden}
+        .toast-ok{border-left:4px solid var(--emerald)}.toast-err{border-left:4px solid var(--red)}.toast-wrn{border-left:4px solid var(--amber)}
+        .toast-ic{width:20px;height:20px;flex-shrink:0;margin-top:1px}
+        .toast-ct{flex:1}.toast-tt{font-weight:600;margin-bottom:2px}.toast-desc{font-size:13px;color:var(--text-2);font-weight:400}
+        .toast-x{position:absolute;top:10px;right:10px;width:24px;height:24px;border:none;background:none;color:var(--text-3);cursor:pointer;border-radius:var(--radius-xs);display:flex;align-items:center;justify-content:center}
+        .toast-x:hover{background:var(--bg2)}
+        .toast-bar{position:absolute;bottom:0;left:4px;height:3px;border-radius:0 0 0 8px;animation:shrink-bar 4s linear forwards}
+        @keyframes shrink-bar{from{width:100%}to{width:0}}
+
+        /* ══════════════════════════════════════════════
+           CALCULATOR
+        ══════════════════════════════════════════════ */
+        .calc{border:1px solid var(--border);border-radius:var(--radius-2xl);overflow:hidden;background:var(--bg);box-shadow:var(--shadow-4)}
+        .calc-hd{height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px}
+        .calc-bd{display:grid;grid-template-columns:1fr 1fr;height:560px}
+        .calc-col{overflow-y:auto;padding:20px}
+        .calc-col:first-child{border-right:1px solid var(--border)}
+        .calc-sn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--primary-50);color:var(--primary);font-size:11px;font-weight:700;margin-right:8px;flex-shrink:0}
+        .calc-st{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-2);margin-bottom:12px;display:flex;align-items:center}
+        .calc-fg{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:22px}
+        .calc-fl{font-size:11px;font-weight:500;color:var(--text-3);margin-bottom:4px}
+        .calc-fi{padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:inherit;width:100%;background:var(--surface);outline:none;color:var(--text);transition:border-color var(--dur-1),box-shadow var(--dur-1)}
+        .calc-fi:focus{border-color:var(--primary-h);box-shadow:0 0 0 2px var(--primary-glow)}
+        .calc-fi-auto{background:var(--bg2);border-style:dashed;color:var(--text-2)}
+
+        .oc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;transition:border-color var(--dur-1)}
+        .oc:hover{border-color:var(--border-h)}
+        .oc-t{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin-bottom:10px}
+        .or{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px}
+        .or-l{color:var(--text-2)}.or-v{font-weight:600;font-family:'JetBrains Mono',monospace;font-size:13px}
+        .chip{padding:3px 10px;border-radius:var(--radius-full);font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:4px}
+        .chip-up{background:var(--emerald-l);color:var(--emerald)}.chip-dn{background:var(--red-l);color:var(--red)}
+
+        /* ── Cost bar chart ── */
+        .cost-bar{height:6px;border-radius:3px;background:var(--bg2);margin-top:4px;overflow:hidden;margin-bottom:8px}
+        .cost-bar-fill{height:100%;border-radius:3px;transition:width var(--dur-3) var(--ease-out)}
+
+        /* ══════════════════════════════════════════════
+           EMPTY STATE
+        ══════════════════════════════════════════════ */
+        .empty{text-align:center;padding:56px 24px}
+        .empty-ic{width:64px;height:64px;border-radius:var(--radius-xl);background:var(--bg2);display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px}
+        .empty-t{font-size:16px;font-weight:700;margin-bottom:4px}
+        .empty-d{font-size:14px;color:var(--text-3);margin-bottom:20px;max-width:280px;margin-left:auto;margin-right:auto}
+
+        /* ══════════════════════════════════════════════
+           SKELETON
+        ══════════════════════════════════════════════ */
+        .skel{background:linear-gradient(90deg,var(--bg2) 25%,color-mix(in srgb,var(--bg2) 70%,var(--border)) 50%,var(--bg2) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:var(--radius-sm)}
+        @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+        /* ══════════════════════════════════════════════
+           TIMELINE
+        ══════════════════════════════════════════════ */
+        .tl{position:relative;padding-left:28px}
+        .tl::before{content:'';position:absolute;left:7px;top:8px;bottom:8px;width:2px;background:var(--border);border-radius:1px}
+        .tl-item{position:relative;padding-bottom:24px}
+        .tl-item:last-child{padding-bottom:0}
+        .tl-dot{position:absolute;left:-28px;top:4px;width:16px;height:16px;border-radius:50%;background:var(--surface);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;z-index:1}
+        .tl-dot.done{border-color:var(--emerald);background:var(--emerald)}
+        .tl-dot.done::after{content:'';width:6px;height:6px;background:white;border-radius:50%}
+        .tl-dot.current{border-color:var(--primary);background:var(--primary);box-shadow:0 0 0 4px var(--primary-glow)}
+        .tl-dot.current::after{content:'';width:6px;height:6px;background:white;border-radius:50%}
+        .tl-time{font-size:11px;color:var(--text-3);margin-bottom:2px;font-family:'JetBrains Mono',monospace}
+        .tl-text{font-size:14px;font-weight:500}
+
+        /* ══════════════════════════════════════════════
+           COMMAND PALETTE
+        ══════════════════════════════════════════════ */
+        .cmd{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xl);box-shadow:var(--shadow-5);width:520px;max-width:95vw;overflow:hidden}
+        .cmd-input-wrap{padding:16px 20px;border-bottom:1px solid var(--border-l);display:flex;align-items:center;gap:12px}
+        .cmd-input{border:none;outline:none;font-size:15px;font-family:inherit;flex:1;background:transparent;color:var(--text)}
+        .cmd-input::placeholder{color:var(--text-3)}
+        .cmd-list{padding:8px;max-height:280px;overflow-y:auto}
+        .cmd-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:var(--radius);cursor:pointer;transition:background var(--dur-1);font-size:14px;color:var(--text-2)}
+        .cmd-item:hover,.cmd-item.sel{background:var(--primary-50);color:var(--primary)}
+        .cmd-item svg{width:18px;height:18px;opacity:.5;flex-shrink:0}
+        .cmd-item:hover svg,.cmd-item.sel svg{opacity:1}
+        .cmd-item-keys{margin-left:auto;display:flex;gap:4px}
+        .cmd-ft{padding:10px 20px;border-top:1px solid var(--border-l);display:flex;align-items:center;gap:16px;font-size:12px;color:var(--text-3)}
+
+        kbd{display:inline-flex;align-items:center;justify-content:center;padding:2px 6px;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:500;color:var(--text-2);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-xs);box-shadow:0 1px 0 var(--border);min-width:20px;line-height:1.4}
+
+        /* ══════════════════════════════════════════════
+           BREADCRUMB & AVATAR
+        ══════════════════════════════════════════════ */
+        .bc{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-3)}
+        .bc a{color:var(--text-2);text-decoration:none;font-weight:500}.bc a:hover{color:var(--primary)}
+        .bc .cur{color:var(--text);font-weight:600}
+
+        .av-group{display:flex}
+        .av{width:32px;height:32px;border-radius:50%;border:2px solid var(--surface);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;margin-left:-8px;transition:transform var(--dur-1)}
+        .av:first-child{margin-left:0}
+        .av:hover{transform:scale(1.15);z-index:1}
+
+        /* ══════════════════════════════════════════════
+           PROGRESS STEPPER
+        ══════════════════════════════════════════════ */
+        .stepper{display:flex;align-items:center;gap:0}
+        .step{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:var(--text-3);padding:8px 16px;border-radius:var(--radius-full);transition:all var(--dur-2)}
+        .step.done{color:var(--emerald)}.step.active{color:var(--primary);background:var(--primary-50);font-weight:600}
+        .step-num{width:24px;height:24px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;transition:all var(--dur-2)}
+        .step.done .step-num{border-color:var(--emerald);background:var(--emerald);color:white}
+        .step.active .step-num{border-color:var(--primary);background:var(--primary);color:white;box-shadow:0 0 0 3px var(--primary-glow)}
+        .step-line{width:32px;height:2px;background:var(--border);flex-shrink:0}
+        .step-line.done{background:var(--emerald)}
+
+        /* ══════════════════════════════════════════════
+           RESPONSIVE
+        ══════════════════════════════════════════════ */
+        @media(max-width:1024px){
+            .calc-bd{grid-template-columns:1fr;height:auto}
+            .calc-col:first-child{border-right:none;border-bottom:1px solid var(--border)}
+            .lp{height:auto;flex-direction:column}
+            .lp-sb{width:100%;height:200px;border-right:none;border-bottom:1px solid var(--border)}
+        }
+    </style>
+</head>
+<body>
+
+<!-- ═══════════════ NAV ═══════════════ -->
+<nav class="nav" id="nav">
+    <div class="nav-inner">
+        <span class="logo"><span class="logo-dot"></span> SARAS Design</span>
+        <div class="nav-links" id="navLinks">
+            <a href="#colors">Colors</a>
+            <a href="#type">Typography</a>
+            <a href="#buttons">Buttons</a>
+            <a href="#forms">Forms</a>
+            <a href="#stats">Stats</a>
+            <a href="#table">Table</a>
+            <a href="#badges">Badges</a>
+            <a href="#layout">Layout</a>
+            <a href="#calc">Calculator</a>
+            <a href="#patterns">Patterns</a>
+        </div>
+        <div class="nav-right">
+            <button class="theme-btn" onclick="toggleTheme()" title="Toggle dark mode" id="themeBtn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="themeIcon"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            </button>
+        </div>
+    </div>
+</nav>
+
+<div class="container page-padding">
+
+<!-- ═══════════ HERO ═══════════ -->
+<section style="text-align:center;padding:24px 0 40px" class="reveal">
+    <div style="display:inline-flex;align-items:center;justify-content:center;width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,var(--primary),#818cf8);margin-bottom:20px;box-shadow:0 8px 24px rgba(79,70,229,.3)">
+        <span style="color:white;font-weight:800;font-size:26px">S</span>
+    </div>
+    <h1 style="font-size:42px;font-weight:800;letter-spacing:-1.2px;margin-bottom:6px;background:linear-gradient(135deg,var(--text),var(--text-2));-webkit-background-clip:text;-webkit-text-fill-color:transparent">SARAS ERP v2</h1>
+    <p style="color:var(--text-2);font-size:15px;max-width:420px;margin:0 auto;line-height:1.65">Design system for RPK Industries<br>Cordage &amp; narrow textile manufacturing ERP</p>
+    <div style="margin-top:20px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap">
+        <span class="badge b-pri">React 19</span><span class="badge b-pri">Tailwind v4</span><span class="badge b-pri">Supabase</span>
+        <span class="badge b-muted">Plus Jakarta Sans</span><span class="badge b-muted">JetBrains Mono</span><span class="badge b-muted">Lucide Icons</span>
+    </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════ COLORS ═══════════ -->
+<section id="colors" class="reveal">
+    <div class="section-tag">Foundation</div>
+    <h2 class="section-h">Color Palette</h2>
+    <p class="section-p">Indigo primary for trust. Semantic colors for every status. Slate neutrals for text and structure. Every shade tested for WCAG AA contrast.</p>
+
+    <div class="sg">
+        <div class="sg-label">Primary (Indigo)</div>
+        <div class="g5">
+            <div class="sw"><div class="sw-c" style="background:#eef2ff"></div><div class="sw-i"><div class="sw-n">50</div><div class="sw-h">#EEF2FF</div><div class="sw-r">Active BG, Selected Row</div></div></div>
+            <div class="sw"><div class="sw-c" style="background:#c7d2fe"></div><div class="sw-i"><div class="sw-n">200</div><div class="sw-h">#C7D2FE</div><div class="sw-r">Focus Ring, Soft Border</div></div></div>
+            <div class="sw"><div class="sw-c" style="background:#6366f1"><span style="color:white">Light</span></div><div class="sw-i"><div class="sw-n">500</div><div class="sw-h">#6366F1</div><div class="sw-r">Hover State</div></div></div>
+            <div class="sw"><div class="sw-c" style="background:#4f46e5"><span style="color:white">Primary</span></div><div class="sw-i"><div class="sw-n">600</div><div class="sw-h">#4F46E5</div><div class="sw-r">Buttons, Links, Active</div></div></div>
+            <div class="sw"><div class="sw-c" style="background:#4338ca"><span style="color:white">Dark</span></div><div class="sw-i"><div class="sw-n">700</div><div class="sw-h">#4338CA</div><div class="sw-r">Pressed, Active Nav</div></div></div>
+        </div>
+    </div>
+    <div class="sg">
+        <div class="sg-label">Semantic</div>
+        <div class="g4">
+            <div class="sw"><div class="sw-c" style="background:#059669"><span style="color:white">Success</span></div><div class="sw-i"><div class="sw-n">Emerald</div><div class="sw-h">#059669</div><div class="sw-r">Profit, Completed, Active</div></div></div>
+            <div class="sw"><div class="sw-c" style="background:#d97706"><span style="color:white">Warning</span></div><div class="sw-i"><div class="sw-n">Amber</div><div class="sw-h">#D97706</div><div class="sw-r">Pending, Low Stock</div></div></div>
+            <div class="sw"><div class="sw-c" style="background:#dc2626"><span style="color:white">Danger</span></div><div class="sw-i"><div class="sw-n">Red</div><div class="sw-h">#DC2626</div><div class="sw-r">Error, Loss, Cancel</div></div></div>
+            <div class="sw"><div class="sw-c" style="background:#2563eb"><span style="color:white">Info</span></div><div class="sw-i"><div class="sw-n">Blue</div><div class="sw-h">#2563EB</div><div class="sw-r">Links, Booking, New</div></div></div>
+        </div>
+    </div>
+    <div class="sg">
+        <div class="sg-label">Neutrals (Slate)</div>
+        <div class="g6">
+            <div class="sw"><div class="sw-c" style="background:#f8fafc;border-bottom:1px solid #e2e8f0"></div><div class="sw-i"><div class="sw-n">BG</div><div class="sw-h">#F8FAFC</div></div></div>
+            <div class="sw"><div class="sw-c" style="background:#f1f5f9"></div><div class="sw-i"><div class="sw-n">Hover</div><div class="sw-h">#F1F5F9</div></div></div>
+            <div class="sw"><div class="sw-c" style="background:#e2e8f0"></div><div class="sw-i"><div class="sw-n">Border</div><div class="sw-h">#E2E8F0</div></div></div>
+            <div class="sw"><div class="sw-c" style="background:#94a3b8"><span style="color:white">Muted</span></div><div class="sw-i"><div class="sw-n">Muted</div><div class="sw-h">#94A3B8</div></div></div>
+            <div class="sw"><div class="sw-c" style="background:#475569"><span style="color:white">Body</span></div><div class="sw-i"><div class="sw-n">Text 2</div><div class="sw-h">#475569</div></div></div>
+            <div class="sw"><div class="sw-c" style="background:#0f172a"><span style="color:white">Head</span></div><div class="sw-i"><div class="sw-n">Text 1</div><div class="sw-h">#0F172A</div></div></div>
+        </div>
+    </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════ TYPOGRAPHY ═══════════ -->
+<section id="type" class="reveal">
+    <div class="section-tag">Foundation</div>
+    <h2 class="section-h">Typography</h2>
+    <p class="section-p">Plus Jakarta Sans for all UI text. JetBrains Mono for order IDs, GSTINs, currency amounts, and all numeric data output.</p>
+
+    <div class="ts"><div class="ts-label">Display</div><div style="font-size:34px;font-weight:800;letter-spacing:-.6px">Production Dashboard</div><div class="ts-meta">34px / 800 / -0.6px</div></div>
+    <div class="g2">
+        <div class="ts"><div class="ts-label">H1 / Section</div><div style="font-size:22px;font-weight:700;letter-spacing:-.3px">Order Management</div><div class="ts-meta">22px / 700 / -0.3px</div></div>
+        <div class="ts"><div class="ts-label">H2 / Card</div><div style="font-size:16px;font-weight:700">Material Requirement</div><div class="ts-meta">16px / 700</div></div>
+    </div>
+    <div class="ts">
+        <div class="ts-label">Body Text</div>
+        <div style="font-size:14px;line-height:1.7">
+            Covering yarn needed: <span class="mono" style="font-size:13px;background:var(--bg2);padding:2px 6px;border-radius:4px">45.250 kg</span> Polyester DTY 150D at <span class="mono" style="font-size:13px;background:var(--bg2);padding:2px 6px;border-radius:4px">&#8377;285/kg</span> from Sharma Textiles.
+            Filler: <span class="mono" style="font-size:13px;background:var(--bg2);padding:2px 6px;border-radius:4px">12.800 kg</span> cotton 10s. Est. 3.5 days on 2 machines at 85% efficiency.
+        </div>
+        <div class="ts-meta">14px / 400 / 1.7 line-height &middot; Inline mono for numeric data</div>
+    </div>
+    <div class="g3">
+        <div class="ts"><div class="ts-label">Label</div><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-3)">COVERING YARN</div><div class="ts-meta">11px / 700 / uppercase / 1px</div></div>
+        <div class="ts"><div class="ts-label">Stat Number</div><div style="font-size:30px;font-weight:800;letter-spacing:-.5px">&#8377;1,24,500</div><div class="ts-meta">30px / 800 / -0.5px</div></div>
+        <div class="ts"><div class="ts-label">Monospace</div><div class="mono" style="font-size:14px">ORD-2526-0047</div><div class="ts-meta">JetBrains Mono 14px</div></div>
+    </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════ BUTTONS ═══════════ -->
+<section id="buttons" class="reveal">
+    <div class="section-tag">Components</div>
+    <h2 class="section-h">Buttons</h2>
+    <p class="section-p">Primary lifts with indigo glow. Secondary floats up. Soft variant for edit/secondary CTA. All buttons have focus-visible ring for keyboard users.</p>
+
+    <div class="card mb-4">
+        <div class="card-t mb-4">Variants</div>
+        <div class="flex gap-3" style="flex-wrap:wrap;align-items:center">
+            <button class="btn btn-pri"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New Order</button>
+            <button class="btn btn-sec"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export</button>
+            <button class="btn btn-soft"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button>
+            <button class="btn btn-success">Approve</button>
+            <button class="btn btn-danger">Delete</button>
+            <button class="btn btn-ghost">Cancel</button>
+        </div>
+    </div>
+    <div class="g2">
+        <div class="card"><div class="card-t mb-3">Sizes</div><div class="flex gap-3 items-c"><button class="btn btn-pri btn-xs">XS</button><button class="btn btn-pri btn-sm">Small</button><button class="btn btn-pri">Default</button><button class="btn btn-pri btn-lg">Large</button></div></div>
+        <div class="card"><div class="card-t mb-3">States</div><div class="flex gap-3 items-c"><button class="btn btn-pri">Normal</button><button class="btn btn-pri" style="opacity:.7;pointer-events:none"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>Saving...</button><button class="btn btn-pri" style="opacity:.4;cursor:not-allowed">Disabled</button><button class="btn btn-icon btn-sec"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button></div></div>
+    </div>
+</section>
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+<div class="divider"></div>
+
+<!-- ═══════════ FORMS ═══════════ -->
+<section id="forms" class="reveal">
+    <div class="section-tag">Components</div>
+    <h2 class="section-h">Form Elements</h2>
+    <p class="section-p">Dashed borders for auto-calc fields. Unit suffixes inside inputs. Toggle switch with spring physics. Required asterisk on mandatory fields.</p>
+
+    <div class="g2">
+        <div class="card">
+            <div class="card-t mb-4">Inputs</div>
+            <div class="fg"><label class="fl">Firm Name <span class="req">*</span></label><input class="fi" value="Sharma Textiles"></div>
+            <div class="fg"><label class="fl">GSTIN</label><input class="fi" placeholder="e.g. 08AABCS1429B1ZS"><div class="fh">15-digit GST Identification Number</div></div>
+            <div class="fg"><label class="fl">Rate per Kg</label><div class="input-sfx"><input class="fi fi-err" type="number" value="0"><span class="sfx">&#8377;/kg</span></div><div class="f-err"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Rate must be greater than 0</div></div>
+            <div class="fg"><label class="fl">GSM (Auto)</label><input class="fi fi-auto" value="185.6" disabled><div class="fh">Calculated from sample weight &amp; area</div></div>
+        </div>
+        <div class="card">
+            <div class="card-t mb-4">Controls</div>
+            <div class="fg"><label class="fl">Machine Type</label><select class="fi fi-select"><option>Select machine...</option><option selected>16-Carrier Round Braider</option><option>24-Carrier Round Braider</option></select></div>
+            <div class="fg"><label class="fl">Search Order</label><div class="input-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="fi" placeholder="Search by order #, customer..."></div></div>
+            <div class="fg"><label class="fl" style="margin-bottom:10px">Active Status</label><div class="flex gap-4 items-c"><button class="toggle on" onclick="this.classList.toggle('on')"></button><span style="font-size:14px;color:var(--text-2)">Show active only</span></div></div>
+            <div class="fg"><label class="fl">Shortcut</label><div class="flex gap-2 items-c" style="font-size:13px;color:var(--text-2)">Press <kbd>Ctrl</kbd><span>+</span><kbd>K</kbd> to quick search</div></div>
+        </div>
+    </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════ STATS ═══════════ -->
+<section id="stats" class="reveal">
+    <div class="section-tag">Components</div>
+    <h2 class="section-h">Stat Cards</h2>
+    <p class="section-p">Gradient top-accent bars. Hover lifts card with shadow. Animated counter on load. Trend arrows for period comparison.</p>
+
+    <div class="g4">
+        <div class="stat a-indigo"><div class="stat-icon" style="background:var(--primary-50)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg></div><div class="stat-label">Total Orders</div><div class="stat-val" data-count="247">247</div><div class="stat-trend trend-up"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>+12% this month</div></div>
+        <div class="stat a-green"><div class="stat-icon" style="background:var(--emerald-l)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div><div class="stat-label">Revenue (MTD)</div><div class="stat-val">&#8377;18.4L</div><div class="stat-trend trend-up"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>+8.3%</div></div>
+        <div class="stat a-amber"><div class="stat-icon" style="background:var(--amber-l)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="stat-label">Pending Production</div><div class="stat-val" data-count="38">38</div><div class="stat-trend trend-dn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/></svg>5 overdue</div></div>
+        <div class="stat a-blue"><div class="stat-icon" style="background:var(--blue-l)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div><div class="stat-label">Active Customers</div><div class="stat-val" data-count="156">156</div><div class="stat-trend trend-flat">12 new this month</div></div>
+    </div>
+
+    <div class="mt-6"><div class="sg-label mb-3">Loading Skeleton</div>
+    <div class="g4"><div class="stat" style="gap:10px"><div class="skel" style="width:42px;height:42px;border-radius:8px"></div><div class="skel" style="width:80px;height:12px"></div><div class="skel" style="width:60px;height:28px"></div><div class="skel" style="width:100px;height:12px"></div></div><div class="stat" style="gap:10px"><div class="skel" style="width:42px;height:42px;border-radius:8px"></div><div class="skel" style="width:70px;height:12px"></div><div class="skel" style="width:80px;height:28px"></div><div class="skel" style="width:90px;height:12px"></div></div><div class="stat" style="gap:10px"><div class="skel" style="width:42px;height:42px;border-radius:8px"></div><div class="skel" style="width:90px;height:12px"></div><div class="skel" style="width:50px;height:28px"></div><div class="skel" style="width:80px;height:12px"></div></div><div class="stat" style="gap:10px"><div class="skel" style="width:42px;height:42px;border-radius:8px"></div><div class="skel" style="width:75px;height:12px"></div><div class="skel" style="width:65px;height:28px"></div><div class="skel" style="width:95px;height:12px"></div></div></div></div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════ TABLE ═══════════ -->
+<section id="table" class="reveal">
+    <div class="section-tag">Components</div>
+    <h2 class="section-h">Data Table</h2>
+    <p class="section-p">Row hover highlights in primary-50. Selected rows get indigo left border. Checkbox for bulk actions. Monospace for codes.</p>
+
+    <div class="tw">
+        <div class="tt">
+            <div class="flex gap-3 items-c">
+                <div class="input-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input class="fi" style="width:240px;padding-left:36px;font-size:13px" placeholder="Search customers..."></div>
+                <span class="badge b-muted">156 records</span>
+            </div>
+            <div class="flex gap-2">
+                <button class="btn btn-sec btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>Filter</button>
+                <button class="btn btn-pri btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button>
+            </div>
+        </div>
+        <div style="overflow-x:auto">
+        <table>
+            <thead><tr><th style="width:32px"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--primary)"></th><th>Firm Name</th><th>Phone</th><th>City</th><th>GSTIN</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead>
+            <tbody>
+                <tr class="row-sel"><td><input type="checkbox" checked style="width:15px;height:15px;accent-color:var(--primary)"></td><td><div class="td-pri">Sharma Textiles</div><div class="td-sub">Rajesh Sharma</div></td><td>+91 98291 45678</td><td>Jaipur</td><td><span class="td-mono">08AABCS1429B1ZS</span></td><td><span class="badge b-ok"><span class="dot" style="background:var(--emerald)"></span>Active</span></td><td style="text-align:right"><div class="flex gap-2" style="justify-content:flex-end"><button class="btn btn-ghost btn-xs">Edit</button><button class="btn btn-ghost btn-xs" style="color:var(--red)">Delete</button></div></td></tr>
+                <tr><td><input type="checkbox" style="width:15px;height:15px;accent-color:var(--primary)"></td><td><div class="td-pri">Gupta Rope Industries</div><div class="td-sub">Manoj Gupta</div></td><td>+91 94140 78965</td><td>Delhi</td><td><span class="td-mono">07AABCG5678A1ZP</span></td><td><span class="badge b-ok"><span class="dot" style="background:var(--emerald)"></span>Active</span></td><td style="text-align:right"><div class="flex gap-2" style="justify-content:flex-end"><button class="btn btn-ghost btn-xs">Edit</button><button class="btn btn-ghost btn-xs" style="color:var(--red)">Delete</button></div></td></tr>
+                <tr><td><input type="checkbox" style="width:15px;height:15px;accent-color:var(--primary)"></td><td><div class="td-pri">Bharat Cord Pvt Ltd</div><div class="td-sub">Amit Bharat</div></td><td>+91 99280 11234</td><td>Ahmedabad</td><td><span class="td-mono">24AABCB9012C1ZT</span></td><td><span class="badge b-warn"><span class="dot" style="background:var(--amber)"></span>Overdue</span></td><td style="text-align:right"><div class="flex gap-2" style="justify-content:flex-end"><button class="btn btn-ghost btn-xs">Edit</button><button class="btn btn-ghost btn-xs" style="color:var(--red)">Delete</button></div></td></tr>
+            </tbody>
+        </table>
+        </div>
+    </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════ BADGES ═══════════ -->
+<section id="badges" class="reveal">
+    <div class="section-tag">Components</div>
+    <h2 class="section-h">Badges &amp; Status Flow</h2>
+    <p class="section-p">One color per status. Dot badges for lists. Arrow flow for the order lifecycle. Cancel/Hold as separate terminal states.</p>
+
+    <div class="card">
+        <div class="card-t mb-4">Order Status Pipeline</div>
+        <div class="flex gap-3" style="flex-wrap:wrap;align-items:center">
+            <span class="badge b-muted"><span class="dot" style="background:#94a3b8"></span>Draft</span><span style="color:var(--text-3);font-size:12px">&#10132;</span>
+            <span class="badge b-info"><span class="dot" style="background:var(--blue)"></span>Booking</span><span style="color:var(--text-3);font-size:12px">&#10132;</span>
+            <span class="badge b-pri"><span class="dot" style="background:var(--primary)"></span>Approved</span><span style="color:var(--text-3);font-size:12px">&#10132;</span>
+            <span class="badge b-warn"><span class="dot" style="background:var(--amber)"></span>Production</span><span style="color:var(--text-3);font-size:12px">&#10132;</span>
+            <span class="badge b-purple"><span class="dot" style="background:var(--purple)"></span>QC</span><span style="color:var(--text-3);font-size:12px">&#10132;</span>
+            <span class="badge b-cyan"><span class="dot" style="background:var(--cyan)"></span>Dispatch</span><span style="color:var(--text-3);font-size:12px">&#10132;</span>
+            <span class="badge b-ok"><span class="dot" style="background:var(--emerald)"></span>Completed</span>
+        </div>
+        <div class="flex gap-3 mt-3"><span class="badge b-err"><span class="dot" style="background:var(--red)"></span>Cancelled</span><span class="badge" style="background:var(--amber-l);color:#92400e"><span class="dot" style="background:#92400e"></span>On Hold</span></div>
+    </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════ LAYOUT ═══════════ -->
+<section id="layout" class="reveal">
+    <div class="section-tag">Layout</div>
+    <h2 class="section-h">App Shell</h2>
+    <p class="section-p">252px sidebar with groups, active bar, notification dot, Ctrl+K search. Breadcrumbs on every page. Subtle gradient wash behind header.</p>
+
+    <div class="lp">
+        <div class="lp-sb">
+            <div class="lp-logo"><div class="lp-logo-ic">S</div><div><div class="lp-logo-t">SARAS</div><div class="lp-logo-s">RPK Industries</div></div></div>
+            <div class="lp-nav">
+                <div class="lp-ni on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</div>
+                <div class="lp-ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>Orders<span class="lp-ni-badge">3</span></div>
+                <div class="lp-ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg>Calculator</div>
+                <div class="lp-ns">Masters</div>
+                <div class="lp-ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Customers</div>
+                <div class="lp-ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>Products</div>
+                <div class="lp-ns">Finance</div>
+                <div class="lp-ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Invoices<span class="lp-ni-soon">Soon</span></div>
+                <div class="lp-ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Payments<span class="lp-ni-soon">Soon</span></div>
+            </div>
+        </div>
+        <div class="lp-main">
+            <div class="lp-top">
+                <input class="lp-search" placeholder="Search...   Ctrl+K">
+                <div style="flex:1"></div>
+                <button class="lp-notif"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><span class="lp-notif-dot"></span></button>
+                <div class="lp-av">RP</div>
+            </div>
+            <div class="lp-ct">
+                <div class="bc mb-3"><a href="#">Home</a><span style="color:var(--text-3)">/</span><span class="cur">Dashboard</span></div>
+                <div style="font-size:24px;font-weight:800;letter-spacing:-.3px;margin-bottom:4px">Good morning, RPK</div>
+                <div style="font-size:13px;color:var(--text-2);margin-bottom:20px">Today's production overview for RPK Industries</div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+                    <div class="stat a-indigo" style="padding:16px"><div class="stat-label">Active Orders</div><div style="font-size:24px;font-weight:800">42</div><div class="stat-trend trend-up" style="font-size:11px">+5 this week</div></div>
+                    <div class="stat a-amber" style="padding:16px"><div class="stat-label">In Production</div><div style="font-size:24px;font-weight:800">18</div><div class="stat-trend trend-flat" style="font-size:11px">3 machines</div></div>
+                    <div class="stat a-green" style="padding:16px"><div class="stat-label">Dispatch Ready</div><div style="font-size:24px;font-weight:800">7</div><div class="stat-trend trend-dn" style="font-size:11px">2 overdue</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════ CALCULATOR ═══════════ -->
+<section id="calc" class="reveal">
+    <div class="section-tag">Module</div>
+    <h2 class="section-h">Production Calculator</h2>
+    <p class="section-p">Split-view: Input left, Output right. Zero page scroll. Dashed inputs = auto-calculated. Profit comparison card with gradient. Cost bars for visual breakdown.</p>
+
+    <div class="calc">
+        <div class="calc-hd">
+            <div class="flex gap-3 items-c">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2" style="cursor:pointer"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                <span style="font-weight:700;font-size:14px">Production Calculator</span>
+                <span class="badge b-pri mono" style="font-size:11px">ORD-2526-0047</span>
+            </div>
+            <div class="flex gap-2">
+                <button class="btn btn-ghost btn-xs">&#2361;&#2367; Hindi</button>
+                <button class="btn btn-ghost btn-xs">Reset</button>
+                <button class="btn btn-sec btn-xs">Profiles</button>
+                <button class="btn btn-pri btn-xs"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>Save</button>
+            </div>
+        </div>
+        <div class="calc-bd">
+            <div class="calc-col">
+                <!-- Order link -->
+                <div style="background:var(--primary-50);border:1px solid var(--primary-200);border-radius:var(--radius);padding:14px 16px;margin-bottom:22px">
+                    <div class="flex jc-between items-c">
+                        <div><div style="font-size:11px;font-weight:600;color:var(--primary);text-transform:uppercase;letter-spacing:.3px">Linked Order</div><div style="font-size:13px;font-weight:500;margin-top:3px">Sharma Textiles &mdash; 5000m Round Cord</div></div>
+                        <div style="text-align:right"><div style="font-size:10px;color:var(--text-3);text-transform:uppercase">Actual Sell</div><div style="font-size:20px;font-weight:800;letter-spacing:-.3px">&#8377;285<span style="font-size:12px;font-weight:500;color:var(--text-3)">/kg</span></div></div>
+                    </div>
+                </div>
+
+                <div class="calc-st"><span class="calc-sn">1</span>SAMPLE NAAP-TOL</div>
+                <div class="calc-fg">
+                    <div><div class="calc-fl">Length (m)</div><input class="calc-fi" value="1.00"></div>
+                    <div><div class="calc-fl">Total Wt (g)</div><input class="calc-fi" value="5.20"></div>
+                    <div><div class="calc-fl">Covering Wt (g)</div><input class="calc-fi" value="3.80"></div>
+                    <div><div class="calc-fl">Filler Wt (g) <span style="color:var(--text-3);font-style:italic">auto</span></div><input class="calc-fi calc-fi-auto" value="1.40" disabled></div>
+                </div>
+
+                <div class="calc-st"><span class="calc-sn">2</span>CUSTOMER ORDER</div>
+                <div class="calc-fg" style="grid-template-columns:1fr 1fr 1fr">
+                    <div><div class="calc-fl">Meters</div><input class="calc-fi" value="5,000"></div>
+                    <div><div class="calc-fl">Kgs <span style="color:var(--text-3);font-style:italic">auto</span></div><input class="calc-fi calc-fi-auto" value="26.00" disabled></div>
+                    <div><div class="calc-fl">Waste %</div><input class="calc-fi" value="5"></div>
+                </div>
+
+                <div class="calc-st"><span class="calc-sn">3</span>PRODUCT &amp; MATERIAL</div>
+                <div class="calc-fg">
+                    <div><div class="calc-fl">Machine</div><select class="calc-fi" style="cursor:pointer"><option>16-Carrier Round</option></select></div>
+                    <div><div class="calc-fl">Product</div><select class="calc-fi" style="cursor:pointer"><option>Round Cord</option></select></div>
+                    <div><div class="calc-fl">Chaal</div><select class="calc-fi" style="cursor:pointer"><option>Seedhi</option></select></div>
+                    <div><div class="calc-fl">Covering Yarn</div><select class="calc-fi" style="cursor:pointer"><option>Poly DTY 150D</option></select></div>
+                </div>
+
+                <div class="calc-st"><span class="calc-sn">4</span>PRICING</div>
+                <div class="calc-fg" style="grid-template-columns:1fr 1fr 1fr">
+                    <div><div class="calc-fl">Labor &#8377;/kg</div><input class="calc-fi" value="18"></div>
+                    <div><div class="calc-fl">Overhead &#8377;/kg</div><input class="calc-fi" value="19.50"></div>
+                    <div><div class="calc-fl">Profit %</div><input class="calc-fi" value="25"></div>
+                </div>
+            </div>
+
+            <!-- OUTPUT -->
+            <div class="calc-col" style="background:var(--bg)">
+                <!-- Profit comparison -->
+                <div class="oc" style="background:linear-gradient(135deg,var(--emerald-50),#ecfdf5);border-color:#a7f3d0">
+                    <div class="oc-t" style="color:var(--emerald)">Profit Comparison</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px">
+                        <div><div style="font-size:11px;color:var(--text-3)">Calc. Cost</div><div class="mono" style="font-size:24px;font-weight:700">&#8377;228</div></div>
+                        <div><div style="font-size:11px;color:var(--text-3)">Actual Sell</div><div class="mono" style="font-size:24px;font-weight:700">&#8377;285</div></div>
+                    </div>
+                    <span class="chip chip-up"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>+&#8377;57/kg margin (25.0%)</span>
+                </div>
+
+                <!-- Cost breakdown with bars -->
+                <div class="oc">
+                    <div class="oc-t">Cost Breakdown</div>
+                    <div class="or"><span class="or-l">Covering Yarn</span><span class="or-v">&#8377;152.00</span></div>
+                    <div class="cost-bar"><div class="cost-bar-fill" style="width:66.7%;background:var(--primary)"></div></div>
+                    <div class="or"><span class="or-l">Filler Yarn</span><span class="or-v">&#8377;38.50</span></div>
+                    <div class="cost-bar"><div class="cost-bar-fill" style="width:16.9%;background:var(--primary-300)"></div></div>
+                    <div class="or"><span class="or-l">Labor</span><span class="or-v">&#8377;18.00</span></div>
+                    <div class="cost-bar"><div class="cost-bar-fill" style="width:7.9%;background:var(--amber)"></div></div>
+                    <div class="or"><span class="or-l">Overhead</span><span class="or-v">&#8377;19.50</span></div>
+                    <div class="cost-bar"><div class="cost-bar-fill" style="width:8.5%;background:var(--amber-l)"></div></div>
+                    <div class="or" style="border-top:2px solid var(--border);padding-top:8px;margin-top:6px"><span style="font-weight:700">Total Cost</span><span class="or-v" style="font-size:15px">&#8377;228.00/kg</span></div>
+                </div>
+
+                <div class="oc">
+                    <div class="oc-t">Material Required</div>
+                    <div class="or"><span class="or-l">Covering</span><span class="or-v">19.950 kg</span></div>
+                    <div class="or"><span class="or-l">Filler</span><span class="or-v">7.350 kg</span></div>
+                    <div class="or" style="font-size:11px;color:var(--text-3);padding-top:4px"><span>Incl. 5% waste</span><span class="mono" style="font-weight:600">Total: 27.300 kg</span></div>
+                </div>
+
+                <div class="oc">
+                    <div class="oc-t">Conversions</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px">
+                        <div class="or"><span class="or-l">1m =</span><span class="or-v">5.20g</span></div>
+                        <div class="or"><span class="or-l">1kg =</span><span class="or-v">192.3m</span></div>
+                    </div>
+                </div>
+
+                <div class="oc">
+                    <div class="oc-t">Production Estimate</div>
+                    <div class="or"><span class="or-l">Output/hour</span><span class="or-v">42m</span></div>
+                    <div class="or"><span class="or-l">Per day (8hr)</span><span class="or-v">336m</span></div>
+                    <div class="or" style="font-weight:600;padding-top:4px;border-top:1px solid var(--border-l);margin-top:4px"><span>Days to complete</span><span class="or-v" style="color:var(--primary)">~15 days (2 machines)</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═══════════ PATTERNS ═══════════ -->
+<section id="patterns" class="reveal">
+    <div class="section-tag">Patterns</div>
+    <h2 class="section-h">UI Patterns</h2>
+    <p class="section-p">Tabs, modals, toasts, command palette, order timeline, step wizard, empty state, avatar groups, breadcrumbs.</p>
+
+    <!-- STEP WIZARD -->
+    <div class="sg-label mb-3">Order Form Stepper</div>
+    <div class="card mb-5">
+        <div class="stepper" style="justify-content:center">
+            <div class="step done"><div class="step-num"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>Customer</div>
+            <div class="step-line done"></div>
+            <div class="step done"><div class="step-num"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>Line Items</div>
+            <div class="step-line"></div>
+            <div class="step active"><div class="step-num">3</div>Pricing</div>
+            <div class="step-line"></div>
+            <div class="step"><div class="step-num">4</div>Review</div>
+        </div>
+    </div>
+
+    <!-- TABS WITH TABLE -->
+    <div class="sg-label mb-3">Tabbed Master Page</div>
+    <div class="card mb-5" style="padding:0;overflow:hidden">
+        <div style="padding:20px 24px 0">
+            <div style="font-size:18px;font-weight:700;margin-bottom:2px">Product Masters</div>
+            <div style="font-size:13px;color:var(--text-2);margin-bottom:16px">Machine types, products, chaal, yarn</div>
+            <div class="tabs" style="margin-bottom:0">
+                <div class="tab on">Machines <span class="tab-c">12</span></div>
+                <div class="tab">Products <span class="tab-c">8</span></div>
+                <div class="tab">Chaal <span class="tab-c">6</span></div>
+                <div class="tab">Yarn <span class="tab-c">24</span></div>
+            </div>
+        </div>
+        <div style="padding:16px 24px">
+            <div class="tw" style="border-radius:var(--radius)">
+                <div class="tt" style="padding:10px 16px"><input class="fi" style="max-width:220px;padding:6px 12px;font-size:13px" placeholder="Search machines..."><button class="btn btn-pri btn-sm">Add Machine</button></div>
+                <table><thead><tr><th>Name</th><th>Type</th><th>Spindles</th><th>Speed</th><th>Status</th></tr></thead>
+                <tbody>
+                    <tr><td class="td-pri">M-001 (16-Carrier)</td><td>Round Braider</td><td>16</td><td class="mono">2.5 m/min</td><td><span class="badge b-ok">Active</span></td></tr>
+                    <tr><td class="td-pri">M-002 (24-Carrier)</td><td>Round Braider</td><td>24</td><td class="mono">1.8 m/min</td><td><span class="badge b-ok">Active</span></td></tr>
+                    <tr><td class="td-pri">M-005 (32-Carrier)</td><td>Flat Braider</td><td>32</td><td class="mono">1.2 m/min</td><td><span class="badge b-warn">Maintenance</span></td></tr>
+                </tbody></table>
+            </div>
+        </div>
+    </div>
+
+    <!-- COMMAND PALETTE -->
+    <div class="sg-label mb-3">Command Palette <kbd style="margin-left:4px">Ctrl</kbd> + <kbd>K</kbd></div>
+    <div class="modal-wrap mb-5">
+        <div class="cmd">
+            <div class="cmd-input-wrap">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input class="cmd-input" placeholder="Search orders, customers, actions..." value="">
+            </div>
+            <div class="cmd-list">
+                <div class="cmd-item sel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New Order<span class="cmd-item-keys"><kbd>Ctrl</kbd><kbd>N</kbd></span></div>
+                <div class="cmd-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg>Open Calculator<span class="cmd-item-keys"><kbd>Ctrl</kbd><kbd>C</kbd></span></div>
+                <div class="cmd-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>Search Customers</div>
+                <div class="cmd-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/></svg>Recent Orders</div>
+            </div>
+            <div class="cmd-ft"><span><kbd>&uarr;</kbd> <kbd>&darr;</kbd> Navigate</span><span><kbd>&#9166;</kbd> Open</span><span><kbd>Esc</kbd> Close</span></div>
+        </div>
+    </div>
+
+    <!-- TIMELINE + MODAL side by side -->
+    <div class="g2 mb-5">
+        <!-- ORDER TIMELINE -->
+        <div>
+            <div class="sg-label mb-3">Order Timeline</div>
+            <div class="card">
+                <div class="card-t mb-4">ORD-2526-0047 Activity</div>
+                <div class="tl">
+                    <div class="tl-item"><div class="tl-dot done"></div><div class="tl-time">02 Apr, 10:30 AM</div><div class="tl-text">Order created by <strong>RPK</strong></div></div>
+                    <div class="tl-item"><div class="tl-dot done"></div><div class="tl-time">02 Apr, 11:15 AM</div><div class="tl-text">Booking confirmed &mdash; <span class="badge b-info" style="font-size:11px">Booking</span></div></div>
+                    <div class="tl-item"><div class="tl-dot done"></div><div class="tl-time">03 Apr, 09:00 AM</div><div class="tl-text">Approved for production</div></div>
+                    <div class="tl-item"><div class="tl-dot current"></div><div class="tl-time">03 Apr, 02:30 PM</div><div class="tl-text">Production started &mdash; M-001, M-003</div></div>
+                    <div class="tl-item"><div class="tl-dot"></div><div class="tl-time" style="opacity:.5">Pending</div><div class="tl-text" style="color:var(--text-3)">Quality check</div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL -->
+        <div>
+            <div class="sg-label mb-3">Modal Dialog</div>
+            <div class="modal" style="box-shadow:var(--shadow-3)">
+                <div class="modal-hd"><div class="modal-t">Add Yarn Type</div><button class="modal-x"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+                <div class="modal-bd">
+                    <div class="fg"><label class="fl">Name <span class="req">*</span></label><input class="fi" placeholder="e.g. Polyester DTY 150D"></div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px"><div class="fg"><label class="fl">Category</label><select class="fi fi-select"><option selected>Polyester DTY</option></select></div><div class="fg"><label class="fl">Count</label><input class="fi" value="150D"></div></div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px"><div class="fg"><label class="fl">Rate</label><div class="input-sfx"><input class="fi" type="number" value="285"><span class="sfx">&#8377;/kg</span></div></div><div class="fg"><label class="fl">Usage</label><select class="fi fi-select"><option selected>Covering</option></select></div></div>
+                </div>
+                <div class="modal-ft"><button class="btn btn-ghost">Cancel</button><button class="btn btn-pri">Save Yarn Type</button></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOASTS -->
+    <div class="sg-label mb-3">Toast Notifications</div>
+    <div class="flex gap-3 mb-5" style="flex-direction:column;max-width:380px">
+        <div class="toast toast-ok"><svg class="toast-ic" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><div class="toast-ct"><div class="toast-tt">Order Saved</div><div class="toast-desc">ORD-2526-0047 saved successfully</div></div><button class="toast-x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button><div class="toast-bar" style="background:var(--emerald)"></div></div>
+        <div class="toast toast-err"><svg class="toast-ic" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg><div class="toast-ct"><div class="toast-tt">Delete Failed</div><div class="toast-desc">Linked to 3 active orders</div></div><button class="toast-x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button><div class="toast-bar" style="background:var(--red)"></div></div>
+        <div class="toast toast-wrn"><svg class="toast-ic" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><div class="toast-ct"><div class="toast-tt">Credit Warning</div><div class="toast-desc">Bharat Cord: &#8377;45K over limit</div></div><button class="toast-x"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button><div class="toast-bar" style="background:var(--amber)"></div></div>
+    </div>
+
+    <!-- EMPTY STATE + AVATARS + BREADCRUMBS -->
+    <div class="g3">
+        <div class="card">
+            <div class="empty">
+                <div class="empty-ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="1.5"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg></div>
+                <div class="empty-t">No orders yet</div>
+                <div class="empty-d">Create your first order to start production.</div>
+                <button class="btn btn-pri btn-sm"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New Order</button>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-t mb-4">Avatar Group</div>
+            <div class="av-group">
+                <div class="av" style="background:var(--primary-100);color:var(--primary)">RS</div>
+                <div class="av" style="background:var(--emerald-l);color:var(--emerald)">MG</div>
+                <div class="av" style="background:var(--amber-l);color:var(--amber)">AB</div>
+                <div class="av" style="background:var(--bg2);color:var(--text-3);font-size:10px">+4</div>
+            </div>
+            <div style="font-size:12px;color:var(--text-3);margin-top:10px">Assigned operators</div>
+            <div class="mt-6"><div class="card-t mb-3">Breadcrumb</div>
+            <div class="bc"><a href="#">Dashboard</a><span style="color:var(--text-3)">/</span><a href="#">Orders</a><span style="color:var(--text-3)">/</span><span class="cur mono" style="font-size:12px">ORD-2526-0047</span></div></div>
+        </div>
+        <div class="card">
+            <div class="card-t mb-3">Keyboard Shortcuts</div>
+            <div style="display:flex;flex-direction:column;gap:10px;font-size:13px">
+                <div class="flex jc-between items-c"><span style="color:var(--text-2)">Quick search</span><span class="flex gap-1"><kbd>Ctrl</kbd><kbd>K</kbd></span></div>
+                <div class="flex jc-between items-c"><span style="color:var(--text-2)">New order</span><span class="flex gap-1"><kbd>Ctrl</kbd><kbd>N</kbd></span></div>
+                <div class="flex jc-between items-c"><span style="color:var(--text-2)">Calculator</span><span class="flex gap-1"><kbd>Ctrl</kbd><kbd>C</kbd></span></div>
+                <div class="flex jc-between items-c"><span style="color:var(--text-2)">Save</span><span class="flex gap-1"><kbd>Ctrl</kbd><kbd>S</kbd></span></div>
+                <div class="flex jc-between items-c"><span style="color:var(--text-2)">Close modal</span><span><kbd>Esc</kbd></span></div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div style="height:80px"></div>
+</div>
+
+<script>
+// Theme toggle
+function toggleTheme(){
+    const html=document.documentElement;
+    const isDark=html.getAttribute('data-theme')==='dark';
+    html.setAttribute('data-theme',isDark?'light':'dark');
+    document.getElementById('themeIcon').innerHTML=isDark
+        ?'<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>'
+        :'<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+}
+
+// Scroll spy for nav
+const sections=document.querySelectorAll('section[id]');
+const navLinks=document.querySelectorAll('.nav-links a');
+const observer=new IntersectionObserver(entries=>{
+    entries.forEach(e=>{
+        if(e.isIntersecting){
+            navLinks.forEach(a=>a.classList.remove('active'));
+            const link=document.querySelector('.nav-links a[href="#'+e.target.id+'"]');
+            if(link)link.classList.add('active');
+        }
+    });
+},{rootMargin:'-30% 0px -60% 0px'});
+sections.forEach(s=>observer.observe(s));
+
+// Reveal on scroll
+const reveals=document.querySelectorAll('.reveal');
+const revealObs=new IntersectionObserver(entries=>{
+    entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');revealObs.unobserve(e.target);}});
+},{threshold:0.1});
+reveals.forEach(r=>revealObs.observe(r));
+
+// Toggle click
+document.querySelectorAll('.toggle').forEach(t=>{
+    t.addEventListener('click',()=>t.classList.toggle('on'));
+});
+
+// Tab click
+document.querySelectorAll('.tabs').forEach(tabs=>{
+    tabs.querySelectorAll('.tab').forEach(tab=>{
+        tab.addEventListener('click',()=>{
+            tabs.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+            tab.classList.add('on');
+        });
+    });
+});
+
+// Copy hex on swatch click
+document.querySelectorAll('.sw').forEach(sw=>{
+    sw.addEventListener('click',()=>{
+        const hex=sw.querySelector('.sw-h');
+        if(hex&&navigator.clipboard){
+            navigator.clipboard.writeText(hex.textContent);
+            const orig=hex.textContent;
+            hex.textContent='Copied!';
+            setTimeout(()=>hex.textContent=orig,1000);
+        }
+    });
+});
+</script>
+
+</body>
+</html>
