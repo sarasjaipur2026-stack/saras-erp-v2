@@ -43,6 +43,7 @@ const NAV_ITEMS = [
   { path: '/dispatch', label: 'Dispatch', icon: Truck, category: 'inventory' },
   { path: '/invoices', label: 'Invoices', icon: FileText, category: 'finance' },
   { path: '/payments', label: 'Payments', icon: CreditCard, category: 'finance' },
+  { path: '/reports', label: 'Reports', icon: BarChart3, category: 'finance' },
 ]
 
 const CATEGORIES = [

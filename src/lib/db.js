@@ -987,6 +987,112 @@ export const importLog = createTable('import_log', { orderBy: 'created_at', orde
 // ─── SHEETS SYNC ───────────────────────────────────────────
 export const sheetsSync = createTable('sheets_sync', { orderBy: 'last_sync_at', orderAsc: false, ownerFilter: false })
 
+// ─── REPORTS ───────────────────────────────────────────────
+// All report queries take an optional { from, to } date range (ISO date strings).
+// They return the same { data, error } envelope as the rest of the db layer.
+export const reports = {
+  // Sales register: every order in the date range with customer + GST split.
+  salesRegister: async ({ from, to } = {}) => safe(() => {
+    let q = supabase
+      .from('orders')
+      .select('id, order_number, created_at, status, customer_id, customers(firm_name, gstin), subtotal, taxable_amount, cgst_amount, sgst_amount, igst_amount, grand_total, advance_paid, balance_due')
+      .order('created_at', { ascending: false })
+    if (from) q = q.gte('created_at', from)
+    if (to) q = q.lte('created_at', to)
+    return q
+  }),
+
+  // GST summary: aggregate CGST/SGST/IGST/total tax across orders in range.
+  gstSummary: async ({ from, to } = {}) => {
+    const { data, error } = await reports.salesRegister({ from, to })
+    if (error) return { data: null, error }
+    const rows = data || []
+    const summary = {
+      order_count: rows.length,
+      total_taxable: rows.reduce((s, o) => s + Number(o.taxable_amount || o.subtotal || 0), 0),
+      total_cgst: rows.reduce((s, o) => s + Number(o.cgst_amount || 0), 0),
+      total_sgst: rows.reduce((s, o) => s + Number(o.sgst_amount || 0), 0),
+      total_igst: rows.reduce((s, o) => s + Number(o.igst_amount || 0), 0),
+      total_grand: rows.reduce((s, o) => s + Number(o.grand_total || 0), 0),
+    }
+    summary.total_tax = summary.total_cgst + summary.total_sgst + summary.total_igst
+    // Monthly buckets
+    const monthly = new Map()
+    for (const o of rows) {
+      const key = (o.created_at || '').slice(0, 7) // YYYY-MM
+      const cur = monthly.get(key) || { month: key, count: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, grand: 0 }
+      cur.count += 1
+      cur.taxable += Number(o.taxable_amount || o.subtotal || 0)
+      cur.cgst += Number(o.cgst_amount || 0)
+      cur.sgst += Number(o.sgst_amount || 0)
+      cur.igst += Number(o.igst_amount || 0)
+      cur.grand += Number(o.grand_total || 0)
+      monthly.set(key, cur)
+    }
+    return {
+      data: { summary, monthly: Array.from(monthly.values()).sort((a, b) => b.month.localeCompare(a.month)) },
+      error: null,
+    }
+  },
+
+  // Customer outstanding: per-customer aggregation of grand_total / paid / balance_due.
+  customerOutstanding: async () => {
+    const { data, error } = await safe(() =>
+      supabase
+        .from('orders')
+        .select('customer_id, customers(firm_name, phone), grand_total, advance_paid, balance_due, created_at, status')
+    )
+    if (error) return { data: null, error }
+    const rows = data || []
+    const map = new Map()
+    for (const o of rows) {
+      if (!o.customer_id) continue
+      const cur = map.get(o.customer_id) || {
+        customer_id: o.customer_id,
+        firm_name: o.customers?.firm_name || '—',
+        phone: o.customers?.phone || '',
+        order_count: 0,
+        total_billed: 0,
+        total_paid: 0,
+        total_outstanding: 0,
+        oldest_open: null,
+      }
+      cur.order_count += 1
+      cur.total_billed += Number(o.grand_total || 0)
+      cur.total_paid += Number(o.advance_paid || 0)
+      cur.total_outstanding += Number(o.balance_due || 0)
+      if (Number(o.balance_due || 0) > 0) {
+        if (!cur.oldest_open || o.created_at < cur.oldest_open) cur.oldest_open = o.created_at
+      }
+      map.set(o.customer_id, cur)
+    }
+    const out = Array.from(map.values())
+      .filter(r => r.total_billed > 0)
+      .sort((a, b) => b.total_outstanding - a.total_outstanding)
+    return { data: out, error: null }
+  },
+
+  // Stock register: snapshot of current balances with item type, warehouse, qty.
+  // Reuses the existing stockMovements.computeBalances aggregation.
+  stockRegister: async () => {
+    const { data, error } = await stockMovements.computeBalances()
+    if (error) return { data: null, error }
+    const filtered = (data || []).filter(b => Math.abs(b.quantity) > 0.001)
+    return { data: filtered, error: null }
+  },
+
+  // Purchase register: every PO in the date range.
+  purchaseRegister: async ({ from, to } = {}) => safe(() => {
+    let q = supabase
+      .from('purchase_orders')
+      .select('id, po_number, po_date, status, suppliers(name, firm), subtotal, cgst_amount, sgst_amount, igst_amount, grand_total')
+      .order('po_date', { ascending: false })
+    if (from) q = q.gte('po_date', from)
+    if (to) q = q.lte('po_date', to)
+    return q
+  }),
+}
+
 // ─── DASHBOARD STATS ───────────────────────────────────────
 export const stats = {
   getDashboard: async () => {

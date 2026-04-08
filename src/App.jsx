@@ -72,6 +72,7 @@ const DispatchPage = lazy(() => import('./modules/dispatch/DispatchPage'))
 const InvoicesPage = lazy(() => import('./modules/invoicing/InvoicesPage'))
 const PaymentsPage = lazy(() => import('./modules/finance/PaymentsPage'))
 const PurchasePage = lazy(() => import('./modules/purchase/PurchasePage'))
+const ReportsPage = lazy(() => import('./modules/reports/ReportsPage'))
 const CustomersPage = lazy(() => import('./modules/masters/CustomersPage'))
 const ProductsPage = lazy(() => import('./modules/masters/ProductsPage'))
 const MaterialsPage = lazy(() => import('./modules/masters/MaterialsPage'))
@@ -145,6 +146,7 @@ export default function App() {
       <Route path="/invoices" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
       <Route path="/payments" element={<ProtectedRoute><PaymentsPage /></ProtectedRoute>} />
       <Route path="/purchase" element={<ProtectedRoute><PurchasePage /></ProtectedRoute>} />
+      <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
 
       {/* Masters */}
       <Route path="/masters/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
