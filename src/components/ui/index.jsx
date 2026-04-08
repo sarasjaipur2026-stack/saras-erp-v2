@@ -146,12 +146,21 @@ export const SearchSelect = ({
         </div>
       </div>
       {isOpen && filtered.length > 0 && (
-        <div className="absolute top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 z-20 max-h-60 overflow-auto dropdown-in">
+        <div role="listbox" className="absolute top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 z-20 max-h-60 overflow-auto dropdown-in">
           {filtered.map(opt => (
             <div
               key={opt.value}
+              role="option"
+              aria-selected={value === opt.value}
+              tabIndex={0}
               onClick={() => { onChange(opt); setIsOpen(false); setSearchTerm('') }}
-              className="px-3 py-2.5 hover:bg-indigo-50 cursor-pointer text-sm transition-colors first:rounded-t-xl last:rounded-b-xl"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onChange(opt); setIsOpen(false); setSearchTerm('')
+                }
+              }}
+              className="px-3 py-2.5 hover:bg-indigo-50 focus:bg-indigo-50 focus:outline-none cursor-pointer text-sm transition-colors first:rounded-t-xl last:rounded-b-xl"
             >
               {renderOption ? renderOption(opt) : opt.label}
             </div>
@@ -206,11 +215,31 @@ export const StatusBadge = ({ status }) => {
 // ─── MODAL ─────────────────────────────────────────────────
 export const Modal = ({ isOpen, open, onClose, title, children, footer, size = 'md' }) => {
   const visible = isOpen ?? open
+
+  // ESC-to-close + body scroll lock while the modal is open.
+  useEffect(() => {
+    if (!visible) return
+    const onKey = (e) => { if (e.key === 'Escape') onClose?.() }
+    document.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [visible, onClose])
+
   if (!visible) return null
   const sizes = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg', xl: 'max-w-xl', '2xl': 'max-w-2xl' }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-in" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-in"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={typeof title === 'string' ? title : undefined}
+    >
       <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px]" />
       <div
         className={`relative bg-white rounded-2xl shadow-2xl shadow-slate-900/10 ${sizes[size] || sizes.md} w-full max-h-[85vh] flex flex-col scale-in`}
@@ -218,7 +247,12 @@ export const Modal = ({ isOpen, open, onClose, title, children, footer, size = '
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <h2 className="text-base font-semibold text-slate-900">{title}</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close dialog"
+            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer focus-ring"
+          >
             <X size={18} />
           </button>
         </div>
@@ -326,8 +360,8 @@ export const StatCard = ({ icon: Icon, label, value, trend, color = 'indigo' }) 
         <div>
           <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">{label}</p>
           <p className="text-2xl font-bold text-slate-900 tracking-tight">{value}</p>
-          {trend !== undefined && (
-            <p className={`text-[11px] mt-2 font-semibold ${trend > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+          {trend !== undefined && trend !== null && (
+            <p className={`text-[11px] mt-2 font-semibold ${trend > 0 ? 'text-emerald-600' : trend < 0 ? 'text-red-500' : 'text-slate-400'}`}>
               {trend > 0 ? '+' : ''}{trend}% from last month
             </p>
           )}
@@ -385,7 +419,12 @@ export const DataTable = ({
               <tr
                 key={row.id || idx}
                 onClick={() => onRowClick?.(row)}
-                className={`table-row-hover ${onRowClick ? 'cursor-pointer' : ''} transition-colors`}
+                onKeyDown={onRowClick ? (e) => {
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRowClick(row) }
+                } : undefined}
+                tabIndex={onRowClick ? 0 : undefined}
+                role={onRowClick ? 'button' : undefined}
+                className={`table-row-hover ${onRowClick ? 'cursor-pointer focus:outline-none focus:bg-indigo-50/40' : ''} transition-colors`}
               >
                 {columns.map(col => (
                   <td key={col.key} className="px-5 py-3 text-sm text-slate-600">
@@ -408,12 +447,15 @@ export const Tabs = ({ tabs, defaultTab = 0, onChange }) => {
 
   return (
     <div>
-      <div className="flex gap-0.5 bg-slate-100/80 p-1 rounded-xl w-fit">
+      <div role="tablist" className="flex gap-0.5 bg-slate-100/80 p-1 rounded-xl w-fit">
         {tabs.map((tab, idx) => (
           <button
             key={idx}
+            type="button"
+            role="tab"
+            aria-selected={active === idx}
             onClick={() => handleChange(idx)}
-            className={`px-4 py-1.5 text-[13px] font-medium rounded-lg transition-all duration-200
+            className={`px-4 py-1.5 text-[13px] font-medium rounded-lg transition-all duration-200 cursor-pointer focus-ring
               ${active === idx
                 ? 'bg-white text-slate-800 shadow-sm'
                 : 'text-slate-500 hover:text-slate-700'
@@ -423,7 +465,7 @@ export const Tabs = ({ tabs, defaultTab = 0, onChange }) => {
           </button>
         ))}
       </div>
-      <div className="mt-4">
+      <div role="tabpanel" className="mt-4">
         {tabs[active]?.content}
       </div>
     </div>

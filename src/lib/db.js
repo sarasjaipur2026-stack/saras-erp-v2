@@ -893,7 +893,21 @@ export const notifications = {
   // Shape: { type, title, message, entity_type?, entity_id?, staff_id? }
   emit: async (n) => {
     try {
+      // notifications.user_id is NOT NULL — resolve the current session user
+      // so business-flow hooks (orders.updateStatus, payments.record,
+      // deliveries.createFromOrder) do not silently 400 on insert.
+      let userId = n.user_id || null
+      if (!userId) {
+        const { data: sess } = await supabase.auth.getSession()
+        userId = sess?.session?.user?.id || null
+      }
+      if (!userId) {
+        // eslint-disable-next-line no-console
+        console.warn('[notifications.emit] skipped — no authenticated user')
+        return { data: null, error: new Error('no authenticated user') }
+      }
       const row = {
+        user_id: userId,
         type: n.type || 'general',
         title: n.title || 'Notification',
         message: n.message || '',

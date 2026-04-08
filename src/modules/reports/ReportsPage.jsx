@@ -174,7 +174,13 @@ export default function ReportsPage() {
                 onClick={() => {
                   setData(null)
                   setLoadError(null)
-                  setActiveTab(t.key)
+                  if (t.key === activeTab) {
+                    // Same tab click: activeTab reference unchanged, so the
+                    // useEffect([load]) won't re-fire. Trigger a manual reload.
+                    load()
+                  } else {
+                    setActiveTab(t.key)
+                  }
                 }}
                 className={`flex items-center gap-2 px-4 py-3 text-[13px] font-semibold border-b-2 transition-colors ${
                   active

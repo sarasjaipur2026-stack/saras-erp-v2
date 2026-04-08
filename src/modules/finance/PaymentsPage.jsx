@@ -10,7 +10,9 @@ const fmtMoney = (v) => Number.isFinite(+v)
   : '—'
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'
 
-const MODES = ['cash', 'bank', 'upi', 'cheque', 'neft', 'rtgs', 'other']
+// NOTE: must match DB constraint `payments_payment_mode_check`
+// Allowed: cash | cheque | upi | neft | rtgs | card | other
+const MODES = ['cash', 'neft', 'rtgs', 'upi', 'cheque', 'card', 'other']
 
 export default function PaymentsPage() {
   const toast = useToast()
@@ -21,7 +23,7 @@ export default function PaymentsPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [orderOptions, setOrderOptions] = useState([])
   const [form, setForm] = useState({
-    order_id: '', amount: 0, payment_mode: 'bank',
+    order_id: '', amount: 0, payment_mode: 'neft',
     payment_date: new Date().toISOString().slice(0, 10),
     reference_number: '', bank_id: '', notes: '',
   })

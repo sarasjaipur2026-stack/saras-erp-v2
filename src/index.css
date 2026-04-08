@@ -18,6 +18,10 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: #f8fafc;
@@ -26,6 +30,17 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  /* 2026 optical refinements for Inter: stylistic alt 'a', rounded 'l',
+     tabular numerics, proper kerning, contextual alternates. */
+  font-feature-settings: 'cv11', 'ss01', 'ss03', 'cv02', 'calt', 'kern';
+  font-optical-sizing: auto;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* Numeric-heavy surfaces: tables, stat cards, mono columns. */
+table, .tabular-nums, [class*="font-mono"] {
+  font-variant-numeric: tabular-nums;
 }
 
 #root {
@@ -38,11 +53,17 @@ body {
   color: #312e81;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar { width: 5px; height: 5px; }
+/* Custom scrollbar — firefox + webkit */
+* { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 99px; }
+::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 99px;
+  transition: background 0.2s;
+}
 ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+::-webkit-scrollbar-corner { background: transparent; }
 
 /* Sidebar scrollbar - thinner */
 .sidebar-scroll::-webkit-scrollbar { width: 3px; }
@@ -111,12 +132,46 @@ body {
   -webkit-backdrop-filter: blur(12px) saturate(180%);
 }
 
-/* Focus ring utility */
+/* Focus ring utility — 2026 refined: white offset + soft brand halo */
 .focus-ring {
   outline: none;
 }
 .focus-ring:focus-visible {
-  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #6366f1;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 4px #6366f1,
+    0 0 0 6px rgba(99, 102, 241, 0.18);
+}
+
+/* Layered soft shadow system — replaces flat shadows where used */
+.shadow-soft {
+  box-shadow:
+    0 1px 2px -1px rgba(15, 23, 42, 0.04),
+    0 2px 6px -2px rgba(15, 23, 42, 0.05),
+    0 8px 24px -8px rgba(15, 23, 42, 0.06);
+}
+.shadow-soft-lg {
+  box-shadow:
+    0 1px 2px -1px rgba(15, 23, 42, 0.05),
+    0 4px 12px -4px rgba(15, 23, 42, 0.06),
+    0 16px 48px -16px rgba(15, 23, 42, 0.10);
+}
+
+/* Shimmer skeleton for loading states */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(226, 232, 240, 0.55) 0%,
+    rgba(241, 245, 249, 0.9) 50%,
+    rgba(226, 232, 240, 0.55) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  border-radius: 8px;
 }
 
 /* Table row hover */
@@ -139,9 +194,29 @@ button:active:not(:disabled) {
 
 /* Subtle card lift on hover */
 .card-hover {
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  transition: box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.2s ease;
 }
 .card-hover:hover {
-  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+  box-shadow:
+    0 1px 2px -1px rgba(15, 23, 42, 0.04),
+    0 6px 16px -4px rgba(15, 23, 42, 0.08),
+    0 12px 32px -12px rgba(15, 23, 42, 0.10);
   transform: translateY(-1px);
+}
+
+/* Respect user motion preferences — 2026 a11y requirement.
+   Kills non-essential animation, keeps opacity fades. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  button:active:not(:disabled) { transform: none; }
+  .card-hover:hover { transform: none; }
 }
