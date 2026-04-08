@@ -1,9 +1,62 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
-import { lazy, Suspense } from 'react'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { lazy, Suspense, Component } from 'react'
 import { useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import { PageLoader } from './components/ui'
+
+// Per-route error boundary so a single broken page does not blank the whole app.
+class PageErrorBoundary extends Component {
+  constructor(props) {
+    super(props)
+    this.state = { error: null }
+  }
+  static getDerivedStateFromError(error) {
+    return { error }
+  }
+  componentDidCatch(error, info) {
+    // eslint-disable-next-line no-console
+    console.error('[PageErrorBoundary]', error, info)
+  }
+  componentDidUpdate(prevProps) {
+    if (prevProps.locationKey !== this.props.locationKey && this.state.error) {
+      this.setState({ error: null })
+    }
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="fade-in max-w-3xl mx-auto py-12 px-4">
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-6">
+            <h2 className="text-lg font-bold text-red-900 mb-2">This page failed to render</h2>
+            <p className="text-[13px] text-red-700 mb-4">
+              The rest of the app is still working — use the sidebar to navigate elsewhere.
+            </p>
+            <pre className="text-[11px] font-mono bg-white border border-red-100 rounded-lg p-3 text-red-800 overflow-auto max-h-64 whitespace-pre-wrap">
+              {String(this.state.error?.stack || this.state.error?.message || this.state.error)}
+            </pre>
+            <button
+              onClick={() => this.setState({ error: null })}
+              className="mt-4 px-3 py-1.5 text-[12px] font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+function RouteShell({ children }) {
+  const location = useLocation()
+  return (
+    <PageErrorBoundary locationKey={location.key}>
+      <Suspense fallback={<PageLoader />}>{children}</Suspense>
+    </PageErrorBoundary>
+  )
+}
 
 // Lazy-loaded page imports
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -57,7 +110,7 @@ function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
   if (loading) return <PageLoader />
   if (!user) return <Navigate to="/login" replace />
-  return <Layout><Suspense fallback={<PageLoader />}>{children}</Suspense></Layout>
+  return <Layout><RouteShell>{children}</RouteShell></Layout>
 }
 
 export default function App() {
