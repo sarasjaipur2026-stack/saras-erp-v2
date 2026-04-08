@@ -181,6 +181,195 @@ export const stockMovements = {
   },
 }
 
+// ─── PURCHASE ORDERS ───────────────────────────────────────
+const purchaseOrdersBase = createTable('purchase_orders', {
+  orderBy: 'po_date',
+  orderAsc: false,
+  ownerFilter: false,
+  select: '*, suppliers(firm_name, gstin), purchase_order_items(*, yarn_types(name))',
+})
+export const purchaseOrders = {
+  ...purchaseOrdersBase,
+
+  createWithItems: async ({ supplier_id, po_date, expected_date, notes, items }) => {
+    try {
+      const { data: poNum, error: numErr } = await supabase.rpc('next_po_number')
+      if (numErr) return { data: null, error: numErr }
+
+      const subtotal = (items || []).reduce(
+        (s, it) => s + Number(it.quantity || 0) * Number(it.rate_per_unit || 0),
+        0,
+      )
+      const gstRate = 12 // default for most yarn HSN codes
+      const cgst = +(subtotal * (gstRate / 2) / 100).toFixed(2)
+      const sgst = +(subtotal * (gstRate / 2) / 100).toFixed(2)
+      const grand = +(subtotal + cgst + sgst).toFixed(2)
+
+      const { data: po, error: poErr } = await supabase
+        .from('purchase_orders')
+        .insert([{
+          po_number: poNum,
+          supplier_id,
+          po_date: po_date || new Date().toISOString().slice(0, 10),
+          expected_date: expected_date || null,
+          status: 'issued',
+          subtotal,
+          cgst_amount: cgst,
+          sgst_amount: sgst,
+          grand_total: grand,
+          notes: notes || null,
+        }])
+        .select()
+        .single()
+      if (poErr) return { data: null, error: poErr }
+
+      if (items?.length) {
+        const rows = items
+          .filter(it => it.yarn_type_id && Number(it.quantity) > 0)
+          .map(it => ({
+            po_id: po.id,
+            yarn_type_id: it.yarn_type_id,
+            description: it.description || null,
+            quantity: Number(it.quantity) || 0,
+            unit: it.unit || 'kg',
+            rate_per_unit: Number(it.rate_per_unit) || 0,
+            amount: +(Number(it.quantity) * Number(it.rate_per_unit)).toFixed(2),
+          }))
+        if (rows.length) {
+          const { error: itemErr } = await supabase.from('purchase_order_items').insert(rows)
+          if (itemErr) return { data: po, error: itemErr }
+        }
+      }
+      return { data: po, error: null }
+    } catch (error) {
+      return { data: null, error }
+    }
+  },
+}
+
+// ─── GOODS RECEIPTS (GRN) ──────────────────────────────────
+const goodsReceiptsBase = createTable('goods_receipts', {
+  orderBy: 'received_date',
+  orderAsc: false,
+  ownerFilter: false,
+  select: '*, suppliers(firm_name), purchase_orders(po_number), goods_receipt_items(*, yarn_types(name))',
+})
+export const goodsReceipts = {
+  ...goodsReceiptsBase,
+
+  listByPo: async (poId) => safe(() =>
+    supabase.from('goods_receipts').select('*').eq('po_id', poId).order('received_date', { ascending: false })
+  ),
+
+  createFromPo: async ({ po_id, received_date, vehicle_number, warehouse_id, notes, items }) => {
+    try {
+      // Pull PO + items to validate
+      const { data: po, error: poErr } = await supabase
+        .from('purchase_orders')
+        .select('id, supplier_id, status, purchase_order_items(*)')
+        .eq('id', po_id)
+        .single()
+      if (poErr || !po) return { data: null, error: poErr }
+
+      const { data: grnNum, error: numErr } = await supabase.rpc('next_grn_number')
+      if (numErr) return { data: null, error: numErr }
+
+      const today = received_date || new Date().toISOString().slice(0, 10)
+      const { data: grn, error: grnErr } = await supabase
+        .from('goods_receipts')
+        .insert([{
+          grn_number: grnNum,
+          po_id,
+          supplier_id: po.supplier_id,
+          received_date: today,
+          vehicle_number: vehicle_number || null,
+          warehouse_id: warehouse_id || null,
+          notes: notes || null,
+        }])
+        .select()
+        .single()
+      if (grnErr) return { data: null, error: grnErr }
+
+      // Items: if none provided, default to full PO quantities
+      const effectiveItems = (items && items.length)
+        ? items
+        : (po.purchase_order_items || []).map(it => ({
+            po_item_id: it.id,
+            yarn_type_id: it.yarn_type_id,
+            quantity_received: Number(it.quantity) - Number(it.quantity_received || 0),
+            unit: it.unit,
+          }))
+
+      const grnItemRows = effectiveItems
+        .filter(it => Number(it.quantity_received) > 0)
+        .map(it => ({
+          grn_id: grn.id,
+          po_item_id: it.po_item_id || null,
+          yarn_type_id: it.yarn_type_id,
+          quantity_received: Number(it.quantity_received) || 0,
+          unit: it.unit || 'kg',
+          qc_status: 'pending',
+        }))
+
+      if (grnItemRows.length) {
+        const { error: itemErr } = await supabase.from('goods_receipt_items').insert(grnItemRows)
+        if (itemErr) return { data: grn, error: itemErr }
+
+        // Bump quantity_received on PO items
+        for (const it of grnItemRows) {
+          if (!it.po_item_id) continue
+          const { data: prev } = await supabase
+            .from('purchase_order_items')
+            .select('quantity, quantity_received')
+            .eq('id', it.po_item_id)
+            .single()
+          if (prev) {
+            await supabase
+              .from('purchase_order_items')
+              .update({
+                quantity_received: Number(prev.quantity_received || 0) + Number(it.quantity_received),
+              })
+              .eq('id', it.po_item_id)
+          }
+        }
+
+        // Stock-in movements
+        const stockRows = grnItemRows.map(it => ({
+          kind: 'in',
+          yarn_type_id: it.yarn_type_id,
+          warehouse_id: warehouse_id || null,
+          quantity: it.quantity_received,
+          unit: it.unit,
+          source_type: 'grn',
+          source_id: grn.id,
+          notes: `Received via ${grnNum}`,
+        }))
+        await supabase.from('stock_movements').insert(stockRows)
+      }
+
+      // Update PO status — mark received if all items fully received, partial otherwise
+      const { data: refreshedItems } = await supabase
+        .from('purchase_order_items')
+        .select('quantity, quantity_received')
+        .eq('po_id', po_id)
+      const allReceived = (refreshedItems || []).every(
+        it => Number(it.quantity_received || 0) >= Number(it.quantity || 0),
+      )
+      const anyReceived = (refreshedItems || []).some(
+        it => Number(it.quantity_received || 0) > 0,
+      )
+      await supabase
+        .from('purchase_orders')
+        .update({ status: allReceived ? 'received' : anyReceived ? 'partially_received' : 'issued' })
+        .eq('id', po_id)
+
+      return { data: { grn_number: grnNum, grn }, error: null }
+    } catch (error) {
+      return { data: null, error }
+    }
+  },
+}
+
 // ─── NEW MASTER TABLES (Session A) ─────────────────────────
 export const hsnCodes = createTable('hsn_codes', { orderBy: 'code', orderAsc: true, ownerFilter: false })
 export const units = createTable('units', { orderBy: 'unit_type', orderAsc: true, ownerFilter: false })
@@ -466,6 +655,41 @@ export const productionPlans = {
   listByOrder: async (orderId) => safe(() =>
     supabase.from('production_plans').select('*, machines(name), materials(name)').eq('order_id', orderId).order('created_at', { ascending: false })
   ),
+  // Override update to emit a stock-in movement whenever a plan is marked completed
+  // (or completed_qty is bumped on an already-completed plan).
+  update: async (id, patch) => {
+    const result = await productionPlansBase.update(id, patch)
+    if (result?.error || !result?.data) return result
+    const plan = result.data
+    const isCompleting = patch.status === 'completed'
+    if (isCompleting && (plan.completed_qty || 0) > 0 && plan.product_id) {
+      try {
+        // Skip if a stock-in for this plan already exists (idempotent).
+        const { data: existing } = await supabase
+          .from('stock_movements')
+          .select('id')
+          .eq('source_type', 'production')
+          .eq('source_id', plan.id)
+          .limit(1)
+        if (!existing || existing.length === 0) {
+          await supabase.from('stock_movements').insert([{
+            kind: 'in',
+            product_id: plan.product_id,
+            quantity: plan.completed_qty,
+            unit: 'pcs',
+            source_type: 'production',
+            source_id: plan.id,
+            notes: `Production complete (plan ${plan.id.slice(0, 8)})`,
+          }])
+        }
+      } catch (e) {
+        // Do not block the UI if stock-in write fails — surface in console.
+        // eslint-disable-next-line no-console
+        console.error('[productionPlans.update] stock-in hook failed', e)
+      }
+    }
+    return result
+  },
   createFromOrder: async (orderId) => {
     try {
       const { data: order, error: ordErr } = await supabase

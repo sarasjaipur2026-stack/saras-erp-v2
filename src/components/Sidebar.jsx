@@ -5,7 +5,7 @@ import {
   LayoutDashboard, ShoppingCart, MessageSquare, Calculator, Users,
   Package, Settings, Truck, Box, Palette, BarChart3, FileText,
   CreditCard, Briefcase, DollarSign, Building2, ChevronDown, Archive,
-  Hash, Ruler, Cog, Layers, Workflow, UserCog, Sparkles, PackageOpen, ShieldCheck, Factory
+  Hash, Ruler, Cog, Layers, Workflow, UserCog, Sparkles, PackageOpen, ShieldCheck, Factory, ShoppingBag
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -38,6 +38,7 @@ const NAV_ITEMS = [
   { path: '/masters/packaging-types', label: 'Packaging', icon: PackageOpen, category: 'masters' },
   { path: '/masters/transports', label: 'Transports', icon: Truck, category: 'masters' },
   { path: '/masters/quality-parameters', label: 'Quality Params', icon: ShieldCheck, category: 'masters' },
+  { path: '/purchase', label: 'Purchase', icon: ShoppingBag, category: 'inventory' },
   { path: '/stock', label: 'Stock', icon: BarChart3, category: 'inventory' },
   { path: '/dispatch', label: 'Dispatch', icon: Truck, category: 'inventory' },
   { path: '/invoices', label: 'Invoices', icon: FileText, category: 'finance' },
