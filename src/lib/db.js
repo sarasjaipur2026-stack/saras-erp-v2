@@ -441,10 +441,22 @@ export const orders = {
       .single()
   ),
 
-  // Shim for legacy OrdersPage bulk action — thin wrapper around update().
-  updateStatus: async (id, status) => safe(() =>
-    supabase.from('orders').update({ status }).eq('id', id).select().single()
-  ),
+  // Shim for legacy OrdersPage bulk action — thin wrapper around update() + notification emit.
+  updateStatus: async (id, status) => {
+    const result = await safe(() =>
+      supabase.from('orders').update({ status }).eq('id', id).select('*, customers(firm_name)').single()
+    )
+    if (!result?.error && result?.data) {
+      notifications.emit({
+        type: status === 'approved' ? 'order_approved' : 'status_changed',
+        title: `Order ${result.data.order_number || ''} → ${status}`,
+        message: `${result.data.customers?.firm_name || 'Customer'} · status changed to ${status}`,
+        entity_type: 'order',
+        entity_id: id,
+      }).catch(() => {})
+    }
+    return result
+  },
 
   create: async (order) => {
     try {
@@ -650,6 +662,24 @@ export const deliveries = {
       // Move order to dispatch status
       await supabase.from('orders').update({ status: 'dispatch' }).eq('id', order_id)
 
+      // Notification side-effect
+      try {
+        const { data: orderRow } = await supabase
+          .from('orders')
+          .select('order_number, customers(firm_name)')
+          .eq('id', order_id)
+          .single()
+        notifications.emit({
+          type: 'delivery_added',
+          title: `Dispatched · ${challanNum}`,
+          message: `${orderRow?.customers?.firm_name || 'Customer'} · ${orderRow?.order_number || ''} · ${rows.length} line${rows.length === 1 ? '' : 's'}${vehicle_number ? ` · vehicle ${vehicle_number}` : ''}`,
+          entity_type: 'order',
+          entity_id: order_id,
+        }).catch(() => {})
+      } catch {
+        // ignore
+      }
+
       return { data: { challan_number: challanNum, deliveries: inserted }, error: null }
     } catch (error) {
       return { data: null, error }
@@ -828,6 +858,18 @@ export const notifications = {
       .limit(50)
   ),
 
+  // Fetch every notification for the current user (latest first), capped at 200.
+  // staffId is the Supabase auth user id; we accept legacy notifications where
+  // staff_id is null as well so nothing is silently hidden.
+  listForUser: async (staffId) => safe(() =>
+    supabase
+      .from('notifications')
+      .select('*')
+      .or(`staff_id.eq.${staffId},staff_id.is.null`)
+      .order('created_at', { ascending: false })
+      .limit(200)
+  ),
+
   markAsRead: async (id) => safe(() =>
     supabase
       .from('notifications')
@@ -843,6 +885,92 @@ export const notifications = {
       .update({ read_at: new Date().toISOString() })
       .eq('staff_id', staffId)
       .is('read_at', null)
+  ),
+
+  // Emit a notification: writes a DB row AND fires a WhatsApp webhook if
+  // configured. Never throws — failure falls through silently with a console
+  // log so the calling business flow (e.g. payments.record) isn't blocked.
+  // Shape: { type, title, message, entity_type?, entity_id?, staff_id? }
+  emit: async (n) => {
+    try {
+      const row = {
+        type: n.type || 'general',
+        title: n.title || 'Notification',
+        message: n.message || '',
+        entity_type: n.entity_type || null,
+        entity_id: n.entity_id || null,
+        staff_id: n.staff_id || null,
+      }
+      const { data, error } = await supabase.from('notifications').insert([row]).select().single()
+      if (error) {
+        // eslint-disable-next-line no-console
+        console.error('[notifications.emit] insert failed', error)
+      }
+      // Fire WhatsApp webhook in the background — do not await the result.
+      fireWebhook(row).catch(err => {
+        // eslint-disable-next-line no-console
+        console.error('[notifications.emit] webhook failed', err)
+      })
+      return { data, error }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[notifications.emit] unexpected', err)
+      return { data: null, error: err }
+    }
+  },
+}
+
+// Internal — non-exported so call sites don't confuse it with emit().
+async function fireWebhook(notification) {
+  try {
+    const { data: rows, error } = await supabase
+      .from('app_settings')
+      .select('key, value')
+      .in('key', ['notifications.whatsapp_webhook_url', 'notifications.whatsapp_enabled'])
+    if (error) return
+    const cfg = {}
+    for (const r of rows || []) cfg[r.key] = r.value || {}
+    const enabled = cfg['notifications.whatsapp_enabled']?.enabled === true
+    const url = cfg['notifications.whatsapp_webhook_url']?.url
+    if (!enabled || !url) return
+    // Fire-and-forget POST. Many WhatsApp bridges (Baileys, Gupshup, Meta Cloud
+    // API, n8n, Zapier) accept a plain JSON envelope — keep the shape generic.
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      mode: 'no-cors', // webhook targets rarely CORS-enable; we don't need to read the response
+      body: JSON.stringify({
+        type: notification.type,
+        title: notification.title,
+        message: notification.message,
+        entity_type: notification.entity_type,
+        entity_id: notification.entity_id,
+        text: `*${notification.title}*\n${notification.message}`,
+        sent_at: new Date().toISOString(),
+      }),
+    })
+  } catch {
+    // Silent — webhook failures should never break business flows.
+  }
+}
+
+// ─── APP SETTINGS ──────────────────────────────────────────
+// Tiny key/value store for app-wide config (webhook URLs, feature flags, etc.)
+export const appSettings = {
+  getAll: async () => safe(() => supabase.from('app_settings').select('*').order('key')),
+
+  get: async (key) => safe(() =>
+    supabase.from('app_settings').select('*').eq('key', key).maybeSingle()
+  ),
+
+  // Upsert a single setting. value is stored as jsonb so callers must pass an object.
+  set: async (key, value, description) => safe(() =>
+    supabase.from('app_settings').upsert({
+      key,
+      value,
+      description: description || undefined,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'key' }).select().single()
   ),
 }
 
@@ -934,6 +1062,24 @@ export const payments = {
           balance_due: invBalance,
           status: invStatus,
         }).eq('id', inv.id)
+      }
+
+      // Notification side-effect — fire-and-forget
+      try {
+        const { data: orderRow } = await supabase
+          .from('orders')
+          .select('order_number, customers(firm_name)')
+          .eq('id', order_id)
+          .single()
+        notifications.emit({
+          type: 'payment_received',
+          title: `Payment received · ₹${Number(amount).toLocaleString('en-IN')}`,
+          message: `${orderRow?.customers?.firm_name || 'Customer'} · ${orderRow?.order_number || ''} · balance ₹${newBalance.toLocaleString('en-IN')}`,
+          entity_type: 'order',
+          entity_id: order_id,
+        }).catch(() => {})
+      } catch {
+        // ignore — notifications are never load-bearing for payments
       }
 
       return { data: inserted, error: null }

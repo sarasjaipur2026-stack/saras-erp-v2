@@ -5,7 +5,7 @@ import {
   LayoutDashboard, ShoppingCart, MessageSquare, Calculator, Users,
   Package, Settings, Truck, Box, Palette, BarChart3, FileText,
   CreditCard, Briefcase, DollarSign, Building2, ChevronDown, Archive,
-  Hash, Ruler, Cog, Layers, Workflow, UserCog, Sparkles, PackageOpen, ShieldCheck, Factory, ShoppingBag
+  Hash, Ruler, Cog, Layers, Workflow, UserCog, Sparkles, PackageOpen, ShieldCheck, Factory, ShoppingBag, Bell
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -70,6 +70,7 @@ export default function Sidebar({ isOpen, onClose }) {
   }
 
   const systemItems = [
+    { path: '/notifications', label: 'Notifications', icon: Bell, category: 'system' },
     { path: '/settings', label: 'Settings', icon: Settings, category: 'system' },
     { path: '/import', label: 'Import Data', icon: Archive, category: 'system' },
   ]

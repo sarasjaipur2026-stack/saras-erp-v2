@@ -1,10 +1,23 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { notifications as notifDb } from '../lib/db'
-import { Menu, Bell, LogOut, Search, User, ChevronDown } from 'lucide-react'
+import { Menu, Bell, LogOut, Search, ChevronDown, CheckCheck } from 'lucide-react'
+
+const fmtRel = (iso) => {
+  if (!iso) return '—'
+  const ms = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(ms / 60000)
+  if (m < 1) return 'now'
+  if (m < 60) return `${m}m`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h`
+  return `${Math.floor(h / 24)}d`
+}
 
 export default function Topbar({ onMenuClick }) {
+  const navigate = useNavigate()
   const { user, profile, signOut } = useAuth()
   const toast = useToast()
   const [notifications, setNotifications] = useState([])
@@ -13,13 +26,21 @@ export default function Topbar({ onMenuClick }) {
   const notifRef = useRef(null)
   const profileRef = useRef(null)
 
-  useEffect(() => {
-    if (user?.id) {
-      notifDb.getUnread(user.id).then(({ data }) => {
-        if (data) setNotifications(data)
-      }).catch(() => {})
-    }
+  const loadNotifs = useCallback(() => {
+    if (!user?.id) return
+    notifDb.getUnread(user.id).then(({ data }) => {
+      if (data) setNotifications(data)
+    }).catch(() => {})
   }, [user?.id])
+
+  useEffect(() => { loadNotifs() }, [loadNotifs])
+
+  // Poll every 60 seconds while the tab is open
+  useEffect(() => {
+    if (!user?.id) return
+    const int = setInterval(loadNotifs, 60_000)
+    return () => clearInterval(int)
+  }, [user?.id, loadNotifs])
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -34,6 +55,26 @@ export default function Topbar({ onMenuClick }) {
   const handleSignOut = async () => {
     await signOut()
     toast.info('Signed out')
+  }
+
+  const handleNotifClick = async (n) => {
+    setShowNotifs(false)
+    if (!n.read_at) {
+      await notifDb.markAsRead(n.id)
+      setNotifications(prev => prev.filter(x => x.id !== n.id))
+    }
+    if (n.entity_type === 'order' && n.entity_id) {
+      navigate(`/orders/${n.entity_id}`)
+    } else {
+      navigate('/notifications')
+    }
+  }
+
+  const markAllRead = async (e) => {
+    e.stopPropagation()
+    if (!user?.id) return
+    await notifDb.markAllAsRead(user.id)
+    setNotifications([])
   }
 
   const initials = (profile?.full_name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
@@ -71,23 +112,46 @@ export default function Topbar({ onMenuClick }) {
         </button>
 
         {showNotifs && (
-          <div className="absolute right-0 top-12 w-80 bg-white border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-200/40 py-1 max-h-96 overflow-auto dropdown-in">
-            <div className="px-4 py-3 border-b border-slate-100 font-semibold text-sm text-slate-800">
-              Notifications
+          <div className="absolute right-0 top-12 w-96 bg-white border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-200/40 py-1 max-h-[28rem] overflow-hidden flex flex-col dropdown-in">
+            <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div className="font-semibold text-sm text-slate-800">Notifications</div>
+              {notifications.length > 0 && (
+                <button
+                  onClick={markAllRead}
+                  className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                >
+                  <CheckCheck size={12} /> Mark all read
+                </button>
+              )}
             </div>
-            {notifications.length === 0 ? (
-              <div className="px-4 py-10 text-sm text-slate-400 text-center">
-                <Bell size={22} className="mx-auto mb-2.5 text-slate-300" />
-                No new notifications
-              </div>
-            ) : (
-              notifications.map(n => (
-                <div key={n.id} className="px-4 py-3 hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-50 last:border-0">
-                  <div className="text-sm font-medium text-slate-700">{n.title}</div>
-                  <div className="text-xs text-slate-500 mt-0.5">{n.message}</div>
+            <div className="flex-1 overflow-y-auto">
+              {notifications.length === 0 ? (
+                <div className="px-4 py-10 text-sm text-slate-400 text-center">
+                  <Bell size={22} className="mx-auto mb-2.5 text-slate-300" />
+                  No new notifications
                 </div>
-              ))
-            )}
+              ) : (
+                notifications.map(n => (
+                  <button
+                    key={n.id}
+                    onClick={() => handleNotifClick(n)}
+                    className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0"
+                  >
+                    <div className="flex items-baseline justify-between gap-2">
+                      <div className="text-sm font-semibold text-slate-700 truncate">{n.title}</div>
+                      <div className="text-[10px] text-slate-400 font-mono shrink-0">{fmtRel(n.created_at)}</div>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5 line-clamp-2">{n.message}</div>
+                  </button>
+                ))
+              )}
+            </div>
+            <button
+              onClick={() => { setShowNotifs(false); navigate('/notifications') }}
+              className="px-4 py-2.5 border-t border-slate-100 text-[12px] font-semibold text-indigo-600 hover:bg-indigo-50/50 transition-colors text-center shrink-0"
+            >
+              View all →
+            </button>
           </div>
         )}
       </div>

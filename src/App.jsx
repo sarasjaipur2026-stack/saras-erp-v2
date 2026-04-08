@@ -75,6 +75,7 @@ const PurchasePage = lazy(() => import('./modules/purchase/PurchasePage'))
 const ReportsPage = lazy(() => import('./modules/reports/ReportsPage'))
 const JobworkPage = lazy(() => import('./modules/jobwork/JobworkPage'))
 const QualityPage = lazy(() => import('./modules/quality/QualityPage'))
+const NotificationsPage = lazy(() => import('./modules/notifications/NotificationsPage'))
 const CustomersPage = lazy(() => import('./modules/masters/CustomersPage'))
 const ProductsPage = lazy(() => import('./modules/masters/ProductsPage'))
 const MaterialsPage = lazy(() => import('./modules/masters/MaterialsPage'))
@@ -151,6 +152,7 @@ export default function App() {
       <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
       <Route path="/jobwork" element={<ProtectedRoute><JobworkPage /></ProtectedRoute>} />
       <Route path="/quality" element={<ProtectedRoute><QualityPage /></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
 
       {/* Masters */}
       <Route path="/masters/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
