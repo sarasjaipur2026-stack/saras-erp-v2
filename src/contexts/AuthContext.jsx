@@ -84,11 +84,37 @@ export function AuthProvider({ children }) {
   const isStaff = profile?.role === 'staff' || isAdmin
   const isViewer = profile?.role === 'viewer'
 
+  // hasPermission(module)           -> true if the user can access the module at all (for sidebar filtering)
+  // hasPermission(module, action)   -> true if the user can perform that specific action
+  //
+  // Resolution order:
+  //   1. Admins always yes
+  //   2. Viewers: only 'view' actions allowed, and only for modules where perms[module]?.view is not false
+  //   3. Staff: explicit permission entry wins, otherwise default to true (permissive baseline)
+  //   4. Unknown role: default to false (deny)
   const hasPermission = useCallback((module, action) => {
     if (isAdmin) return true
-    if (isViewer && action !== 'view') return false
     const perms = profile?.permissions || {}
-    return perms[module]?.[action] ?? isStaff
+    const modPerms = perms[module]
+
+    // Module-level check (no action supplied) — used by the sidebar
+    if (!action) {
+      if (isViewer) return modPerms?.view !== false
+      if (isStaff) {
+        if (!modPerms) return true
+        // Any truthy entry means they can see it
+        return Object.values(modPerms).some(v => v === true)
+      }
+      return false
+    }
+
+    // Action-level check
+    if (isViewer) return action === 'view' && modPerms?.view !== false
+    if (isStaff) {
+      if (!modPerms) return true // permissive default for staff on unmapped modules
+      return modPerms[action] === true
+    }
+    return false
   }, [profile, isAdmin, isStaff, isViewer])
 
   return (
