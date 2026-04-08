@@ -30,13 +30,22 @@ export default function ProductionPage() {
   const [pickedOrder, setPickedOrder] = useState('')
   const [detailJob, setDetailJob] = useState(null)
 
-  const fetch = async () => {
+  const [loadError, setLoadError] = useState(null)
+
+  const loadData = async () => {
     setLoading(true)
-    const { data } = await productionPlans.getAll()
-    setList(data || [])
-    setLoading(false)
+    setLoadError(null)
+    try {
+      const result = await productionPlans.getAll()
+      if (result?.error) throw result.error
+      setList(result?.data || [])
+    } catch (err) {
+      setLoadError(err?.message || String(err))
+    } finally {
+      setLoading(false)
+    }
   }
-  useEffect(() => { fetch() }, [])
+  useEffect(() => { loadData() }, [])
 
   const openCreate = async () => {
     const { data } = await ordersApi.getAll()
@@ -51,7 +60,7 @@ export default function ProductionPage() {
     if (error) { toast.error(error.message || 'Failed to create production job'); return }
     toast.success('Production job created — order moved to production')
     setShowCreate(false)
-    fetch()
+    loadData()
   }
 
   const updateStatus = async (job, newStatus) => {
@@ -61,7 +70,7 @@ export default function ProductionPage() {
     const { error } = await productionPlans.update(job.id, patch)
     if (error) { toast.error('Update failed'); return }
     toast.success(`Status: ${STATUS[newStatus]?.label || newStatus}`)
-    fetch()
+    loadData()
     if (detailJob?.id === job.id) setDetailJob({ ...detailJob, ...patch })
   }
 
@@ -233,7 +242,7 @@ export default function ProductionPage() {
           if (error) return toast.error('Save failed')
           toast.success('Saved')
           setDetailJob({ ...detailJob, ...p })
-          fetch()
+          loadData()
         }} />}
       </Modal>
     </div>

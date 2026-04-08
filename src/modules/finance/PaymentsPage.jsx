@@ -26,11 +26,20 @@ export default function PaymentsPage() {
     reference_number: '', bank_id: '', notes: '',
   })
 
+  const [loadError, setLoadError] = useState(null)
+
   const load = async () => {
     setLoading(true)
-    const { data } = await payments.getAll()
-    setList(data || [])
-    setLoading(false)
+    setLoadError(null)
+    try {
+      const result = await payments.getAll()
+      if (result?.error) throw result.error
+      setList(result?.data || [])
+    } catch (err) {
+      setLoadError(err?.message || String(err))
+    } finally {
+      setLoading(false)
+    }
   }
   useEffect(() => { load() }, [])
 

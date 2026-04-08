@@ -14,16 +14,25 @@ export default function StockPage() {
   const [search, setSearch] = useState('')
   const [view, setView] = useState('balances') // balances | movements
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState(null)
 
   const load = async () => {
     setLoading(true)
-    const [bal, mv] = await Promise.all([
-      stockMovements.computeBalances(),
-      stockMovements.getAll(),
-    ])
-    setBalances((bal.data || []).filter(b => Math.abs(b.quantity) > 0.001))
-    setMovements(mv.data || [])
-    setLoading(false)
+    setLoadError(null)
+    try {
+      const [bal, mv] = await Promise.all([
+        stockMovements.computeBalances(),
+        stockMovements.getAll(),
+      ])
+      if (bal?.error) throw bal.error
+      if (mv?.error) throw mv.error
+      setBalances((bal?.data || []).filter(b => Math.abs(b.quantity) > 0.001))
+      setMovements(mv?.data || [])
+    } catch (err) {
+      setLoadError(err?.message || String(err))
+    } finally {
+      setLoading(false)
+    }
   }
   useEffect(() => { load() }, [])
 

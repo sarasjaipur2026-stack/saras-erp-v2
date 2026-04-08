@@ -21,14 +21,22 @@ export default function SimpleMasterPage({ title, subtitle, api, fields, default
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(defaults)
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState(null)
 
-  const fetch = async () => {
+  const loadData = async () => {
     setLoading(true)
-    const { data } = await api.getAll()
-    setList(data || [])
-    setLoading(false)
+    setLoadError(null)
+    try {
+      const result = await api.getAll()
+      if (result?.error) throw result.error
+      setList(result?.data || [])
+    } catch (err) {
+      setLoadError(err?.message || String(err))
+    } finally {
+      setLoading(false)
+    }
   }
-  useEffect(() => { fetch() }, []) // eslint-disable-line
+  useEffect(() => { loadData() }, []) // eslint-disable-line
 
   const openAdd = () => { setEditing(null); setForm(defaults); setShowModal(true) }
   const openEdit = (row) => { setEditing(row); setForm({ ...defaults, ...row }); setShowModal(true) }
@@ -54,7 +62,7 @@ export default function SimpleMasterPage({ title, subtitle, api, fields, default
     setShowModal(false)
     setForm(defaults)
     setEditing(null)
-    fetch()
+    loadData()
     onChanged?.()
   }
 
@@ -63,7 +71,7 @@ export default function SimpleMasterPage({ title, subtitle, api, fields, default
     const { error } = await api.delete(row.id)
     if (error) { toast.error(error.message || 'Delete failed'); return }
     toast.success('Deleted')
-    fetch()
+    loadData()
     onChanged?.()
   }
 
@@ -80,6 +88,12 @@ export default function SimpleMasterPage({ title, subtitle, api, fields, default
         </div>
         <Button onClick={openAdd}><Plus size={15} /> Add {title.replace(/s$/, '')}</Button>
       </div>
+
+      {loadError && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-[13px] text-red-700">
+          <strong>Failed to load:</strong> {loadError}
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden">
         <table className="w-full text-sm">

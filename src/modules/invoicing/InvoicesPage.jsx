@@ -26,12 +26,20 @@ export default function InvoicesPage() {
   const [availableOrders, setAvailableOrders] = useState([])
   const [picked, setPicked] = useState('')
   const [detail, setDetail] = useState(null)
+  const [loadError, setLoadError] = useState(null)
 
   const load = async () => {
     setLoading(true)
-    const { data } = await invoices.getAll()
-    setList(data || [])
-    setLoading(false)
+    setLoadError(null)
+    try {
+      const result = await invoices.getAll()
+      if (result?.error) throw result.error
+      setList(result?.data || [])
+    } catch (err) {
+      setLoadError(err?.message || String(err))
+    } finally {
+      setLoading(false)
+    }
   }
   useEffect(() => { load() }, [])
 

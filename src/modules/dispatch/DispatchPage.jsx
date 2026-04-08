@@ -14,12 +14,20 @@ export default function DispatchPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [availableOrders, setAvailableOrders] = useState([])
   const [form, setForm] = useState({ order_id: '', vehicle_number: '', driver_name: '', delivery_note: '' })
+  const [loadError, setLoadError] = useState(null)
 
   const load = async () => {
     setLoading(true)
-    const { data } = await deliveries.getAll()
-    setList(data || [])
-    setLoading(false)
+    setLoadError(null)
+    try {
+      const result = await deliveries.getAll()
+      if (result?.error) throw result.error
+      setList(result?.data || [])
+    } catch (err) {
+      setLoadError(err?.message || String(err))
+    } finally {
+      setLoading(false)
+    }
   }
   useEffect(() => { load() }, [])
 
