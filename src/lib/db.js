@@ -6,11 +6,25 @@ import { supabase, withRetry } from './supabase'
 //
 // This replaces 1000+ lines of repetitive code with ~15 lines per table.
 
+const REQUEST_TIMEOUT_MS = 15000
+
 const safe = async (fn) => {
+  let timeoutId
   try {
-    return await withRetry(fn)
+    const result = await Promise.race([
+      withRetry(fn),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error('Request timed out after 15s — check your connection or Supabase project status')),
+          REQUEST_TIMEOUT_MS,
+        )
+      }),
+    ])
+    return result
   } catch (error) {
     return { data: null, error }
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
   }
 }
 

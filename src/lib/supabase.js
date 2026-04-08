@@ -3,10 +3,22 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
+if (!supabaseUrl || !supabaseKey) {
+  // Surfacing this loudly so a misconfigured Vercel build is obvious in the console
+  // eslint-disable-next-line no-console
+  console.error('[saras-erp] Supabase env vars missing at build time', { hasUrl: !!supabaseUrl, hasKey: !!supabaseKey })
+}
+
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    storageKey: 'sb-kcnujpvzewtuttfcrtyz-auth-token',
+    // Disable the navigator.locks-based lock — it can hang in some browser
+    // contexts and there is no benefit for a single-tab SPA. Without this,
+    // every supabase call waits for a lock that never resolves.
+    lock: async (name, acquireTimeout, fn) => fn(),
   },
   global: {
     headers: { 'X-Client-Info': 'saras-erp' },
