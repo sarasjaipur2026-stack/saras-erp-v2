@@ -20,6 +20,37 @@
 
 html {
   scroll-behavior: smooth;
+  color-scheme: light;
+  /* Reserve space for scrollbar so content doesn't shift when it appears. */
+  scrollbar-gutter: stable;
+  /* Support for dynamic viewport on mobile browsers (address-bar aware). */
+  --vh: 1vh;
+}
+
+/* Utility: dynamic viewport height that respects mobile browser chrome. */
+@supports (height: 100dvh) {
+  .min-h-screen-dvh { min-height: 100dvh; }
+}
+
+/* Disable hover-state stickiness on touch-only devices. */
+@media (hover: none) {
+  .card-hover:hover { transform: none; box-shadow: none; }
+}
+
+/* Print stylesheet for invoices, reports, challans. */
+@media print {
+  html, body { background: #fff !important; }
+  aside, nav, .no-print, [role="dialog"] { display: none !important; }
+  main { margin: 0 !important; padding: 0 !important; }
+  *, *::before, *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    color: #000 !important;
+    background: transparent !important;
+  }
+  a { text-decoration: underline; }
+  table { page-break-inside: avoid; }
+  tr, td, th { page-break-inside: avoid; }
 }
 
 body {
@@ -41,6 +72,15 @@ body {
 /* Numeric-heavy surfaces: tables, stat cards, mono columns. */
 table, .tabular-nums, [class*="font-mono"] {
   font-variant-numeric: tabular-nums;
+}
+
+/* 2026 text flow: balanced headings, pretty orphan-free paragraphs.
+   Gracefully ignored by browsers that don't support it. */
+h1, h2, h3, h4 {
+  text-wrap: balance;
+}
+p {
+  text-wrap: pretty;
 }
 
 #root {

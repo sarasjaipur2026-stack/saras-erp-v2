@@ -81,7 +81,12 @@ export default function Topbar({ onMenuClick }) {
 
   return (
     <header className="h-16 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 flex items-center px-4 gap-3 sticky top-0 z-20">
-      <button onClick={onMenuClick} className="lg:hidden p-2 rounded-xl hover:bg-slate-100 text-slate-400 transition-colors">
+      <button
+        type="button"
+        onClick={onMenuClick}
+        aria-label="Open menu"
+        className="lg:hidden p-2 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors cursor-pointer focus-ring"
+      >
         <Menu size={20} />
       </button>
 
@@ -100,8 +105,11 @@ export default function Topbar({ onMenuClick }) {
       {/* Notifications */}
       <div className="relative" ref={notifRef}>
         <button
+          type="button"
           onClick={() => { setShowNotifs(!showNotifs); setShowProfile(false) }}
-          className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 relative transition-colors"
+          aria-label={`Notifications${notifications.length ? ` (${notifications.length} unread)` : ''}`}
+          aria-expanded={showNotifs}
+          className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-700 relative transition-colors cursor-pointer focus-ring"
         >
           <Bell size={19} />
           {notifications.length > 0 && (
@@ -126,8 +134,8 @@ export default function Topbar({ onMenuClick }) {
             </div>
             <div className="flex-1 overflow-y-auto">
               {notifications.length === 0 ? (
-                <div className="px-4 py-10 text-sm text-slate-400 text-center">
-                  <Bell size={22} className="mx-auto mb-2.5 text-slate-300" />
+                <div className="px-4 py-10 text-sm text-slate-500 text-center">
+                  <Bell size={22} className="mx-auto mb-2.5 text-slate-400" />
                   No new notifications
                 </div>
               ) : (

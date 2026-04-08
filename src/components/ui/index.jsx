@@ -285,11 +285,11 @@ export const EmptyState = ({ icon: Icon, title, description, action }) => (
   <div className="flex flex-col items-center justify-center py-16 px-4">
     {Icon && (
       <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
-        <Icon size={24} className="text-slate-400" />
+        <Icon size={24} className="text-slate-500" />
       </div>
     )}
-    <h3 className="text-sm font-semibold text-slate-600 mb-1">{title}</h3>
-    {description && <p className="text-[13px] text-slate-400 mb-5 text-center max-w-xs">{description}</p>}
+    <h3 className="text-sm font-semibold text-slate-700 mb-1">{title}</h3>
+    {description && <p className="text-[13px] text-slate-500 mb-5 text-center max-w-xs leading-relaxed">{description}</p>}
     {action}
   </div>
 )
@@ -305,10 +305,10 @@ export const Spinner = ({ size = 'md' }) => {
 
 // ─── PAGE LOADER ───────────────────────────────────────────
 export const PageLoader = () => (
-  <div className="flex items-center justify-center min-h-screen">
+  <div className="flex items-center justify-center min-h-screen" role="status" aria-live="polite">
     <div className="text-center">
       <Spinner size="lg" />
-      <p className="mt-3 text-sm text-slate-400 font-medium">Loading...</p>
+      <p className="mt-3 text-sm text-slate-500 font-medium">Loading...</p>
     </div>
   </div>
 )
@@ -386,10 +386,10 @@ export const DataTable = ({
 
   if (isLoadingFinal) {
     return (
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-12">
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-12" role="status" aria-live="polite">
         <div className="flex flex-col items-center justify-center">
           <Spinner size="md" />
-          <p className="mt-3 text-sm text-slate-400">Loading...</p>
+          <p className="mt-3 text-sm text-slate-500">Loading...</p>
         </div>
       </div>
     )
