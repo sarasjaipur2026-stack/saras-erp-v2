@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SARAS ERP v2 — Master Data Architecture</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0f1e;
+            --bg-secondary: #0f1629;
+            --bg-tertiary: #151d2e;
+            --accent-primary: #a78bfa;
+            --accent-secondary: #c084fc;
+            --text-primary: #f5f7fa;
+            --text-secondary: #b8c3d4;
+            --border-color: rgba(167, 139, 250, 0.2);
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --info: #3b82f6;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--accent-primary);
+            border-radius: 4px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+        }
+
+        .glass:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(167, 139, 250, 0.4);
+            transition: all 0.3s ease;
+        }
+
+        .header {
+            padding: 80px 20px;
+            background: linear-gradient(135deg, rgba(167, 139, 250, 0.1) 0%, rgba(192, 132, 252, 0.1) 100%);
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 60px;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .search-container {
+            margin-bottom: 40px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.95rem;
+        }
+
+        .search-input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .search-input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--accent-primary);
+        }
+
+        .section {
+            margin-bottom: 80px;
+        }
+
+        .section-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 30px;
+            color: var(--accent-primary);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .master-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .master-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .master-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .master-card:hover::before {
+            opacity: 1;
+        }
+
+        .master-card:hover {
+            transform: translateY(-4px);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .master-icon {
+            font-size: 2rem;
+            margin-bottom: 12px;
+        }
+
+        .master-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--accent-primary);
+        }
+
+        .master-meta {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .meta-badge {
+            background: rgba(167, 139, 250, 0.15);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+
+        .expand-indicator {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            color: var(--accent-secondary);
+            opacity: 0.6;
+            transition: all 0.3s ease;
+        }
+
+        .master-card:hover .expand-indicator {
+            opacity: 1;
+            transform: scale(1.2);
+        }
+
+        .master-detail {
+            display: none;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .master-detail.expanded {
+            display: block;
+        }
+
+        .field-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 12px;
+        }
+
+        .field-item {
+            background: rgba(192, 132, 252, 0.1);
+            padding: 10px 12px;
+            border-radius: 6px;
+            border-left: 3px solid var(--accent-secondary);
+            font-size: 0.9rem;
+        }
+
+        .field-item strong {
+            color: var(--accent-primary);
+        }
+
+        .dependency-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 40px;
+        }
+
+        .dependency-table thead {
+            background: rgba(167, 139, 250, 0.1);
+        }
+
+        .dependency-table th {
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid var(--border-color);
+            color: var(--accent-primary);
+        }
+
+        .dependency-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .module-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .master-dots {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .master-dot {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: rgba(167, 139, 250, 0.2);
+            border-radius: 4px;
+            font-size: 0.8rem;
+            color: var(--accent-primary);
+        }
+
+        .master-dot::before {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-secondary);
+        }
+
+        .flow-container {
+            background: linear-gradient(135deg, rgba(167, 139, 250, 0.1) 0%, rgba(192, 132, 252, 0.05) 100%);
+            padding: 40px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 40px;
+        }
+
+        .flow-steps {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            overflow-x: auto;
+            padding: 20px 0;
+        }
+
+        .flow-step {
+            flex-shrink: 0;
+            background: var(--bg-tertiary);
+            padding: 16px 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            min-width: 200px;
+            text-align: center;
+        }
+
+        .flow-step-title {
+            font-weight: 600;
+            color: var(--accent-primary);
+            font-size: 0.9rem;
+            margin-bottom: 6px;
+        }
+
+        .flow-step-content {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .flow-arrow {
+            flex-shrink: 0;
+            font-size: 1.5rem;
+            color: var(--accent-secondary);
+        }
+
+        .custom-fields-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        @media (max-width: 1024px) {
+            .custom-fields-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .custom-field-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .custom-field-card h4 {
+            color: var(--accent-primary);
+            margin-bottom: 16px;
+            font-size: 1rem;
+        }
+
+        .custom-field-item {
+            background: rgba(192, 132, 252, 0.1);
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            border-left: 3px solid var(--accent-secondary);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-info {
+            background: rgba(59, 130, 246, 0.2);
+            color: var(--info);
+        }
+
+        .category-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .badge-party { background: rgba(236, 72, 153, 0.2); color: #ec4899; }
+        .badge-product { background: rgba(139, 92, 246, 0.2); color: #8b5cf6; }
+        .badge-process { background: rgba(6, 182, 212, 0.2); color: #06b6d4; }
+        .badge-financial { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+        .badge-operational { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+        .badge-system { background: rgba(99, 102, 241, 0.2); color: #6366f1; }
+
+        .category-party { border-left-color: #ec4899; }
+        .category-product { border-left-color: #8b5cf6; }
+        .category-process { border-left-color: #06b6d4; }
+        .category-financial { border-left-color: #10b981; }
+        .category-operational { border-left-color: #f59e0b; }
+        .category-system { border-left-color: #6366f1; }
+
+        .master-card.category-party::before { background: linear-gradient(90deg, #ec4899, #f472b6); }
+        .master-card.category-product::before { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+        .master-card.category-process::before { background: linear-gradient(90deg, #06b6d4, #22d3ee); }
+        .master-card.category-financial::before { background: linear-gradient(90deg, #10b981, #34d399); }
+        .master-card.category-operational::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .master-card.category-system::before { background: linear-gradient(90deg, #6366f1, #818cf8); }
+
+        .footer {
+            padding: 40px 20px;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+            color: var(--text-secondary);
+            margin-top: 80px;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .master-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .flow-steps {
+                flex-direction: column;
+            }
+
+            .flow-arrow {
+                transform: rotate(90deg);
+            }
+
+            .dependency-table {
+                font-size: 0.9rem;
+            }
+
+            .dependency-table th, .dependency-table td {
+                padding: 8px;
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .master-detail.expanded {
+            animation: fadeIn 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <h1>SARAS ERP v2</h1>
+            <p>Master Data Architecture — Foundation Blueprint: Every dropdown, every reference field, standardized</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="search-container">
+            <input type="text" class="search-input" id="searchInput" placeholder="Search masters, fields, or modules...">
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">📋 Master Tables Overview</h2>
+            <div class="master-grid" id="masterGrid"></div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">🔗 Module-to-Master Dependency Map</h2>
+            <div class="glass" style="padding: 24px; overflow-x: auto;">
+                <table class="dependency-table">
+                    <thead>
+                        <tr>
+                            <th>Module</th>
+                            <th>Masters Used</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dependencyBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">⚙️ Custom Fields System</h2>
+            <div class="custom-fields-grid">
+                <div class="custom-field-card">
+                    <h4>Custom Field Types</h4>
+                    <div class="custom-field-item">✓ Text (single line / multi-line)</div>
+                    <div class="custom-field-item">✓ Number (integer / decimal / currency)</div>
+                    <div class="custom-field-item">✓ Date & Time</div>
+                    <div class="custom-field-item">✓ Dropdown (single / multi-select)</div>
+                    <div class="custom-field-item">✓ Boolean (Yes/No)</div>
+                    <div class="custom-field-item">✓ File Upload</div>
+                </div>
+                <div class="custom-field-card">
+                    <h4>Configuration Options</h4>
+                    <div class="custom-field-item">✓ Required field toggle</div>
+                    <div class="custom-field-item">✓ Show/hide in list view</div>
+                    <div class="custom-field-item">✓ Show/hide in print</div>
+                    <div class="custom-field-item">✓ Default value pre-fill</div>
+                    <div class="custom-field-item">✓ Validation rules</div>
+                    <div class="custom-field-item">✓ Field-level permissions</div>
+                </div>
+            </div>
+            <div class="glass" style="padding: 24px;">
+                <h4 style="color: var(--accent-primary); margin-bottom: 16px;">Custom Fields Registry Structure</h4>
+                <div style="background: rgba(192, 132, 252, 0.1); padding: 16px; border-radius: 8px; font-family: monospace; font-size: 0.9rem; overflow-x: auto;">
+                    <div>table_name: VARCHAR | field_name: VARCHAR | field_type: ENUM</div>
+                    <div>dropdown_options: JSON | required: BOOLEAN | show_in_list: BOOLEAN</div>
+                    <div>show_in_print: BOOLEAN | default_value: TEXT | validation_rule: TEXT</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">🔄 Order Lifecycle Data Flow</h2>
+            <div class="flow-container">
+                <div class="flow-steps" id="flowSteps"></div>
+            </div>
+            <div class="glass" style="padding: 24px;">
+                <h4 style="color: var(--accent-primary); margin-bottom: 16px;">Data Touch Points</h4>
+                <p style="color: var(--text-secondary); margin-bottom: 12px;">Every transaction in SARAS ERP touches multiple masters. The flow above shows a typical order-to-invoice journey:</p>
+                <ul style="margin-left: 20px; color: var(--text-secondary); line-height: 2;">
+                    <li><strong style="color: var(--text-primary);">Order Entry</strong> — Customer master pulled; Payment Terms, Brokers, Charge Types attached</li>
+                    <li><strong style="color: var(--text-primary);">Calculator</strong> — Product Type, Chaal, Machine Types, Yarn Types, Process Types invoked</li>
+                    <li><strong style="color: var(--text-primary);">Production</strong> — Operators assigned, Machines tracked, Yarn consumption logged against Inventory</li>
+                    <li><strong style="color: var(--text-primary);">Dispatch</strong> — Packaging, Transport, Warehouse locations referenced</li>
+                    <li><strong style="color: var(--text-primary);">Invoicing</strong> — HSN codes applied, Charge Types finalized, Bank details confirmed</li>
+                    <li><strong style="color: var(--text-primary);">Payment</strong> — Payment Terms, Banks, reconciliation complete</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">📖 Complete Master Definitions</h2>
+            <div id="categorySections"></div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">🏗️ Architecture Principles</h2>
+            <div class="glass" style="padding: 24px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                    <div>
+                        <h4 style="color: var(--accent-primary); margin-bottom: 12px;">Master Data Integrity</h4>
+                        <p style="color: var(--text-secondary); font-size: 0.95rem;">All masters enforce referential integrity. Cannot delete a master record if child records exist in other tables. Soft deletes via active/inactive flags for audit trails.</p>
+                    </div>
+                    <div>
+                        <h4 style="color: var(--accent-primary); margin-bottom: 12px;">Audit Trail</h4>
+                        <p style="color: var(--text-secondary); font-size: 0.95rem;">Every master table includes created_at, created_by, updated_at, updated_by timestamps. Changes to critical fields trigger audit log entries.</p>
+                    </div>
+                    <div>
+                        <h4 style="color: var(--accent-primary); margin-bottom: 12px;">Hierarchical Organization</h4>
+                        <p style="color: var(--text-secondary); font-size: 0.95rem;">Masters organized into 6 logical categories. Each category groups related data for easier navigation and permission management.</p>
+                    </div>
+                    <div>
+                        <h4 style="color: var(--accent-primary); margin-bottom: 12px;">Extensibility</h4>
+                        <p style="color: var(--text-secondary); font-size: 0.95rem;">Custom Fields Registry allows unlimited user-defined fields on any master without schema changes. Configuration-driven approach.</p>
+                    </div>
+                    <div>
+                        <h4 style="color: var(--accent-primary); margin-bottom: 12px;">Multi-Tenancy Ready</h4>
+                        <p style="color: var(--text-secondary); font-size: 0.95rem;">All masters include tenant_id for multi-organization deployments. Master data scoped by organization by default.</p>
+                    </div>
+                    <div>
+                        <h4 style="color: var(--accent-primary); margin-bottom: 12px;">Performance</h4>
+                        <p style="color: var(--text-secondary); font-size: 0.95rem;">Frequently referenced masters (Customer, Supplier, Product) are cached at application layer. Indexed on primary lookups and status fields.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>SARAS ERP v2 — Master Data Architecture v1.0</p>
+        <p style="font-size: 0.9rem; margin-top: 10px;">Cordage & Narrow Textile Manufacturing | Created 2026</p>
+    </div>
+
+    <script>
+        const mastersData = {
+            'A. PARTY MASTERS': {
+                category: 'party',
+                icon: '👥',
+                masters: [
+                    {
+                        name: 'Customer Master',
+                        fields: 22,
+                        modules: ['Orders', 'Dispatch', 'Finance', 'Invoicing', 'Payments'],
+                        details: {
+                            fields: ['Firm Name', 'Contact Person', 'Phone / WhatsApp', 'Email', 'Billing Address', 'Shipping Address (multiple)', 'GSTIN', 'State Code (GST)', 'PAN', 'Credit Limit (₹)', 'Overdue Days Allowed', 'Advance Required (%)', 'Payment Terms → (ref)', 'Broker → (ref)', 'Customer Group/Category', 'Opening Balance', 'Notes', 'Custom Fields']
+                        }
+                    },
+                    {
+                        name: 'Supplier Master',
+                        fields: 20,
+                        modules: ['Purchase', 'Inward', 'Finance', 'Inventory'],
+                        details: {
+                            fields: ['Firm Name', 'Contact Person', 'Phone / WhatsApp', 'Email', 'Address', 'GSTIN', 'State Code', 'PAN', 'Payment Terms → (ref)', 'Material Mapping → (ref Yarn)', 'Last Purchase Rate per Yarn', 'Quality Rating (1-5)', 'Reliability Notes', 'Blacklist Flag', 'Bank Name', 'Account Number', 'IFSC', 'UPI ID', 'Opening Balance', 'Custom Fields']
+                        }
+                    }
+                ]
+            },
+            'B. PRODUCT MASTERS': {
+                category: 'product',
+                icon: '📦',
+                masters: [
+                    {
+                        name: 'Machine Types',
+                        fields: 18,
+                        modules: ['Calculator', 'Production', 'Jobwork'],
+                        details: {
+                            fields: ['Name', 'Custom Number', 'Spindle Count', 'Machine Type (Round/Flat/Choti/Rope)', 'Default Carriers', 'Default Speed (m/min)', 'Motor Power (HP)', 'Machine Width (mm)', 'RPM Range', 'Hourly Running Cost (₹)', 'Compatible Products → (ref)', 'Maintenance Schedule', 'Last Serviced Date', 'Next Due Date', 'Maintenance Cost', 'Machine Count', 'Serial Numbers (list)', 'Photo Upload', 'Active/Inactive', 'Custom Fields']
+                        }
+                    },
+                    {
+                        name: 'Product Types',
+                        fields: 14,
+                        modules: ['Orders', 'Calculator', 'Production', 'Invoicing'],
+                        details: {
+                            fields: ['Name', 'Code', 'Category (Hollow Cord, Round Cord, Flat Elastic, etc)', 'Requires Filler (yes/no)', 'Compatible Machines → (ref)', 'Default Chaal → (ref)', 'Default Waste %', 'HSN Code → (ref)', 'Default Unit → (ref)', 'Photo', 'Description', 'Active/Inactive', 'Custom Fields']
+                        }
+                    },
+                    {
+                        name: 'Chaal Types',
+                        fields: 7,
+                        modules: ['Calculator', 'Production'],
+                        details: {
+                            fields: ['Name (Seedhi/Jodi/Guthai/Custom)', 'Hindi Name', 'Description', 'Speed Factor (multiplier vs Seedhi)', 'Compatible Products → (ref)', 'Active/Inactive', 'Custom Fields']
+                        }
+                    },
+                    {
+                        name: 'Yarn / Material Types',
+                        fields: 16,
+                        modules: ['Calculator', 'Production', 'Inventory', 'Purchase'],
+                        details: {
+                            fields: ['Name', 'Yarn Type (Cotton/PolyCotton/Polyester DTY/Spun Polyester/Viscose/Shoddy/etc)', 'Count or Denier', 'Default ₹/kg Rate', 'Supplier Links → (ref Supplier with last rate)', 'Current Stock Qty → (ref Inventory)', 'Color/Shade', 'Usage Type (covering/filler/both)', 'HSN Code → (ref)', 'Min Order Qty', 'Active/Inactive', 'Custom Fields']
+                        }
+                    }
+                ]
+            },
+            'C. PROCESS MASTERS': {
+                category: 'process',
+                icon: '⚙️',
+                masters: [
+                    {
+                        name: 'Process Types',
+                        fields: 11,
+                        modules: ['Calculator', 'Production', 'Jobwork'],
+                        details: {
+                            fields: ['Name (Cone Winding, Bobbin Winding, Braiding, Twisting, Tipping, Dyeing, Packing, Custom)', 'Hindi Name', 'Sequence Order', 'Requires Machine (yes/no)', 'Default Machine Type → (ref)', 'Default Duration per Kg', 'Is Optional (yes/no)', 'Description', 'Active/Inactive', 'Custom Fields']
+                        }
+                    },
+                    {
+                        name: 'Operator / Worker Master',
+                        fields: 14,
+                        modules: ['Production', 'Jobwork', 'Payroll'],
+                        details: {
+                            fields: ['Name', 'Phone', 'Role (Operator/Helper/Supervisor)', 'Daily Wage (₹)', 'Hourly Rate (auto-calc)', 'Shift (Day/Night/Both)', 'Skills → (ref Process Types)', 'Assigned Machines → (ref Machine Types)', 'Photo', 'Joining Date', 'ID Proof', 'Active/Inactive', 'Custom Fields']
+                        }
+                    }
+                ]
+            },
+            'D. FINANCIAL MASTERS': {
+                category: 'financial',
+                icon: '💰',
+                masters: [
+                    {
+                        name: 'HSN/SAC Codes',
+                        fields: 8,
+                        modules: ['Invoicing', 'Finance', 'Reports'],
+                        details: {
+                            fields: ['HSN/SAC Code', 'Description', 'CGST %', 'SGST %', 'IGST %', 'Cess %', 'Category', 'Active/Inactive']
+                        }
+                    },
+                    {
+                        name: 'Units of Measurement',
+                        fields: 7,
+                        modules: ['Orders', 'Calculator', 'Invoicing', 'Inventory'],
+                        details: {
+                            fields: ['Unit Name', 'Symbol (m, kg, g, mm, pcs, dz, gross)', 'Type (length/weight/quantity)', 'Conversion Factor (to base unit)', 'Base Unit Flag', 'Active/Inactive', 'Custom Fields']
+                        }
+                    },
+                    {
+                        name: 'Charge Types',
+                        fields: 8,
+                        modules: ['Orders', 'Invoicing', 'Finance'],
+                        details: {
+                            fields: ['Name', 'Type (fixed/percentage)', 'Default Value', 'Applies To (order/invoice/both)', 'Taxable (yes/no)', 'HSN Code → (ref)', 'Active/Inactive', 'Custom Fields']
+                        }
+                    },
+                    {
+                        name: 'Payment Terms',
+                        fields: 5,
+                        modules: ['Orders', 'Finance', 'Invoicing'],
+                        details: {
+                            fields: ['Name', 'Days', 'Description', 'Active/Inactive', 'Custom Fields']
+                        }
+                    },
+                    {
+                        name: 'Banks',
+                        fields: 7,
+                        modules: ['Finance', 'Payments', 'Invoicing'],
+                        details: {
+                            fields: ['Bank Name', 'Branch', 'Account Number', 'IFSC', 'UPI ID', 'Is Default', 'Active/Inactive']
+                        }
+                    },
+                    {
+                        name: 'Brokers',
+                        fields: 6,
+                        modules: ['Orders', 'Finance'],
+                        details: {
+                            fields: ['Name', 'Phone', 'Commission %', 'Commission Type (on order value/collection)', 'Active/Inactive', 'Custom Fields']
+                        }
+                    }
+                ]
+            },
+            'E. OPERATIONAL MASTERS': {
+                category: 'operational',
+                icon: '🏭',
+                masters: [
+                    {
+                        name: 'Warehouses / Locations',
+                        fields: 7,
+                        modules: ['Inventory', 'Production', 'Dispatch'],
+                        details: {
+                            fields: ['Name', 'Address', 'Type (raw material/finished goods/both)', 'Capacity', 'Contact Person', 'Active/Inactive', 'Custom Fields']
+                        }
+                    },
+                    {
+                        name: 'Order Types',
+                        fields: 6,
+                        modules: ['Orders', 'Production'],
+                        details: {
+                            fields: ['Name', 'Prefix', 'Type (manufacturing/trading/jobwork/sample)', 'Default Workflow Steps', 'Active/Inactive', 'Custom Fields']
+                        }
+                    },
+                    {
+                        name: 'Color Master',
+                        fields: 5,
+                        modules: ['Orders', 'Production', 'Inventory'],
+                        details: {
+                            fields: ['Color Name', 'Color Code (hex)', 'Hindi Name', 'Category (solid/melange/dyed)', 'Active/Inactive']
+                        }
+                    },
+                    {
+                        name: 'Packaging Types',
+                        fields: 7,
+                        modules: ['Dispatch', 'Production', 'Invoicing'],
+                        details: {
+                            fields: ['Name (Cone, Bundle, Bag, Carton, Roll, Custom)', 'Weight (g)', 'Cost per Unit (₹)', 'Dimensions', 'Active/Inactive', 'Custom Fields']
+                        }
+                    },
+                    {
+                        name: 'Transport / Vehicle Master',
+                        fields: 7,
+                        modules: ['Dispatch', 'Finance'],
+                        details: {
+                            fields: ['Vehicle Number', 'Type (Tempo/Truck/Courier/Self)', 'Driver Name', 'Driver Phone', 'Transporter Name', 'Active/Inactive', 'Custom Fields']
+                        }
+                    },
+                    {
+                        name: 'Quality Parameters',
+                        fields: 9,
+                        modules: ['Quality', 'Purchase', 'Production'],
+                        details: {
+                            fields: ['Parameter Name', 'Unit', 'Min Value', 'Max Value', 'Test Method', 'Applies To → (ref Product Types)', 'Is Mandatory', 'Active/Inactive', 'Custom Fields']
+                        }
+                    }
+                ]
+            },
+            'F. SYSTEM MASTERS': {
+                category: 'system',
+                icon: '🔧',
+                masters: [
+                    {
+                        name: 'Staff / Users',
+                        fields: 8,
+                        modules: ['All Modules'],
+                        details: {
+                            fields: ['Name', 'Email', 'Phone', 'Role', 'Permissions Checklist', 'Department', 'Active/Inactive', 'Custom Fields']
+                        }
+                    },
+                    {
+                        name: 'Custom Fields Registry',
+                        fields: 11,
+                        modules: ['All Masters'],
+                        details: {
+                            fields: ['Table Name', 'Field Name', 'Field Type (text/number/date/dropdown/boolean/file)', 'Dropdown Options (if applicable)', 'Required (yes/no)', 'Show in List View', 'Show in Print', 'Default Value', 'Validation Rule', 'Field-Level Permissions', 'Custom Metadata']
+                        }
+                    }
+                ]
+            }
+        };
+
+        const moduleDependencies = {
+            'Orders': ['Customer Master', 'Product Types', 'Order Types', 'Payment Terms', 'Brokers', 'Charge Types', 'HSN/SAC Codes', 'Units of Measurement', 'Yarn Types'],
+            'Calculator/Production Planning': ['Machine Types', 'Product Types', 'Chaal Types', 'Yarn Types', 'Process Types', 'Operator/Worker Master', 'Units of Measurement', 'Color Master'],
+            'Production': ['Machine Types', 'Process Types', 'Operator/Worker Master', 'Product Types', 'Yarn Types', 'Warehouses/Locations'],
+            'Inventory/Stock': ['Yarn Types', 'Product Types', 'Warehouses/Locations', 'Units of Measurement', 'Supplier Master', 'Color Master'],
+            'Dispatch': ['Transport/Vehicle Master', 'Warehouses/Locations', 'Packaging Types', 'Customer Master'],
+            'Finance/Payments': ['Customer Master', 'Supplier Master', 'Banks', 'Payment Terms', 'Charge Types'],
+            'Invoicing': ['Customer Master', 'HSN/SAC Codes', 'Charge Types', 'Banks', 'Units of Measurement', 'Product Types'],
+            'Purchase/Inward': ['Supplier Master', 'Yarn Types', 'HSN/SAC Codes', 'Units of Measurement', 'Warehouses/Locations', 'Quality Parameters'],
+            'Jobwork': ['Customer Master', 'Supplier Master', 'Machine Types', 'Process Types', 'Yarn Types', 'Operator/Worker Master'],
+            'Quality': ['Quality Parameters', 'Product Types', 'Units of Measurement'],
+            'Reports': ['All Masters'],
+            'Notifications': ['Customer Master', 'Supplier Master', 'Staff/Users']
+        };
+
+        const flowSteps = [
+            { title: 'Order Entry', content: 'Customer Master' },
+            { title: '→', content: '' },
+            { title: 'Calculator', content: 'Product + Yarn + Machine' },
+            { title: '→', content: '' },
+            { title: 'Production', content: 'Operator + Machine' },
+            { title: '→', content: '' },
+            { title: 'Dispatch', content: 'Transport + Packaging' },
+            { title: '→', content: '' },
+            { title: 'Invoice', content: 'HSN + Bank + Charges' },
+            { title: '→', content: '' },
+            { title: 'Payment', content: 'Payment Terms + Bank' }
+        ];
+
+        function initializePage() {
+            renderMasterGrid();
+            renderDependencyMap();
+            renderFlowSteps();
+            renderCategorySection();
+            attachEventListeners();
+        }
+
+        function renderMasterGrid() {
+            const grid = document.getElementById('masterGrid');
+            let html = '';
+
+            for (const [category, data] of Object.entries(mastersData)) {
+                for (const master of data.masters) {
+                    const moduleCount = master.modules.length;
+                    const categoryClass = `category-${data.category}`;
+
+                    html += `
+                        <div class="master-card ${categoryClass}" onclick="toggleDetail(this)">
+                            <div style="display: flex; justify-content: space-between; align-items: start;">
+                                <div>
+                                    <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">${category}</div>
+                                    <div class="master-icon">${data.icon}</div>
+                                    <div class="master-name">${master.name}</div>
+                                </div>
+                                <div class="expand-indicator">+</div>
+                            </div>
+                            <div class="master-meta">
+                                <div class="meta-badge">${master.fields} fields</div>
+                                <div class="meta-badge">${moduleCount} modules</div>
+                            </div>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 12px;">
+                                <strong>Used in:</strong> ${master.modules.slice(0, 3).join(', ')}${master.modules.length > 3 ? '...' : ''}
+                            </div>
+                            <div class="master-detail">
+                                <div style="margin-bottom: 12px;">
+                                    <strong style="color: var(--accent-primary);">Key Fields:</strong>
+                                </div>
+                                <div class="field-list">
+                                    ${master.details.fields.map(field => `<div class="field-item">${field}</div>`).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            grid.innerHTML = html;
+        }
+
+        function toggleDetail(card) {
+            const detail = card.querySelector('.master-detail');
+            const indicator = card.querySelector('.expand-indicator');
+
+            card.classList.toggle('active');
+            detail.classList.toggle('expanded');
+            indicator.textContent = detail.classList.contains('expanded') ? '−' : '+';
+        }
+
+        function renderDependencyMap() {
+            const tbody = document.getElementById('dependencyBody');
+            let html = '';
+
+            for (const [module, masters] of Object.entries(moduleDependencies)) {
+                const dots = masters.map(master => `<div class="master-dot">${master}</div>`).join('');
+                html += `
+                    <tr>
+                        <td class="module-name">${module}</td>
+                        <td>
+                            <div class="master-dots">
+                                ${dots}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            tbody.innerHTML = html;
+        }
+
+        function renderFlowSteps() {
+            const container = document.getElementById('flowSteps');
+            let html = '';
+
+            flowSteps.forEach((step) => {
+                if (step.title === '→') {
+                    html += `<div class="flow-arrow">→</div>`;
+                } else {
+                    html += `
+                        <div class="flow-step">
+                            <div class="flow-step-title">${step.title}</div>
+                            <div class="flow-step-content">${step.content}</div>
+                        </div>
+                    `;
+                }
+            });
+
+            container.innerHTML = html;
+        }
+
+        function renderCategorySection() {
+            const container = document.getElementById('categorySections');
+            let html = '';
+
+            for (const [category, data] of Object.entries(mastersData)) {
+                html += `
+                    <div style="margin-bottom: 40px;">
+                        <h3 style="color: var(--accent-primary); margin-bottom: 20px; font-size: 1.3rem; display: flex; align-items: center; gap: 10px;">
+                            ${data.icon} ${category}
+                        </h3>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px;">
+                `;
+
+                for (const master of data.masters) {
+                    const categoryBadge = `badge-${data.category}`;
+                    html += `
+                        <div class="glass" style="padding: 20px;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                                <div>
+                                    <div class="category-badge ${categoryBadge}">${category.replace(/^. /, '')}</div>
+                                    <h4 style="color: var(--accent-primary); font-size: 1.05rem;">${master.name}</h4>
+                                </div>
+                                <span class="badge badge-info">${master.fields} fields</span>
+                            </div>
+                            <div style="margin-bottom: 12px;">
+                                <span style="color: var(--text-secondary); font-size: 0.9rem;"><strong>Modules:</strong> ${master.modules.join(', ')}</span>
+                            </div>
+                            <div style="border-top: 1px solid var(--border-color); padding-top: 12px;">
+                                <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                                    <strong style="color: var(--text-primary);">Key Fields:</strong>
+                                </div>
+                                <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px;">
+                                    ${master.details.fields.slice(0, 5).map(field => {
+                                        const fieldName = field.split(' →')[0].split('(')[0].trim();
+                                        return `<span class="meta-badge" style="font-size: 0.8rem;">${fieldName}</span>`;
+                                    }).join('')}
+                                    ${master.details.fields.length > 5 ? `<span class="meta-badge" style="font-size: 0.8rem;">+${master.details.fields.length - 5} more</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                html += `
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function attachEventListeners() {
+            const searchInput = document.getElementById('searchInput');
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase();
+                const cards = document.querySelectorAll('.master-card');
+
+                cards.forEach(card => {
+                    const text = card.textContent.toLowerCase();
+                    card.style.display = text.includes(query) ? 'block' : 'none';
+                });
+
+                const rows = document.querySelectorAll('.dependency-table tbody tr');
+                rows.forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    row.style.display = text.includes(query) ? 'table-row' : 'none';
+                });
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', initializePage);
+    </script>
+</body>
+</html>

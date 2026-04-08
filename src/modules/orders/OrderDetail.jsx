@@ -1,338 +1,605 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { orders, deliveries, jobwork } from '../../lib/db';
+import {
+  ArrowLeft,
+  Send,
+  Printer,
+  Edit,
+  ChevronRight,
+  Plus,
+  MessageSquare,
+  Download,
+  Upload,
+  Truck,
+  CreditCard,
+  AlertTriangle,
+  IndianRupee,
+  Phone,
+  Mail,
+  Copy,
+  FileText,
+  CheckCircle,
+  Clock,
+  AlertCircle,
+  TrendingUp,
+} from 'lucide-react';
+import { orders, deliveries, activityLog, attachments, payments } from '../../lib/db';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
-import { Button, Modal, Input, DataTable, Badge } from '../../components/ui';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { Button, Modal, Input, StatusBadge, Badge, Currency, Spinner } from '../../components/ui';
 
-const OrderDetail = () => {
-  const { orderId } = useParams();
+export default function OrderDetail() {
+  const { id: orderId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { addToast } = useToast();
+  const toast = useToast();
 
   const [order, setOrder] = useState(null);
-  const [deliveryList, setDeliveryList] = useState([]);
-  const [jobworkList, setJobworkList] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showDeliveryModal, setShowDeliveryModal] = useState(false);
-  const [showJobworkModal, setShowJobworkModal] = useState(false);
-  const [deliveryForm, setDeliveryForm] = useState({
-    delivery_date: '',
-    quantity_delivered: 0,
-    delivery_note: '',
-  });
-  const [jobworkForm, setJobworkForm] = useState({
-    material_inward_date: '',
-    material_inward_qty: 0,
-    material_return_date: '',
-    material_return_qty: 0,
-    notes: '',
-  });
+  const [orderDeliveries, setOrderDeliveries] = useState([]);
+  const [timeline, setTimeline] = useState([]);
+  const [orderAttachments, setOrderAttachments] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const [showAddDelivery, setShowAddDelivery] = useState(false);
+  const [showAddComment, setShowAddComment] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showSendUpdate, setShowSendUpdate] = useState(false);
+  const [deliveryForm, setDeliveryForm] = useState({ lineId: '', date: '', qty: '', note: '', challan: '', vehicle: '' });
+  const [commentText, setCommentText] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
 
   useEffect(() => {
-    fetchOrderDetails();
+    loadOrderData();
   }, [orderId]);
 
-  const fetchOrderDetails = async () => {
-    setIsLoading(true);
-    const [orderRes, deliveryRes, jobworkRes] = await Promise.all([
-      orders.get(orderId),
-      deliveries.list(orderId),
-      jobwork.list(orderId),
-    ]);
+  const loadOrderData = async () => {
+    try {
+      setLoading(true);
+      const { data: orderData } = await orders.get(orderId);
+      const { data: deliveryData } = await deliveries.list({ order_id: orderId });
+      const { data: timelineData } = await activityLog.list({ entity_type: 'order', entity_id: orderId });
+      const { data: attachmentData } = await attachments.list({ entity_type: 'order', entity_id: orderId });
 
-    if (orderRes.error) {
-      addToast('Failed to load order', 'error');
-      navigate('/orders');
-    } else {
-      setOrder(orderRes.data);
-      setDeliveryList(deliveryRes.data || []);
-      setJobworkList(jobworkRes.data || []);
+      setOrder(orderData);
+      setOrderDeliveries(deliveryData || []);
+      setTimeline((timelineData || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+      setOrderAttachments(attachmentData || []);
+    } catch (error) {
+      toast.error('Failed to load order details');
+      console.error(error);
+    } finally {
+      setLoading(false);
     }
-    setIsLoading(false);
+  };
+
+  const getStatusProgression = () => {
+    const states = ['draft', 'booking', 'approved', 'production', 'qc', 'dispatch', 'completed'];
+    const currentIndex = states.indexOf(order?.status);
+    const nextIndex = currentIndex + 1;
+    if (nextIndex >= states.length || order?.status === 'cancelled') return null;
+    const nextState = states[nextIndex];
+    const labels = { draft: 'Create Booking', booking: 'Approve', approved: 'Start Production', production: 'QC', qc: 'Dispatch', dispatch: 'Complete' };
+    return { nextState, label: `Move to ${nextState} →`, current: order?.status };
   };
 
   const handleAddDelivery = async () => {
+    if (!deliveryForm.lineId || !deliveryForm.date || !deliveryForm.qty) {
+      toast.error('Please fill all required fields');
+      return;
+    }
     try {
-      const { error } = await deliveries.create({
+      await deliveries.create({
         order_id: orderId,
-        ...deliveryForm,
+        line_item_id: deliveryForm.lineId,
+        delivery_date: deliveryForm.date,
+        delivered_qty: parseFloat(deliveryForm.qty),
+        note: deliveryForm.note,
+        challan_number: deliveryForm.challan,
+        vehicle_number: deliveryForm.vehicle,
       });
-      if (error) throw error;
-
-      addToast('Delivery added successfully', 'success');
-      setShowDeliveryModal(false);
-      setDeliveryForm({
-        delivery_date: '',
-        quantity_delivered: 0,
-        delivery_note: '',
+      await activityLog.create({
+        entity_type: 'order',
+        entity_id: orderId,
+        action: 'delivery',
+        comment: `Delivery of ${deliveryForm.qty} units recorded`,
+        staff_id: user.id,
       });
-      fetchOrderDetails();
+      setDeliveryForm({ lineId: '', date: '', qty: '', note: '', challan: '', vehicle: '' });
+      setShowAddDelivery(false);
+      await loadOrderData();
+      toast.success('Delivery recorded');
     } catch (error) {
-      addToast('Failed to add delivery', 'error');
+      toast.error('Failed to record delivery');
     }
   };
 
-  const handleAddJobwork = async () => {
+  const handleAddComment = async () => {
+    if (!commentText.trim()) return;
     try {
-      const { error } = await jobwork.create({
-        order_id: orderId,
-        ...jobworkForm,
+      await activityLog.create({
+        entity_type: 'order',
+        entity_id: orderId,
+        action: 'comment',
+        comment: commentText,
+        staff_id: user.id,
       });
-      if (error) throw error;
-
-      addToast('Jobwork tracked successfully', 'success');
-      setShowJobworkModal(false);
-      setJobworkForm({
-        material_inward_date: '',
-        material_inward_qty: 0,
-        material_return_date: '',
-        material_return_qty: 0,
-        notes: '',
-      });
-      fetchOrderDetails();
+      setCommentText('');
+      setShowAddComment(false);
+      await loadOrderData();
+      toast.success('Comment added');
     } catch (error) {
-      addToast('Failed to track jobwork', 'error');
+      toast.error('Failed to add comment');
     }
   };
 
-  const handleConvertToFull = async () => {
+  const handleStatusChange = async () => {
+    const progression = getStatusProgression();
+    if (!progression) return;
     try {
-      const { error } = await orders.convertSampleToFull(orderId);
-      if (error) throw error;
-
-      addToast('Order converted to full production', 'success');
-      fetchOrderDetails();
+      await orders.update(orderId, { status: progression.nextState });
+      await activityLog.create({
+        entity_type: 'order',
+        entity_id: orderId,
+        action: 'status_change',
+        comment: `Status changed from ${progression.current} to ${progression.nextState}${cancelReason ? ': ' + cancelReason : ''}`,
+        staff_id: user.id,
+      });
+      setShowStatusModal(false);
+      setCancelReason('');
+      await loadOrderData();
+      toast.success(`Order moved to ${progression.nextState}`);
     } catch (error) {
-      addToast('Failed to convert order', 'error');
+      toast.error('Failed to update status');
     }
   };
 
-  if (isLoading) return <div className="p-6">Loading...</div>;
-  if (!order) return <div className="p-6">Order not found</div>;
+  const handleSendUpdate = (method) => {
+    const customerPhone = order?.customers?.phone;
+    const customerEmail = order?.customers?.email;
+    const message = `Order #${order?.order_number} - Status: ${order?.status}`;
 
-  const deliveryProgress = order.order_line_items
-    ? (deliveryList.reduce((sum, d) => sum + d.quantity_delivered, 0) /
-        order.order_line_items.reduce((sum, li) => sum + (li.meters || li.weight_kg || 0), 0)) *
-      100
-    : 0;
+    if (method === 'whatsapp' && customerPhone) {
+      window.open(`https://wa.me/${customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`);
+    } else if (method === 'email' && customerEmail) {
+      window.location.href = `mailto:${customerEmail}?subject=Order ${order?.order_number}&body=${encodeURIComponent(message)}`;
+    } else if (method === 'copy') {
+      navigator.clipboard.writeText(message);
+      toast.success('Message copied to clipboard');
+    } else {
+      toast.error('Contact information not available');
+    }
+    setShowSendUpdate(false);
+  };
 
-  const deliveryColumns = [
-    { key: 'delivery_date', label: 'Date' },
-    { key: 'quantity_delivered', label: 'Quantity' },
-    { key: 'delivery_note', label: 'Notes' },
-  ];
+  const getDeliveryProgress = (lineItem) => {
+    const totalQty = lineItem.meters || lineItem.weight_kg || 0;
+    const deliveredQty = orderDeliveries
+      .filter(d => d.line_item_id === lineItem.id)
+      .reduce((sum, d) => sum + d.delivered_qty, 0);
+    const percentage = totalQty > 0 ? Math.round((deliveredQty / totalQty) * 100) : 0;
+    return { deliveredQty, totalQty, percentage };
+  };
 
-  const jobworkColumns = [
-    { key: 'material_inward_date', label: 'Inward Date' },
-    { key: 'material_inward_qty', label: 'Inward Qty' },
-    { key: 'material_return_date', label: 'Return Date' },
-    { key: 'material_return_qty', label: 'Return Qty' },
-  ];
+  const getTotalAmount = () => {
+    return order?.grand_total || 0;
+  };
+
+  const getTotalAdvance = () => {
+    return order?.advance_paid || 0;
+  };
+
+  const getTimelineIcon = (type) => {
+    const icons = {
+      status_change: <CheckCircle className="w-5 h-5 text-indigo-600" />,
+      delivery: <Truck className="w-5 h-5 text-emerald-600" />,
+      payment: <CreditCard className="w-5 h-5 text-green-600" />,
+      comment: <MessageSquare className="w-5 h-5 text-blue-600" />,
+      edit: <Edit className="w-5 h-5 text-amber-600" />,
+    };
+    return icons[type] || <Clock className="w-5 h-5 text-slate-400" />;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-50">
+        <Spinner />
+      </div>
+    );
+  }
+
+  if (!order) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-slate-600">Order not found</p>
+      </div>
+    );
+  }
+
+  const progression = getStatusProgression();
 
   return (
-    <div className="p-6">
-      <div className="flex items-center gap-4 mb-6">
-        <button
-          onClick={() => navigate('/orders')}
-          className="text-blue-600 hover:text-blue-700"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <h1 className="text-3xl font-bold">Order {order.order_number}</h1>
-      </div>
+    <div className="min-h-screen bg-slate-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-6">
+          <div className="flex items-start gap-4">
+            <button
+              onClick={() => navigate('/orders')}
+              className="p-2 hover:bg-slate-200 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5 text-slate-700" />
+            </button>
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <h1 className="text-xl font-bold text-slate-900">Order {order.order_number}</h1>
+                <StatusBadge status={order.status} />
+                {order.priority && <Badge variant={order.priority === 'high' ? 'red' : 'amber'}>{order.priority}</Badge>}
+              </div>
+              <p className="text-slate-600">{order.customers?.firm_name}</p>
+            </div>
+          </div>
 
-      <div className="grid grid-cols-4 gap-4 mb-8">
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <p className="text-sm text-gray-600 mb-1">Customer</p>
-          <p className="font-semibold">{order.customers?.contact_name}</p>
-          <p className="text-xs text-gray-500">{order.customers?.firm_name}</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <p className="text-sm text-gray-600 mb-1">Total Amount</p>
-          <p className="font-semibold text-lg">{order.grand_total}</p>
-        </div>
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <p className="text-sm text-gray-600 mb-1">Status</p>
-          <Badge variant="default">{order.status}</Badge>
-        </div>
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <p className="text-sm text-gray-600 mb-1">Delivery Date</p>
-          <p className="font-semibold">{order.delivery_date}</p>
-        </div>
-      </div>
+          <div className="flex gap-2">
+            {/* Send Update */}
+            <div className="relative group">
+              <Button variant="secondary" size="sm">
+                <Send size={16} /> Send Update
+              </Button>
+              <div className="absolute right-0 mt-1 w-40 bg-white rounded-xl shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity z-10">
+                <button
+                  onClick={() => handleSendUpdate('whatsapp')}
+                  className="w-full px-4 py-2 text-left hover:bg-slate-100 flex items-center gap-2 text-sm text-slate-700 first:rounded-t-xl"
+                >
+                  <Phone className="w-4 h-4" /> WhatsApp
+                </button>
+                <button
+                  onClick={() => handleSendUpdate('email')}
+                  className="w-full px-4 py-2 text-left hover:bg-slate-100 flex items-center gap-2 text-sm text-slate-700"
+                >
+                  <Mail className="w-4 h-4" /> Email
+                </button>
+                <button
+                  onClick={() => handleSendUpdate('copy')}
+                  className="w-full px-4 py-2 text-left hover:bg-slate-100 flex items-center gap-2 text-sm text-slate-700 last:rounded-b-xl"
+                >
+                  <Copy className="w-4 h-4" /> Copy
+                </button>
+              </div>
+            </div>
 
-      {/* Delivery Progress */}
-      <div className="bg-white p-6 rounded-lg border border-gray-200 mb-8">
-        <h2 className="text-xl font-semibold mb-4">Delivery Progress</h2>
-        <div className="mb-4">
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div
-              className="bg-green-600 h-2 rounded-full transition-all"
-              style={{ width: `${Math.min(deliveryProgress, 100)}%` }}
-            />
+            {/* Print */}
+            <div className="relative group">
+              <Button variant="secondary" size="sm">
+                <Printer size={16} /> Print
+              </Button>
+              <div className="absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity z-10">
+                <button className="w-full px-4 py-2 text-left hover:bg-slate-100 flex items-center gap-2 text-sm text-slate-700 first:rounded-t-xl">
+                  <FileText className="w-4 h-4" /> Order Confirmation
+                </button>
+                <button className="w-full px-4 py-2 text-left hover:bg-slate-100 flex items-center gap-2 text-sm text-slate-700">
+                  <FileText className="w-4 h-4" /> Production Slip
+                </button>
+                <button className="w-full px-4 py-2 text-left hover:bg-slate-100 flex items-center gap-2 text-sm text-slate-700 last:rounded-b-xl">
+                  <FileText className="w-4 h-4" /> Delivery Challan
+                </button>
+              </div>
+            </div>
+
+            <Button variant="secondary" size="sm" onClick={() => navigate(`/orders/${orderId}/edit`)}>
+              <Edit size={16} /> Edit
+            </Button>
+
+            {progression && (
+              <Button
+                onClick={() => setShowStatusModal(true)}
+                variant="success"
+                size="sm"
+              >
+                <ChevronRight size={16} /> {progression.label}
+              </Button>
+            )}
           </div>
         </div>
-        <p className="text-sm text-gray-600 mb-4">{deliveryProgress.toFixed(0)}% delivered</p>
-        <Button onClick={() => setShowDeliveryModal(true)} size="sm">
-          <Plus className="w-4 h-4" />
-          Add Delivery
-        </Button>
-      </div>
 
-      {/* Line Items */}
-      <div className="bg-white p-6 rounded-lg border border-gray-200 mb-8">
-        <h2 className="text-xl font-semibold mb-4">Line Items</h2>
-        {order.order_line_items && (
+        {/* Overview Cards */}
+        <div className="grid grid-cols-4 gap-4 mb-6">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-slate-600 text-sm mb-1">Grand Total</p>
+                <p className="text-2xl font-bold text-slate-900">
+                  <Currency amount={getTotalAmount()} />
+                </p>
+              </div>
+              <IndianRupee className="w-10 h-10 text-indigo-600 opacity-20" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-slate-600 text-sm mb-1">Advance Paid</p>
+                <p className="text-2xl font-bold text-green-600">
+                  <Currency amount={getTotalAdvance()} />
+                </p>
+              </div>
+              <CreditCard className="w-10 h-10 text-green-600 opacity-20" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-slate-600 text-sm mb-1">Balance Due</p>
+                <p className="text-2xl font-bold text-red-600">
+                  <Currency amount={order?.balance_due || 0} />
+                </p>
+              </div>
+              <AlertTriangle className="w-10 h-10 text-red-600 opacity-20" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-slate-600 text-sm mb-1">Next Delivery</p>
+                <p className="text-lg font-bold text-blue-600">
+                  {order.delivery_date_1 ? new Date(order.delivery_date_1).toLocaleDateString() : 'N/A'}
+                </p>
+              </div>
+              <Truck className="w-10 h-10 text-blue-600 opacity-20" />
+            </div>
+          </div>
+        </div>
+
+        {/* Delivery Progress */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 mb-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-bold text-slate-900">Per-Line Delivery Progress</h2>
+            <Button size="sm" onClick={() => setShowAddDelivery(true)}>
+              <Plus size={16} /> Add Delivery
+            </Button>
+          </div>
+
           <div className="space-y-4">
-            {order.order_line_items.map(item => (
-              <div key={item.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <p className="font-medium">{item.products?.name || 'N/A'}</p>
-                    <p className="text-sm text-gray-600">
-                      {item.width_cm}cm × {item.meters || item.weight_kg}
+            {order.order_line_items?.map(line => {
+              const progress = getDeliveryProgress(line);
+              const barColor = progress.percentage === 100 ? 'bg-emerald-500' : 'bg-indigo-600';
+              const productName = line.products?.name || line.materials?.name || 'Item';
+              const quantity = line.meters || line.weight_kg || 0;
+              const unit = line.meters ? 'meters' : 'kg';
+              return (
+                <div key={line.id} className="border border-slate-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="font-semibold text-slate-900">{productName}</p>
+                      <p className="text-sm text-slate-600">{quantity} {unit}</p>
+                    </div>
+                    <p className="text-sm font-semibold text-slate-900">{progress.percentage}%</p>
+                  </div>
+                  <div className="w-full bg-slate-200 rounded-full h-2">
+                    <div className={`h-2 rounded-full ${barColor}`} style={{ width: `${progress.percentage}%` }} />
+                  </div>
+                  <p className="text-xs text-slate-600 mt-2">
+                    {progress.deliveredQty} of {progress.totalQty} delivered
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Line Items */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 mb-6">
+          <h2 className="text-lg font-bold text-slate-900 mb-4">Line Items</h2>
+          <div className="space-y-3">
+            {order.order_line_items?.map(line => {
+              const productName = line.products?.name || line.materials?.name || 'Item';
+              const isJobwork = line.line_type === 'jobwork';
+              const quantity = line.meters || line.weight_kg || 0;
+              const unit = line.meters ? 'meters' : 'kg';
+              return (
+                <div key={line.id} className="border border-slate-200 rounded-xl p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="font-semibold text-slate-900">{productName}</p>
+                      {isJobwork && (
+                        <div className="flex items-center gap-2 mt-2 p-2 bg-amber-50 rounded-lg border border-amber-200">
+                          <AlertCircle className="w-4 h-4 text-amber-600" />
+                          <p className="text-xs text-amber-700">Material tracking required for jobwork</p>
+                        </div>
+                      )}
+                    </div>
+                    {line.line_type && <Badge variant="secondary">{line.line_type}</Badge>}
+                  </div>
+                  <div className="grid grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <p className="text-slate-600">Width</p>
+                      <p className="font-semibold text-slate-900">{line.width_cm || 'N/A'} cm</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-600">Quantity</p>
+                      <p className="font-semibold text-slate-900">{quantity} {unit}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-600">Weight</p>
+                      <p className="font-semibold text-slate-900">{line.weight_kg || 'N/A'} kg</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-slate-600">Rate</p>
+                      <p className="font-semibold text-slate-900">
+                        <Currency amount={line.rate_per_unit} />
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-slate-200 flex justify-between">
+                    <p className="text-slate-600">Amount</p>
+                    <p className="font-bold text-slate-900">
+                      <Currency amount={(line.rate_per_unit || 0) * quantity} />
                     </p>
                   </div>
-                  <p className="font-semibold">{item.amount}</p>
                 </div>
-                {item.line_type === 'jobwork' && (
-                  <p className="text-xs bg-yellow-100 text-yellow-800 p-2 rounded inline-block">
-                    Jobwork Notice
-                  </p>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
-        )}
-      </div>
-
-      {/* Deliveries */}
-      <div className="bg-white p-6 rounded-lg border border-gray-200 mb-8">
-        <h2 className="text-xl font-semibold mb-4">Delivery History</h2>
-        <DataTable
-          columns={deliveryColumns}
-          data={deliveryList}
-          emptyMessage="No deliveries recorded"
-        />
-      </div>
-
-      {/* Jobwork Tracking */}
-      <div className="bg-white p-6 rounded-lg border border-gray-200 mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Jobwork Tracking</h2>
-          <Button onClick={() => setShowJobworkModal(true)} size="sm">
-            <Plus className="w-4 h-4" />
-            Track Material
-          </Button>
         </div>
-        <DataTable
-          columns={jobworkColumns}
-          data={jobworkList}
-          emptyMessage="No jobwork tracked"
-        />
+
+        {/* Activity Timeline */}
+        <div className="grid grid-cols-3 gap-6">
+          <div className="col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold text-slate-900">Activity Timeline</h2>
+              <Button size="sm" variant="secondary" onClick={() => setShowAddComment(true)}>
+                <MessageSquare size={16} /> Add Comment
+              </Button>
+            </div>
+            <div className="space-y-4">
+              {timeline.map((event, idx) => (
+                <div key={idx} className="flex gap-4 pb-4 border-b border-slate-200 last:border-0">
+                  <div className="flex-shrink-0 mt-1">{getTimelineIcon(event.action)}</div>
+                  <div className="flex-1">
+                    <p className="text-slate-900">
+                      <span className="font-semibold">{event.staff_id || user.name}</span>{' '}
+                      <span className="text-slate-600">{event.comment}</span>
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {new Date(event.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Attachments */}
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-bold text-slate-900">Attachments</h2>
+              <Button size="sm" variant="secondary">
+                <Upload size={16} /> Upload
+              </Button>
+            </div>
+            <div className="space-y-3">
+              {orderAttachments.map(att => (
+                <div
+                  key={att.id}
+                  className="border border-slate-200 rounded-lg p-3 flex items-center gap-3 hover:bg-slate-50 cursor-pointer transition-colors"
+                >
+                  <FileText className="w-5 h-5 text-indigo-600" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 truncate">{att.file_name}</p>
+                    <p className="text-xs text-slate-500">{(att.file_size / 1024).toFixed(1)} KB</p>
+                  </div>
+                  <Download className="w-4 h-4 text-slate-600 flex-shrink-0" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex gap-4">
-        <Button onClick={() => navigate(`/orders/${orderId}/edit`)}>Edit Order</Button>
-        {order.nature === 'sample' && (
-          <Button onClick={handleConvertToFull} variant="secondary">
-            Convert to Full Production
-          </Button>
-        )}
-      </div>
-
-      {/* Delivery Modal */}
-      <Modal
-        isOpen={showDeliveryModal}
-        onClose={() => setShowDeliveryModal(false)}
-        title="Add Delivery"
-      >
+      {/* Modals */}
+      <Modal open={showAddDelivery} onClose={() => setShowAddDelivery(false)} title="Add Delivery">
         <div className="space-y-4">
+          <select
+            value={deliveryForm.lineId}
+            onChange={e => setDeliveryForm({ ...deliveryForm, lineId: e.target.value })}
+            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="">Select Line Item</option>
+            {order.order_line_items?.map(line => {
+              const productName = line.products?.name || line.materials?.name || 'Item';
+              const quantity = line.meters || line.weight_kg || 0;
+              const unit = line.meters ? 'meters' : 'kg';
+              return (
+                <option key={line.id} value={line.id}>
+                  {productName} - {quantity} {unit}
+                </option>
+              );
+            })}
+          </select>
           <Input
-            label="Delivery Date"
             type="date"
-            value={deliveryForm.delivery_date}
-            onChange={(e) =>
-              setDeliveryForm(prev => ({ ...prev, delivery_date: e.target.value }))
-            }
+            label="Delivery Date"
+            value={deliveryForm.date}
+            onChange={e => setDeliveryForm({ ...deliveryForm, date: e.target.value })}
           />
           <Input
-            label="Quantity Delivered"
             type="number"
-            value={deliveryForm.quantity_delivered}
-            onChange={(e) =>
-              setDeliveryForm(prev => ({ ...prev, quantity_delivered: parseFloat(e.target.value) }))
-            }
+            label="Quantity"
+            value={deliveryForm.qty}
+            onChange={e => setDeliveryForm({ ...deliveryForm, qty: e.target.value })}
+            placeholder="0"
           />
           <Input
-            label="Delivery Note"
-            value={deliveryForm.delivery_note}
-            onChange={(e) =>
-              setDeliveryForm(prev => ({ ...prev, delivery_note: e.target.value }))
-            }
+            label="Note"
+            value={deliveryForm.note}
+            onChange={e => setDeliveryForm({ ...deliveryForm, note: e.target.value })}
+            placeholder="Optional note"
           />
-          <div className="flex gap-2 justify-end pt-4">
-            <Button variant="secondary" onClick={() => setShowDeliveryModal(false)}>
+          <Input
+            label="Challan Number"
+            value={deliveryForm.challan}
+            onChange={e => setDeliveryForm({ ...deliveryForm, challan: e.target.value })}
+          />
+          <Input
+            label="Vehicle Number"
+            value={deliveryForm.vehicle}
+            onChange={e => setDeliveryForm({ ...deliveryForm, vehicle: e.target.value })}
+          />
+          <div className="flex gap-3 pt-4">
+            <Button onClick={handleAddDelivery} variant="primary" className="flex-1">
+              Record Delivery
+            </Button>
+            <Button onClick={() => setShowAddDelivery(false)} variant="secondary" className="flex-1">
               Cancel
             </Button>
-            <Button onClick={handleAddDelivery}>Add Delivery</Button>
           </div>
         </div>
       </Modal>
 
-      {/* Jobwork Modal */}
-      <Modal
-        isOpen={showJobworkModal}
-        onClose={() => setShowJobworkModal(false)}
-        title="Track Jobwork Material"
-      >
+      <Modal open={showAddComment} onClose={() => setShowAddComment(false)} title="Add Comment">
         <div className="space-y-4">
-          <Input
-            label="Material Inward Date"
-            type="date"
-            value={jobworkForm.material_inward_date}
-            onChange={(e) =>
-              setJobworkForm(prev => ({ ...prev, material_inward_date: e.target.value }))
-            }
+          <textarea
+            value={commentText}
+            onChange={e => setCommentText(e.target.value)}
+            placeholder="Write your comment..."
+            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 h-32 resize-none"
           />
-          <Input
-            label="Material Inward Quantity"
-            type="number"
-            value={jobworkForm.material_inward_qty}
-            onChange={(e) =>
-              setJobworkForm(prev => ({ ...prev, material_inward_qty: parseFloat(e.target.value) }))
-            }
-          />
-          <Input
-            label="Material Return Date"
-            type="date"
-            value={jobworkForm.material_return_date}
-            onChange={(e) =>
-              setJobworkForm(prev => ({ ...prev, material_return_date: e.target.value }))
-            }
-          />
-          <Input
-            label="Material Return Quantity"
-            type="number"
-            value={jobworkForm.material_return_qty}
-            onChange={(e) =>
-              setJobworkForm(prev => ({ ...prev, material_return_qty: parseFloat(e.target.value) }))
-            }
-          />
-          <div className="flex gap-2 justify-end pt-4">
-            <Button variant="secondary" onClick={() => setShowJobworkModal(false)}>
+          <div className="flex gap-3 pt-4">
+            <Button onClick={handleAddComment} variant="primary" className="flex-1">
+              Add Comment
+            </Button>
+            <Button onClick={() => setShowAddComment(false)} variant="secondary" className="flex-1">
               Cancel
             </Button>
-            <Button onClick={handleAddJobwork}>Save</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={showStatusModal} onClose={() => setShowStatusModal(false)} title="Confirm Status Change">
+        <div className="space-y-4">
+          <p className="text-slate-700">
+            Move order to <span className="font-semibold">{progression?.nextState}</span>?
+          </p>
+          {progression?.nextState === 'cancelled' && (
+            <Input
+              label="Reason for Cancellation"
+              value={cancelReason}
+              onChange={e => setCancelReason(e.target.value)}
+              placeholder="Provide cancellation reason"
+            />
+          )}
+          <div className="flex gap-3 pt-4">
+            <Button onClick={handleStatusChange} variant="primary" className="flex-1">
+              Confirm
+            </Button>
+            <Button onClick={() => setShowStatusModal(false)} variant="secondary" className="flex-1">
+              Cancel
+            </Button>
           </div>
         </div>
       </Modal>
     </div>
   );
-};
-
-export default OrderDetail;
+}

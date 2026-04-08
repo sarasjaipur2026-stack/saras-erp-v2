@@ -1,207 +1,139 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { customers } from '../../../lib/db';
-import { useAuth } from '../../../contexts/AuthContext';
-import { useToast } from '../../../contexts/ToastContext';
-import { SearchSelect, Input, Modal, Button } from '../../../components/ui';
-import { Plus } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { customers } from '../../../lib/db'
+import { useAuth } from '../../../contexts/AuthContext'
+import { useToast } from '../../../contexts/ToastContext'
+import { Input, Modal, Button } from '../../../components/ui'
+import { Plus, Search, X, Building2, Phone, MapPin } from 'lucide-react'
 
 export const CustomerSearch = ({ value, onChange }) => {
-  const { user } = useAuth();
-  const { addToast } = useToast();
-  const [customerList, setCustomerList] = useState([]);
-  const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [newCustomerForm, setNewCustomerForm] = useState({
-    firm_name: '',
-    contact_name: '',
-    phone: '',
-    email: '',
-    city: '',
-    address: '',
-    gstin: '',
-    pan: '',
-  });
+  const { user } = useAuth()
+  const toast = useToast()
+  const [allCustomers, setAllCustomers] = useState([])
+  const [searchTerm, setSearchTerm] = useState('')
+  const [isOpen, setIsOpen] = useState(false)
+  const [selected, setSelected] = useState(null)
+  const [showNewModal, setShowNewModal] = useState(false)
+  const emptyForm = { firm_name: '', contact_name: '', phone: '', email: '', city: '', address: '', gstin: '', pan: '' }
+  const [newForm, setNewForm] = useState(emptyForm)
+  const ref = useRef(null)
+
+  useEffect(() => { if (user?.id) fetchCustomers() }, [user?.id])
 
   useEffect(() => {
-    fetchCustomers();
-  }, [user]);
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setIsOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   const fetchCustomers = async () => {
-    const { data, error } = await customers.list(user.id);
-    if (!error && data) {
-      setCustomerList(data);
-      if (value) {
-        const selected = data.find(c => c.id === value);
-        setSelectedCustomer(selected);
-      }
+    const { data } = await customers.list(user.id)
+    if (data) {
+      setAllCustomers(data)
+      if (value) setSelected(data.find(c => c.id === value) || null)
     }
-  };
+  }
 
-  const handleSearch = useCallback((term) => {
-    if (term) {
-      const filtered = customerList.filter(c =>
-        c.contact_name.toLowerCase().includes(term.toLowerCase()) ||
-        c.firm_name.toLowerCase().includes(term.toLowerCase())
-      );
-      setCustomerList(filtered);
-    } else {
-      fetchCustomers();
-    }
-  }, [customerList]);
+  const filtered = allCustomers.filter(c =>
+    (c.contact_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.firm_name || '').toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
-  const handleCustomerSelect = (customer) => {
-    setSelectedCustomer(customer);
-    onChange(customer.id);
-  };
+  const handleSelect = (customer) => {
+    setSelected(customer)
+    onChange(customer.id)
+    setIsOpen(false)
+    setSearchTerm('')
+  }
 
-  const handleAddNewCustomer = async () => {
-    try {
-      const { data, error } = await customers.create({
-        ...newCustomerForm,
-        user_id: user.id,
-      });
-
-      if (error) throw error;
-
-      addToast('Customer added successfully', 'success');
-      setShowNewCustomerModal(false);
-      setNewCustomerForm({
-        firm_name: '',
-        contact_name: '',
-        phone: '',
-        email: '',
-        city: '',
-        address: '',
-        gstin: '',
-        pan: '',
-      });
-      handleCustomerSelect(data);
-      fetchCustomers();
-    } catch (error) {
-      addToast('Failed to add customer', 'error');
-    }
-  };
-
-  const options = customerList.map(c => ({
-    value: c.id,
-    label: `${c.contact_name} (${c.firm_name})`,
-    data: c,
-  }));
+  const handleAddNew = async () => {
+    if (!newForm.firm_name || !newForm.contact_name) { toast.error('Name and firm required'); return }
+    const { data, error } = await customers.create({ ...newForm, user_id: user.id })
+    if (error) { toast.error('Failed to add customer'); return }
+    toast.success('Customer added')
+    setShowNewModal(false)
+    setNewForm(emptyForm)
+    await fetchCustomers()
+    if (data) handleSelect(data)
+  }
 
   return (
     <>
-      <div className="space-y-4">
-        <SearchSelect
-          label="Select Customer"
-          required
-          options={options}
-          onSearch={handleSearch}
-          onChange={(opt) => handleCustomerSelect(opt.data)}
-          placeholder="Search by name or firm..."
-          renderOption={(opt) => (
-            <div>
-              <p className="font-medium">{opt.data.contact_name}</p>
-              <p className="text-xs text-gray-500">
-                {opt.data.firm_name} • {opt.data.city} • {opt.data.gstin}
-              </p>
+      <div className="space-y-3">
+        {/* Search input */}
+        <div className="relative" ref={ref}>
+          <div className={`flex items-center gap-2 px-3 py-2.5 bg-white border rounded-xl transition-all ${isOpen ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-slate-200'}`}>
+            <Search size={16} className="text-slate-400 shrink-0" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={e => { setSearchTerm(e.target.value); setIsOpen(true) }}
+              onFocus={() => setIsOpen(true)}
+              placeholder="Search by name or firm..."
+              className="w-full outline-none text-sm bg-transparent placeholder:text-slate-400"
+            />
+            {searchTerm && (
+              <button onClick={() => { setSearchTerm(''); setIsOpen(false) }} className="text-slate-400 hover:text-slate-600">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {isOpen && (
+            <div className="absolute top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-20 max-h-60 overflow-auto scale-in">
+              {filtered.length > 0 ? filtered.map(c => (
+                <div
+                  key={c.id}
+                  onClick={() => handleSelect(c)}
+                  className="px-3 py-2.5 hover:bg-indigo-50 cursor-pointer transition-colors"
+                >
+                  <p className="text-sm font-medium text-slate-800">{c.contact_name}</p>
+                  <p className="text-xs text-slate-500">{c.firm_name} {c.city ? `• ${c.city}` : ''}</p>
+                </div>
+              )) : (
+                <div className="px-3 py-4 text-sm text-slate-400 text-center">No customers found</div>
+              )}
             </div>
           )}
-        />
+        </div>
 
-        {selectedCustomer && (
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-            <p className="font-semibold text-blue-900">{selectedCustomer.contact_name}</p>
-            <div className="grid grid-cols-2 gap-2 mt-2 text-sm text-blue-800">
+        {/* Selected customer card */}
+        {selected && (
+          <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-100">
+            <div className="flex items-start justify-between">
               <div>
-                <span className="text-gray-600">Firm:</span> {selectedCustomer.firm_name}
+                <p className="font-semibold text-sm text-indigo-900">{selected.contact_name}</p>
+                <div className="mt-2 space-y-1">
+                  <div className="flex items-center gap-2 text-xs text-indigo-700">
+                    <Building2 size={12} /> {selected.firm_name}
+                  </div>
+                  {selected.phone && <div className="flex items-center gap-2 text-xs text-indigo-700"><Phone size={12} /> {selected.phone}</div>}
+                  {selected.city && <div className="flex items-center gap-2 text-xs text-indigo-700"><MapPin size={12} /> {selected.city}</div>}
+                </div>
               </div>
-              <div>
-                <span className="text-gray-600">Phone:</span> {selectedCustomer.phone}
-              </div>
-              <div>
-                <span className="text-gray-600">City:</span> {selectedCustomer.city}
-              </div>
-              <div>
-                <span className="text-gray-600">GSTIN:</span> {selectedCustomer.gstin}
-              </div>
+              <button onClick={() => { setSelected(null); onChange(null) }} className="p-1 rounded hover:bg-indigo-100 text-indigo-400">
+                <X size={14} />
+              </button>
             </div>
           </div>
         )}
 
-        <Button
-          variant="secondary"
-          onClick={() => setShowNewCustomerModal(true)}
-          size="sm"
-          className="flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Add New Customer
+        <Button variant="ghost" size="sm" onClick={() => setShowNewModal(true)}>
+          <Plus size={14} /> Add New Customer
         </Button>
       </div>
 
-      <Modal
-        isOpen={showNewCustomerModal}
-        onClose={() => setShowNewCustomerModal(false)}
-        title="Add New Customer"
-        size="lg"
+      <Modal isOpen={showNewModal} onClose={() => setShowNewModal(false)} title="Add Customer" size="lg"
+        footer={<><Button variant="secondary" size="sm" onClick={() => setShowNewModal(false)}>Cancel</Button><Button size="sm" onClick={handleAddNew}>Add</Button></>}
       >
-        <div className="space-y-4">
-          <Input
-            label="Firm Name"
-            required
-            value={newCustomerForm.firm_name}
-            onChange={(e) =>
-              setNewCustomerForm(prev => ({ ...prev, firm_name: e.target.value }))
-            }
-          />
-          <Input
-            label="Contact Person Name"
-            required
-            value={newCustomerForm.contact_name}
-            onChange={(e) =>
-              setNewCustomerForm(prev => ({ ...prev, contact_name: e.target.value }))
-            }
-          />
-          <Input
-            label="Phone"
-            value={newCustomerForm.phone}
-            onChange={(e) => setNewCustomerForm(prev => ({ ...prev, phone: e.target.value }))}
-          />
-          <Input
-            label="Email"
-            type="email"
-            value={newCustomerForm.email}
-            onChange={(e) => setNewCustomerForm(prev => ({ ...prev, email: e.target.value }))}
-          />
-          <Input
-            label="City"
-            value={newCustomerForm.city}
-            onChange={(e) => setNewCustomerForm(prev => ({ ...prev, city: e.target.value }))}
-          />
-          <Input
-            label="Address"
-            value={newCustomerForm.address}
-            onChange={(e) => setNewCustomerForm(prev => ({ ...prev, address: e.target.value }))}
-          />
-          <Input
-            label="GSTIN"
-            value={newCustomerForm.gstin}
-            onChange={(e) => setNewCustomerForm(prev => ({ ...prev, gstin: e.target.value }))}
-          />
-          <Input
-            label="PAN"
-            value={newCustomerForm.pan}
-            onChange={(e) => setNewCustomerForm(prev => ({ ...prev, pan: e.target.value }))}
-          />
-
-          <div className="flex gap-2 justify-end pt-4 border-t">
-            <Button variant="secondary" onClick={() => setShowNewCustomerModal(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddNewCustomer}>Add Customer</Button>
-          </div>
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="Firm Name *" value={newForm.firm_name} onChange={e => setNewForm(p => ({ ...p, firm_name: e.target.value }))} />
+          <Input label="Contact Person *" value={newForm.contact_name} onChange={e => setNewForm(p => ({ ...p, contact_name: e.target.value }))} />
+          <Input label="Phone" value={newForm.phone} onChange={e => setNewForm(p => ({ ...p, phone: e.target.value }))} />
+          <Input label="Email" type="email" value={newForm.email} onChange={e => setNewForm(p => ({ ...p, email: e.target.value }))} />
+          <Input label="City" value={newForm.city} onChange={e => setNewForm(p => ({ ...p, city: e.target.value }))} />
+          <Input label="GSTIN" value={newForm.gstin} onChange={e => setNewForm(p => ({ ...p, gstin: e.target.value }))} />
         </div>
       </Modal>
     </>
-  );
-};
+  )
+}

@@ -1,0 +1,1397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SARAS Production Planning Calculator v2</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            background: #0a0f1e;
+            color: white;
+        }
+
+        /* HEADER */
+        header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 48px;
+            background: rgba(15, 20, 40, 0.95);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 1000;
+            font-size: 13px;
+        }
+
+        .header-left, .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-center {
+            flex: 1;
+            text-align: center;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            font-size: 14px;
+        }
+
+        .btn-header {
+            background: none;
+            border: 1px solid rgba(167, 139, 250, 0.3);
+            color: rgba(255, 255, 255, 0.7);
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-header:hover {
+            background: rgba(167, 139, 250, 0.1);
+            color: #a78bfa;
+        }
+
+        .btn-back {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* MAIN LAYOUT */
+        main {
+            position: absolute;
+            top: 48px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            gap: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        /* RESPONSIVE */
+        @media (max-width: 1024px) {
+            main {
+                flex-direction: column;
+                overflow-y: auto;
+                padding: 12px;
+                gap: 12px;
+            }
+
+            .card {
+                width: 100% !important;
+                height: auto !important;
+                max-height: none !important;
+            }
+
+            .card-content {
+                overflow-y: visible !important;
+                max-height: none !important;
+            }
+        }
+
+        @media (min-width: 1025px) {
+            .card {
+                width: 50%;
+                height: calc(100vh - 48px);
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .card:first-of-type {
+                border-right: 1px solid rgba(255, 255, 255, 0.06);
+            }
+        }
+
+        /* CARDS */
+        .card {
+            background: rgba(15, 20, 40, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            background: rgba(255, 255, 255, 0.02);
+            flex-shrink: 0;
+            font-size: 13px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .card-icon {
+            width: 18px;
+            height: 18px;
+            color: #a78bfa;
+            flex-shrink: 0;
+        }
+
+        .card-content {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 16px;
+        }
+
+        /* CUSTOM SCROLLBAR */
+        .card-content::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .card-content::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .card-content::-webkit-scrollbar-thumb {
+            background: rgba(167, 139, 250, 0.3);
+            border-radius: 2px;
+        }
+
+        .card-content::-webkit-scrollbar-thumb:hover {
+            background: rgba(167, 139, 250, 0.5);
+        }
+
+        /* SECTIONS */
+        .section {
+            margin-bottom: 16px;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+            font-size: 12px;
+            font-weight: 600;
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .section-number {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #a78bfa;
+            color: #0a0f1e;
+            font-size: 10px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .section-title {
+            flex: 1;
+        }
+
+        .info-btn {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: rgba(167, 139, 250, 0.2);
+            color: #a78bfa;
+            font-size: 10px;
+            font-weight: bold;
+            cursor: help;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        /* INPUTS */
+        .field-grid {
+            display: grid;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .field-grid.cols-2 {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .field-grid.cols-3 {
+            grid-template-columns: 1fr 1fr 1fr;
+        }
+
+        .field-grid.cols-5 {
+            grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        label {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            font-weight: 500;
+        }
+
+        input, select {
+            background: #0d1229;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 8px 10px;
+            color: white;
+            font-size: 13px;
+            font-family: 'Inter', sans-serif;
+            height: 32px;
+            transition: all 0.2s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: rgba(167, 139, 250, 0.4);
+            background: rgba(13, 18, 41, 0.8);
+            box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.1);
+        }
+
+        select {
+            cursor: pointer;
+            appearance: none;
+            padding-right: 24px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23a78bfa' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            padding-right: 28px;
+        }
+
+        /* MASTERS TAG */
+        .masters-tag {
+            font-size: 9px;
+            color: rgba(167, 139, 250, 0.6);
+            margin-top: 2px;
+        }
+
+        /* INLINE FIELD (for covering/filler yarns) */
+        .field-inline {
+            display: grid;
+            grid-template-columns: 2fr 1.2fr auto;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
+        .field-inline label {
+            grid-column: 1 / -1;
+        }
+
+        .btn-yarn {
+            background: none;
+            border: 1px solid rgba(167, 139, 250, 0.4);
+            color: #a78bfa;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            height: 32px;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .btn-yarn:hover {
+            background: rgba(167, 139, 250, 0.1);
+            border-color: #a78bfa;
+        }
+
+        /* ORDER LINK SECTION STYLES */
+        .order-info-strip {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            padding: 10px;
+            font-size: 11px;
+            margin-top: 8px;
+            line-height: 1.4;
+        }
+
+        .order-info-strip div {
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 4px;
+        }
+
+        .order-info-strip div:last-child {
+            margin-bottom: 0;
+        }
+
+        .order-label {
+            color: rgba(255, 255, 255, 0.5);
+            font-weight: 500;
+            display: inline-block;
+            min-width: 100px;
+        }
+
+        .order-value {
+            color: white;
+            font-weight: 600;
+        }
+
+        .upload-zone {
+            border: 2px dashed rgba(167, 139, 250, 0.3);
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+            background: rgba(167, 139, 250, 0.02);
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 8px;
+        }
+
+        .upload-zone:hover {
+            border-color: rgba(167, 139, 250, 0.5);
+            background: rgba(167, 139, 250, 0.05);
+        }
+
+        .upload-zone-icon {
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+
+        .upload-zone-text {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .upload-thumbnail {
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            margin: 6px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .price-comparison-chip {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-left: 8px;
+        }
+
+        .price-comparison-chip.positive {
+            background: rgba(74, 222, 128, 0.15);
+            color: #4ade80;
+        }
+
+        .price-comparison-chip.negative {
+            background: rgba(251, 146, 60, 0.15);
+            color: #fb923c;
+        }
+
+        .btn-new-without-order {
+            background: none;
+            border: 1px solid rgba(167, 139, 250, 0.4);
+            color: #a78bfa;
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            height: 28px;
+            margin-top: 8px;
+            transition: all 0.2s;
+            display: block;
+            width: 100%;
+            text-align: center;
+        }
+
+        .btn-new-without-order:hover {
+            background: rgba(167, 139, 250, 0.1);
+            border-color: #a78bfa;
+        }
+
+        .auto-filled-hint {
+            font-size: 10px;
+            color: rgba(167, 139, 250, 0.7);
+            margin-top: 4px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .lock-icon {
+            font-size: 10px;
+        }
+
+        .override-btn {
+            background: none;
+            border: 1px solid rgba(167, 139, 250, 0.3);
+            color: rgba(167, 139, 250, 0.7);
+            padding: 3px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10px;
+            font-weight: 600;
+            height: 24px;
+            transition: all 0.2s;
+            margin-left: 4px;
+        }
+
+        .override-btn:hover {
+            background: rgba(167, 139, 250, 0.1);
+            color: #a78bfa;
+            border-color: #a78bfa;
+        }
+
+        /* PROCESS TABLE */
+        .process-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        .process-table th {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 8px;
+            text-align: left;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.6);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .process-table td {
+            padding: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .process-table input, .process-table select {
+            height: 28px;
+            font-size: 12px;
+        }
+
+        .process-row.disabled {
+            opacity: 0.4;
+        }
+
+        .process-row.disabled input, .process-row.disabled select {
+            background: rgba(13, 18, 41, 0.4);
+            cursor: not-allowed;
+        }
+
+        /* OUTPUT CARDS */
+        .output-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .output-card-header {
+            font-size: 11px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.6);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 8px;
+        }
+
+        .output-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+            font-size: 12px;
+        }
+
+        .output-row:last-child {
+            border-bottom: none;
+        }
+
+        .output-label {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .output-value {
+            color: white;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+
+        .output-value.highlight {
+            color: #4ade80;
+            font-size: 14px;
+        }
+
+        .output-value.big {
+            font-size: 20px;
+            font-weight: 700;
+            color: #a78bfa;
+        }
+
+        .cost-summary {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .cost-box {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .cost-box-label {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.5);
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            letter-spacing: 0.3px;
+        }
+
+        .cost-box-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #a78bfa;
+        }
+
+        .cost-box-value.green {
+            color: #4ade80;
+        }
+
+        /* PROFIT COMPARISON CARD */
+        .profit-comparison-card {
+            background: linear-gradient(135deg, rgba(167, 139, 250, 0.08) 0%, rgba(74, 222, 128, 0.05) 100%);
+            border: 1px solid rgba(167, 139, 250, 0.2);
+            border-radius: 8px;
+            padding: 14px;
+            margin-bottom: 14px;
+        }
+
+        .profit-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 12px;
+        }
+
+        .profit-row:last-child {
+            border-bottom: none;
+        }
+
+        .profit-label {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .profit-value {
+            color: white;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+
+        .profit-value.big {
+            font-size: 18px;
+            font-weight: 700;
+            color: #a78bfa;
+        }
+
+        .profit-value.positive {
+            color: #4ade80;
+        }
+
+        .margin-bar {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .margin-bar-item {
+            text-align: center;
+            font-size: 10px;
+        }
+
+        .margin-bar-label {
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 4px;
+        }
+
+        .margin-bar-visual {
+            height: 24px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .margin-bar-visual.calculated {
+            background: rgba(167, 139, 250, 0.3);
+            width: 60%;
+            margin: 0 auto;
+        }
+
+        .margin-bar-visual.actual {
+            background: rgba(74, 222, 128, 0.3);
+            width: 100%;
+        }
+
+        /* BUTTONS */
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .btn-action {
+            flex: 1;
+            min-width: 80px;
+            background: none;
+            border: 1px solid rgba(167, 139, 250, 0.4);
+            color: #a78bfa;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            height: 32px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .btn-action:hover {
+            background: rgba(167, 139, 250, 0.1);
+            border-color: #a78bfa;
+        }
+
+        /* SNAPSHOTS */
+        .snapshots-section {
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            padding-top: 12px;
+            margin-top: 12px;
+        }
+
+        .snapshots-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.7);
+            user-select: none;
+        }
+
+        .snapshots-toggle:hover {
+            color: white;
+        }
+
+        .snapshots-content {
+            margin-top: 8px;
+            display: none;
+        }
+
+        .snapshots-content.open {
+            display: block;
+        }
+
+        .snapshot-item {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            padding: 8px;
+            margin-bottom: 6px;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .snapshot-text {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .snapshot-checkbox {
+            cursor: pointer;
+        }
+
+        /* FOOTER */
+        .version-footer {
+            text-align: center;
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.3);
+            padding: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.03);
+            margin-top: auto;
+        }
+
+        /* UTILITY */
+        .divider {
+            height: 1px;
+            background: rgba(255, 255, 255, 0.03);
+            margin: 10px 0;
+        }
+
+        .text-sm {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .mt-1 { margin-top: 4px; }
+        .mt-2 { margin-top: 8px; }
+        .mb-1 { margin-bottom: 4px; }
+        .mb-2 { margin-bottom: 8px; }
+
+    </style>
+</head>
+<body>
+    <!-- HEADER -->
+    <header>
+        <div class="header-left">
+            <button class="btn-header btn-back">← SARAS</button>
+        </div>
+        <div class="header-center">PRODUCTION PLANNING</div>
+        <div class="header-right">
+            <button class="btn-header">हिंदी</button>
+            <button class="btn-header">PROFILES ▾</button>
+            <button class="btn-header">HISTORY</button>
+            <button class="btn-header">RESET</button>
+            <button class="btn-header">SAVE</button>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main>
+        <!-- LEFT CARD: INPUT -->
+        <div class="card">
+            <div class="card-header">
+                <svg class="card-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                </svg>
+                INPUT
+            </div>
+            <div class="card-content">
+                <!-- SECTION ⓪: ORDER LINK -->
+                <div class="section">
+                    <div class="section-header">
+                        <div class="section-number">⓪</div>
+                        <div class="section-title">Order Link</div>
+                    </div>
+
+                    <div class="field">
+                        <label>Select Order</label>
+                        <select id="orderSelect">
+                            <option>ORD-2425-0047 | Sharma Textiles | 5000m Round Cord</option>
+                            <option>ORD-2425-0046 | ABC Corporation | 3000m Flat Cord</option>
+                            <option>ORD-2425-0045 | XYZ Industries | 8000m Twisted</option>
+                        </select>
+                    </div>
+
+                    <div class="order-info-strip">
+                        <div><span class="order-label">Customer:</span> <span class="order-value">Sharma Textiles</span></div>
+                        <div><span class="order-label">Qty:</span> <span class="order-value">5000m</span></div>
+                        <div><span class="order-label">Status:</span> <span class="order-value">Booked</span></div>
+                        <div><span class="order-label">Date:</span> <span class="order-value">28-Mar-2026</span></div>
+                    </div>
+
+                    <span class="masters-tag">← Orders Module</span>
+
+                    <div class="field" style="margin-top: 12px;">
+                        <label>Booking Reference Photo</label>
+                        <div class="upload-zone">
+                            <div class="upload-zone-icon">📷</div>
+                            <div class="upload-zone-text">Add Booking Photo</div>
+                            <div class="upload-thumbnail">-</div>
+                        </div>
+                    </div>
+
+                    <div class="field" style="margin-top: 12px;">
+                        <label>Actual Selling Price</label>
+                        <div style="display: flex; gap: 8px; align-items: flex-end;">
+                            <input type="number" id="actualSellPrice" value="250" step="0.1" placeholder="₹/kg" style="flex: 1;">
+                            <span class="price-comparison-chip positive">↑ ₹27.40 above calc</span>
+                        </div>
+                        <span class="text-sm" style="display: block; margin-top: 4px;">Order book price — may differ from calculated price</span>
+                    </div>
+
+                    <button class="btn-new-without-order">New (without order)</button>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- SECTION 1: SAMPLE NAAP-TOL -->
+                <div class="section">
+                    <div class="section-header">
+                        <div class="section-number">①</div>
+                        <div class="section-title">Sample Naap-Tol</div>
+                        <div class="info-btn" title="Reference sample specifications">i</div>
+                    </div>
+                    <div class="field-grid cols-5">
+                        <div class="field">
+                            <label>Length (m)</label>
+                            <input type="number" id="sampleLength" value="100" step="0.1">
+                        </div>
+                        <div class="field">
+                            <label>Total Wt (g)</label>
+                            <input type="number" id="sampleTotalWt" value="50" step="0.1">
+                        </div>
+                        <div class="field">
+                            <label>Cov Wt (g)</label>
+                            <input type="number" id="sampleCovWt" value="35" step="0.1">
+                        </div>
+                        <div class="field">
+                            <label>Fil Wt (g)</label>
+                            <input type="number" id="sampleFilWt" value="15" step="0.1">
+                        </div>
+                        <div class="field">
+                            <label>Width (mm)</label>
+                            <input type="number" id="sampleWidth" value="5" step="0.1">
+                        </div>
+                    </div>
+                    <div style="text-align: right; margin-top: 4px;">
+                        <span class="text-sm">GSM: <span id="gsm">100.00</span> g/m²</span>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- SECTION 2: CUSTOMER ORDER -->
+                <div class="section">
+                    <div class="section-header">
+                        <div class="section-number">②</div>
+                        <div class="section-title">Customer Order</div>
+                        <div class="info-btn" title="Order quantities">i</div>
+                    </div>
+                    <div class="field-grid cols-3">
+                        <div class="field">
+                            <label>Meters</label>
+                            <input type="number" id="orderMeters" value="5000" step="1">
+                        </div>
+                        <div class="field">
+                            <label>Kgs</label>
+                            <input type="number" id="orderKgs" value="2.500" step="0.001" readonly style="opacity: 0.6;">
+                        </div>
+                        <div class="field">
+                            <label>Waste %</label>
+                            <input type="number" id="wastePercent" value="5" step="0.1">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- SECTION 3: PRODUCT & MATERIAL -->
+                <div class="section">
+                    <div class="section-header">
+                        <div class="section-number">③</div>
+                        <div class="section-title">Product & Material</div>
+                        <div class="info-btn" title="Machine and product selection">i</div>
+                    </div>
+
+                    <div class="field">
+                        <label>Product ← Product Masters</label>
+                        <select id="product">
+                            <option>Round Cord + Filler</option>
+                            <option>Flat Cord</option>
+                            <option>Twisted Cord</option>
+                        </select>
+                        <div class="auto-filled-hint">
+                            <span class="lock-icon">🔒</span>
+                            Auto-filled from ORD-2425-0047
+                            <button class="override-btn">Override</button>
+                        </div>
+                    </div>
+
+                    <div class="field" style="margin-top: 10px;">
+                        <label>Machine ← Machine Masters</label>
+                        <select id="machine">
+                            <option>8 Spindle (Round)</option>
+                            <option>6 Spindle (Round)</option>
+                            <option>4 Spindle (Round)</option>
+                        </select>
+                        <div class="auto-filled-hint">
+                            <span class="lock-icon">🔒</span>
+                            Auto-filled from ORD-2425-0047
+                            <button class="override-btn">Override</button>
+                        </div>
+                    </div>
+
+                    <div class="field" style="margin-top: 10px;">
+                        <label>Chaal</label>
+                        <select id="chaal">
+                            <option>Seedhi Chaal</option>
+                            <option>Terchha Chaal</option>
+                        </select>
+                        <span class="masters-tag">← Masters</span>
+                    </div>
+
+                    <div class="field-inline" style="margin-top: 10px;">
+                        <label>Covering Yarns</label>
+                        <select id="covMaterial">
+                            <option>Cotton 20s</option>
+                            <option>Cotton 30s</option>
+                            <option>Poly Cotton</option>
+                        </select>
+                        <input type="number" id="covPrice" value="180" placeholder="₹/kg" step="0.1">
+                        <button class="btn-yarn">Yarn</button>
+                    </div>
+                    <span class="masters-tag">← Masters</span>
+
+                    <div class="field-inline" style="margin-top: 10px;">
+                        <label>Filler Yarns</label>
+                        <select id="filMaterial">
+                            <option>Red Filler</option>
+                            <option>Black Filler</option>
+                            <option>White Filler</option>
+                        </select>
+                        <input type="number" id="filPrice" value="65" placeholder="₹/kg" step="0.1">
+                        <button class="btn-yarn">+ Yarn</button>
+                    </div>
+                    <span class="masters-tag">← Masters</span>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- SECTION 4: PROCESS & OPERATORS -->
+                <div class="section">
+                    <div class="section-header">
+                        <div class="section-number">④</div>
+                        <div class="section-title">Process & Operators</div>
+                        <div class="info-btn" title="Process steps and assignments">i</div>
+                    </div>
+                    <table class="process-table">
+                        <thead>
+                            <tr>
+                                <th>Process</th>
+                                <th>Operator</th>
+                                <th>Machine</th>
+                                <th>Hrs</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="process-row">
+                                <td style="color: #a78bfa;">Cone Wind</td>
+                                <td><select><option>Ramesh</option><option>Rajesh</option></select></td>
+                                <td><select><option>CW-01</option><option>CW-02</option></select></td>
+                                <td><input type="number" value="2" step="0.5" style="width: 100%;"></td>
+                            </tr>
+                            <tr class="process-row">
+                                <td style="color: #a78bfa;">Bobbin Wind</td>
+                                <td><select><option>Suresh</option><option>Sanjay</option></select></td>
+                                <td><select><option>BW-03</option><option>BW-04</option></select></td>
+                                <td><input type="number" value="3" step="0.5" style="width: 100%;"></td>
+                            </tr>
+                            <tr class="process-row">
+                                <td style="color: #a78bfa;">Braiding</td>
+                                <td><select><option>Mohan</option><option>Mukesh</option></select></td>
+                                <td><select><option>BR-08</option><option>BR-09</option></select></td>
+                                <td><input type="number" value="8" step="0.5" style="width: 100%;"></td>
+                            </tr>
+                            <tr class="process-row disabled">
+                                <td style="color: rgba(255, 255, 255, 0.4);">Tipping</td>
+                                <td><select disabled><option>N/A</option></select></td>
+                                <td><select disabled><option>N/A</option></select></td>
+                                <td><input type="number" disabled value="0" step="0.5" style="width: 100%;"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <span class="text-sm" style="display: block; margin-top: 4px;">Only for tipping orders</span>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- SECTION 5: PRICING -->
+                <div class="section">
+                    <div class="section-header">
+                        <div class="section-number">⑤</div>
+                        <div class="section-title">Pricing</div>
+                        <div class="info-btn" title="Labor and overhead rates">i</div>
+                    </div>
+                    <div class="field-grid cols-3">
+                        <div class="field">
+                            <label>Labor ₹/kg</label>
+                            <input type="number" id="laborRate" value="25" step="1">
+                        </div>
+                        <div class="field">
+                            <label>Overhead ₹/kg</label>
+                            <input type="number" id="overheadRate" value="15" step="1">
+                        </div>
+                        <div class="field">
+                            <label>Profit %</label>
+                            <input type="number" id="profitPercent" value="20" step="0.1">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- SECTION 6: PRODUCTION PLAN -->
+                <div class="section">
+                    <div class="section-header">
+                        <div class="section-number">⑥</div>
+                        <div class="section-title">Production Plan</div>
+                        <div class="info-btn" title="Production parameters">i</div>
+                    </div>
+                    <div class="field-grid cols-5">
+                        <div class="field">
+                            <label>Speed (m/min)</label>
+                            <input type="number" id="speed" value="12" step="0.1">
+                        </div>
+                        <div class="field">
+                            <label>Machines</label>
+                            <input type="number" id="machineCount" value="2" step="1">
+                        </div>
+                        <div class="field">
+                            <label>Eff %</label>
+                            <input type="number" id="efficiency" value="85" step="1">
+                        </div>
+                        <div class="field">
+                            <label>Bobbin (g)</label>
+                            <input type="number" id="bobbinWt" value="200" step="10">
+                        </div>
+                        <div class="field">
+                            <label>Carriers</label>
+                            <input type="number" id="carriers" value="8" step="1">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- VERSION FOOTER -->
+            <div class="version-footer">
+                SARAS Production Planning v2.0
+            </div>
+        </div>
+
+        <!-- RIGHT CARD: OUTPUT -->
+        <div class="card">
+            <div class="card-header">
+                <svg class="card-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+                OUTPUT
+            </div>
+            <div class="card-content">
+                <!-- PROFIT COMPARISON SECTION -->
+                <div class="section">
+                    <div class="profit-comparison-card">
+                        <div class="profit-row">
+                            <span class="profit-label">Calculated Cost</span>
+                            <span class="profit-value">₹185.50/kg</span>
+                        </div>
+                        <div class="profit-row">
+                            <span class="profit-label">Calculated Sell (20%)</span>
+                            <span class="profit-value">₹222.60/kg</span>
+                        </div>
+                        <div class="profit-row" style="padding: 12px 0; border-top: 1px solid rgba(255, 255, 255, 0.08); border-bottom: 1px solid rgba(255, 255, 255, 0.08);">
+                            <span class="profit-label" style="color: rgba(255, 255, 255, 0.7); font-weight: 600;">Actual Sell Price</span>
+                            <span class="profit-value big">₹250.00/kg</span>
+                        </div>
+                        <div class="profit-row">
+                            <span class="profit-label">Actual Margin</span>
+                            <span class="profit-value positive">₹64.50/kg (34.8%)</span>
+                        </div>
+
+                        <div class="margin-bar">
+                            <div class="margin-bar-item">
+                                <div class="margin-bar-label">Calculated</div>
+                                <div class="margin-bar-visual calculated">37.10</div>
+                            </div>
+                            <div class="margin-bar-item">
+                                <div class="margin-bar-label">Actual</div>
+                                <div class="margin-bar-visual actual">64.50</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- COST BREAKDOWN SECTION -->
+                <div class="section">
+                    <div class="section-header">
+                        <div class="section-title">Cost Breakdown</div>
+                    </div>
+
+                    <div class="cost-summary">
+                        <div class="cost-box">
+                            <div class="cost-box-label">Material Cost</div>
+                            <div class="cost-box-value">₹ <span id="materialCost">145.50</span></div>
+                            <div style="font-size: 9px; color: rgba(255, 255, 255, 0.4); margin-top: 4px;">Covering + Filler</div>
+                        </div>
+                        <div class="cost-box">
+                            <div class="cost-box-label">Process Cost</div>
+                            <div class="cost-box-value">₹ <span id="processCost">40</span></div>
+                            <div style="font-size: 9px; color: rgba(255, 255, 255, 0.4); margin-top: 4px;">Labor + Overhead</div>
+                        </div>
+                    </div>
+
+                    <div class="output-card">
+                        <div class="output-row" style="border: none; padding: 10px 0;">
+                            <span class="output-label">Cost Price ₹/kg</span>
+                            <span class="output-value big" id="costPrice">185.50</span>
+                        </div>
+                        <div class="output-row" style="border: none; padding: 10px 0; margin-top: 6px;">
+                            <span class="output-label">Selling Price ₹/kg</span>
+                            <span class="output-value big highlight" id="sellingPrice">222.60</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- MATERIAL REQUIREMENT SECTION -->
+                <div class="section">
+                    <div class="section-header">
+                        <div class="section-title">Material Requirement</div>
+                    </div>
+
+                    <div class="output-card">
+                        <div class="output-card-header">Covering Yarn</div>
+                        <div class="output-row">
+                            <span class="output-label">without waste</span>
+                            <span class="output-value" id="covWithoutWaste">1.750</span>
+                        </div>
+                        <div class="output-row">
+                            <span class="output-label">with waste</span>
+                            <span class="output-value highlight" id="covWithWaste">1.838</span>
+                        </div>
+                        <div class="output-row">
+                            <span class="output-label">per meter</span>
+                            <span class="output-value" id="covPerMeter">0.350</span>
+                        </div>
+                    </div>
+
+                    <div class="output-card">
+                        <div class="output-card-header">Filler Yarn</div>
+                        <div class="output-row">
+                            <span class="output-label">without waste</span>
+                            <span class="output-value" id="filWithoutWaste">0.750</span>
+                        </div>
+                        <div class="output-row">
+                            <span class="output-label">with waste</span>
+                            <span class="output-value highlight" id="filWithWaste">0.788</span>
+                        </div>
+                        <div class="output-row">
+                            <span class="output-label">per meter</span>
+                            <span class="output-value" id="filPerMeter">0.150</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- CONVERSIONS SECTION -->
+                <div class="section">
+                    <div class="section-header">
+                        <div class="section-title">Conversions</div>
+                    </div>
+
+                    <div class="output-card">
+                        <div class="output-card-header">Sample to Order</div>
+                        <div class="output-row">
+                            <span class="output-label">Meters to Kgs</span>
+                            <span class="output-value" id="metersToKgs">0.0005</span>
+                        </div>
+                        <div class="output-row">
+                            <span class="output-label">Order Total (kg)</span>
+                            <span class="output-value highlight" id="orderTotalKgs">2.500</span>
+                        </div>
+                        <div class="output-row">
+                            <span class="output-label">With waste (kg)</span>
+                            <span class="output-value highlight" id="orderWithWaste">2.625</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- PRODUCTION ESTIMATE SECTION -->
+                <div class="section">
+                    <div class="section-header">
+                        <div class="section-title">Production Estimate</div>
+                    </div>
+
+                    <div class="output-card">
+                        <div class="output-row">
+                            <span class="output-label">Total Production Time</span>
+                            <span class="output-value" id="productionTime">104.17 hours</span>
+                        </div>
+                        <div class="output-row">
+                            <span class="output-label">Days (8hr shift)</span>
+                            <span class="output-value highlight" id="productionDays">13 days</span>
+                        </div>
+                        <div class="output-row">
+                            <span class="output-label">Bobbin Count</span>
+                            <span class="output-value" id="bobbinCount">13</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- ACTIONS SECTION -->
+                <div class="section">
+                    <div class="btn-group">
+                        <button class="btn-action">📋 Copy</button>
+                        <button class="btn-action">📊 Export</button>
+                        <button class="btn-action">💾 Save</button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- VERSION FOOTER -->
+            <div class="version-footer">
+                SARAS Production Planning v2.0
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Basic calculation function
+        function calculate() {
+            const sampleLength = parseFloat(document.getElementById('sampleLength').value) || 100;
+            const sampleTotalWt = parseFloat(document.getElementById('sampleTotalWt').value) || 50;
+            const sampleCovWt = parseFloat(document.getElementById('sampleCovWt').value) || 35;
+            const sampleFilWt = parseFloat(document.getElementById('sampleFilWt').value) || 15;
+            const sampleWidth = parseFloat(document.getElementById('sampleWidth').value) || 5;
+
+            const orderMeters = parseFloat(document.getElementById('orderMeters').value) || 5000;
+            const wastePercent = parseFloat(document.getElementById('wastePercent').value) || 5;
+
+            const covPrice = parseFloat(document.getElementById('covPrice').value) || 180;
+            const filPrice = parseFloat(document.getElementById('filPrice').value) || 65;
+
+            const laborRate = parseFloat(document.getElementById('laborRate').value) || 25;
+            const overheadRate = parseFloat(document.getElementById('overheadRate').value) || 15;
+            const profitPercent = parseFloat(document.getElementById('profitPercent').value) || 20;
+
+            // GSM calculation
+            const gsm = (sampleTotalWt / sampleLength) * 1000;
+            document.getElementById('gsm').textContent = gsm.toFixed(2);
+
+            // Material requirements
+            const covPerMeter = sampleCovWt / sampleLength;
+            const filPerMeter = sampleFilWt / sampleLength;
+
+            const covWithoutWaste = orderMeters * covPerMeter / 1000;
+            const covWithWaste = covWithoutWaste * (1 + wastePercent / 100);
+            const filWithoutWaste = orderMeters * filPerMeter / 1000;
+            const filWithWaste = filWithoutWaste * (1 + wastePercent / 100);
+
+            document.getElementById('covWithoutWaste').textContent = covWithoutWaste.toFixed(3);
+            document.getElementById('covWithWaste').textContent = covWithWaste.toFixed(3);
+            document.getElementById('covPerMeter').textContent = covPerMeter.toFixed(3);
+            document.getElementById('filWithoutWaste').textContent = filWithoutWaste.toFixed(3);
+            document.getElementById('filWithWaste').textContent = filWithWaste.toFixed(3);
+            document.getElementById('filPerMeter').textContent = filPerMeter.toFixed(3);
+
+            // Cost calculation
+            const materialCost = (covWithWaste * covPrice + filWithWaste * filPrice) / (orderMeters * (sampleTotalWt / 1000));
+            const processCost = laborRate + overheadRate;
+            const costPrice = materialCost + processCost;
+            const sellingPrice = costPrice * (1 + profitPercent / 100);
+
+            document.getElementById('materialCost').textContent = (materialCost).toFixed(2);
+            document.getElementById('processCost').textContent = processCost.toFixed(0);
+            document.getElementById('costPrice').textContent = costPrice.toFixed(2);
+            document.getElementById('sellingPrice').textContent = sellingPrice.toFixed(2);
+
+            // Order conversions
+            const metersToKgs = sampleTotalWt / 1000 / sampleLength;
+            const orderTotalKgs = orderMeters * metersToKgs;
+            const orderWithWaste = orderTotalKgs * (1 + wastePercent / 100);
+
+            document.getElementById('metersToKgs').textContent = metersToKgs.toFixed(6);
+            document.getElementById('orderTotalKgs').textContent = orderTotalKgs.toFixed(3);
+            document.getElementById('orderWithWaste').textContent = orderWithWaste.toFixed(3);
+
+            // Production estimate
+            const speed = parseFloat(document.getElementById('speed').value) || 12;
+            const machineCount = parseFloat(document.getElementById('machineCount').value) || 2;
+            const efficiency = parseFloat(document.getElementById('efficiency').value) || 85;
+            const bobbinWt = parseFloat(document.getElementById('bobbinWt').value) || 200;
+
+            const effectiveSpeed = speed * machineCount * (efficiency / 100);
+            const productionTime = orderMeters / effectiveSpeed;
+            const productionDays = Math.ceil(productionTime / 8);
+            const bobbinCount = Math.ceil(orderTotalKgs * 1000 / bobbinWt);
+
+            document.getElementById('productionTime').textContent = productionTime.toFixed(2) + ' hours';
+            document.getElementById('productionDays').textContent = productionDays + ' days';
+            document.getElementById('bobbinCount').textContent = bobbinCount;
+        }
+
+        // Attach listeners
+        document.getElementById('sampleLength').addEventListener('input', calculate);
+        document.getElementById('sampleTotalWt').addEventListener('input', calculate);
+        document.getElementById('sampleCovWt').addEventListener('input', calculate);
+        document.getElementById('sampleFilWt').addEventListener('input', calculate);
+        document.getElementById('sampleWidth').addEventListener('input', calculate);
+        document.getElementById('orderMeters').addEventListener('input', calculate);
+        document.getElementById('wastePercent').addEventListener('input', calculate);
+        document.getElementById('covPrice').addEventListener('input', calculate);
+        document.getElementById('filPrice').addEventListener('input', calculate);
+        document.getElementById('laborRate').addEventListener('input', calculate);
+        document.getElementById('overheadRate').addEventListener('input', calculate);
+        document.getElementById('profitPercent').addEventListener('input', calculate);
+        document.getElementById('speed').addEventListener('input', calculate);
+        document.getElementById('machineCount').addEventListener('input', calculate);
+        document.getElementById('efficiency').addEventListener('input', calculate);
+        document.getElementById('bobbinWt').addEventListener('input', calculate);
+
+        // Initial calculation
+        calculate();
+    </script>
+</body>
+</html>

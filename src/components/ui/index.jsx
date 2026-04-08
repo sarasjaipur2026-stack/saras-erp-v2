@@ -1,500 +1,439 @@
-import React, { useState } from 'react';
-import {
-  ChevronDown,
-  X,
-  ChevronLeft,
-  ChevronRight,
-  Upload,
-  Loader,
-  AlertTriangle,
-} from 'lucide-react';
+import { useState, useEffect, useRef } from 'react'
+import { ChevronDown, X, Upload, Loader2, Search } from 'lucide-react'
 
+// ─── BUTTON ────────────────────────────────────────────────
 export const Button = ({
-  variant = 'primary',
-  size = 'md',
-  disabled = false,
-  children,
-  className = '',
-  ...props
+  variant = 'primary', size = 'md', loading = false, disabled = false,
+  children, className = '', type = 'button', ...props
 }) => {
-  const baseStyles =
-    'font-medium rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed';
-
+  const base = 'inline-flex items-center justify-center gap-2 font-medium rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus-ring select-none cursor-pointer'
   const variants = {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700',
-    secondary: 'bg-gray-200 text-gray-900 hover:bg-gray-300',
-    danger: 'bg-red-600 text-white hover:bg-red-700',
-    ghost: 'text-gray-700 hover:bg-gray-100',
-  };
-
+    primary: 'bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 shadow-sm shadow-indigo-600/20',
+    secondary: 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:border-slate-300 active:bg-slate-100 shadow-sm',
+    danger: 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 shadow-sm shadow-red-600/20',
+    ghost: 'text-slate-600 hover:bg-slate-100 active:bg-slate-200',
+    success: 'bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 shadow-sm shadow-emerald-600/20',
+  }
   const sizes = {
-    sm: 'px-3 py-1 text-sm',
-    md: 'px-4 py-2 text-base',
-    lg: 'px-6 py-3 text-lg',
-  };
+    xs: 'px-2.5 py-1 text-xs',
+    sm: 'px-3 py-1.5 text-sm',
+    md: 'px-4 py-2 text-sm',
+    lg: 'px-5 py-2.5 text-sm',
+  }
 
   return (
     <button
-      disabled={disabled}
-      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}
+      type={type}
+      disabled={disabled || loading}
+      className={`${base} ${variants[variant] || variants.primary} ${sizes[size] || sizes.md} ${className}`}
       {...props}
     >
+      {loading && <Loader2 size={15} className="animate-spin" />}
       {children}
     </button>
-  );
-};
+  )
+}
 
+// ─── INPUT ─────────────────────────────────────────────────
 export const Input = ({
-  label,
-  error,
-  required = false,
-  className = '',
-  ...props
-}) => {
-  return (
-    <div className="flex flex-col gap-1">
-      {label && (
-        <label className="text-sm font-medium text-gray-700">
-          {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
-        </label>
-      )}
+  label, error, required, className = '', icon: Icon, ...props
+}) => (
+  <div className={`flex flex-col gap-1.5 ${className}`}>
+    {label && (
+      <label className="text-[13px] font-medium text-slate-600">
+        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+      </label>
+    )}
+    <div className="relative">
+      {Icon && <Icon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />}
       <input
-        className={`px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-          error ? 'border-red-500' : 'border-gray-300'
-        } ${className}`}
+        className={`w-full ${Icon ? 'pl-9' : 'pl-3'} pr-3 py-2 text-sm bg-white border rounded-xl transition-all duration-200 placeholder:text-slate-400
+          ${error ? 'border-red-300 focus:border-red-400 focus:ring-2 focus:ring-red-50' : 'border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10'}
+          focus:outline-none disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed`}
         {...props}
       />
-      {error && <span className="text-sm text-red-500">{error}</span>}
     </div>
-  );
-};
+    {error && <span className="text-xs text-red-500 font-medium">{error}</span>}
+  </div>
+)
 
+// ─── TEXTAREA ──────────────────────────────────────────────
 export const Textarea = ({
-  label,
-  error,
-  required = false,
-  className = '',
-  ...props
-}) => {
-  return (
-    <div className="flex flex-col gap-1">
-      {label && (
-        <label className="text-sm font-medium text-gray-700">
-          {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
-        </label>
-      )}
-      <textarea
-        className={`px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-          error ? 'border-red-500' : 'border-gray-300'
-        } ${className}`}
-        {...props}
-      />
-      {error && <span className="text-sm text-red-500">{error}</span>}
-    </div>
-  );
-};
+  label, error, required, className = '', ...props
+}) => (
+  <div className={`flex flex-col gap-1.5 ${className}`}>
+    {label && (
+      <label className="text-[13px] font-medium text-slate-600">
+        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+      </label>
+    )}
+    <textarea
+      className={`w-full px-3 py-2 text-sm bg-white border rounded-xl transition-all duration-200 placeholder:text-slate-400 resize-none
+        ${error ? 'border-red-300 focus:border-red-400 focus:ring-2 focus:ring-red-50' : 'border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10'}
+        focus:outline-none disabled:bg-slate-50 disabled:text-slate-400`}
+      {...props}
+    />
+    {error && <span className="text-xs text-red-500 font-medium">{error}</span>}
+  </div>
+)
 
+// ─── SELECT ────────────────────────────────────────────────
 export const Select = ({
-  label,
-  error,
-  required = false,
-  options = [],
-  className = '',
-  ...props
-}) => {
-  return (
-    <div className="flex flex-col gap-1">
-      {label && (
-        <label className="text-sm font-medium text-gray-700">
-          {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
-        </label>
-      )}
+  label, error, required, options = [], className = '', ...props
+}) => (
+  <div className={`flex flex-col gap-1.5 ${className}`}>
+    {label && (
+      <label className="text-[13px] font-medium text-slate-600">
+        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+      </label>
+    )}
+    <div className="relative">
       <select
-        className={`px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-          error ? 'border-red-500' : 'border-gray-300'
-        } ${className}`}
+        className={`w-full appearance-none px-3 py-2 pr-8 text-sm bg-white border rounded-xl transition-all duration-200
+          ${error ? 'border-red-300 focus:border-red-400 focus:ring-2 focus:ring-red-50' : 'border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10'}
+          focus:outline-none disabled:bg-slate-50 disabled:text-slate-400 cursor-pointer`}
         {...props}
       >
         {options.map(opt => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
         ))}
       </select>
-      {error && <span className="text-sm text-red-500">{error}</span>}
+      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
     </div>
-  );
-};
+    {error && <span className="text-xs text-red-500 font-medium">{error}</span>}
+  </div>
+)
 
+// ─── SEARCH SELECT ─────────────────────────────────────────
 export const SearchSelect = ({
-  label,
-  error,
-  required = false,
-  options = [],
-  onSearch,
-  onChange,
-  value,
-  placeholder = 'Search...',
-  renderOption,
-  className = '',
+  label, error, required, options = [], onSearch, onChange,
+  value, placeholder = 'Search...', renderOption, className = '',
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setIsOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   const filtered = options.filter(opt =>
     opt.label.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleSelect = opt => {
-    onChange(opt);
-    setIsOpen(false);
-    setSearchTerm('');
-  };
+  )
 
   return (
-    <div className="relative">
+    <div className={`relative ${className}`} ref={ref}>
       {label && (
-        <label className="text-sm font-medium text-gray-700 block mb-1">
-          {label}
-          {required && <span className="text-red-500 ml-1">*</span>}
+        <label className="text-[13px] font-medium text-slate-600 block mb-1.5">
+          {label}{required && <span className="text-red-400 ml-0.5">*</span>}
         </label>
       )}
-      <div
-        className={`relative px-3 py-2 border rounded-lg focus-within:ring-2 focus-within:ring-blue-500 ${
-          error ? 'border-red-500' : 'border-gray-300'
-        } ${className}`}
-      >
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={e => {
-            setSearchTerm(e.target.value);
-            onSearch?.(e.target.value);
-            setIsOpen(true);
-          }}
-          onFocus={() => setIsOpen(true)}
-          placeholder={placeholder}
-          className="w-full outline-none text-sm"
-        />
+      <div className={`relative px-3 py-2 bg-white border rounded-xl transition-all duration-200
+        ${isOpen ? 'border-indigo-400 ring-2 ring-indigo-500/10' : error ? 'border-red-300' : 'border-slate-200'}
+      `}>
+        <div className="flex items-center gap-2">
+          <Search size={14} className="text-slate-400 shrink-0" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={e => { setSearchTerm(e.target.value); onSearch?.(e.target.value); setIsOpen(true) }}
+            onFocus={() => setIsOpen(true)}
+            placeholder={placeholder}
+            className="w-full outline-none text-sm bg-transparent placeholder:text-slate-400"
+          />
+        </div>
       </div>
-
-      {isOpen && (
-        <div className="absolute top-full mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg z-10 max-h-60 overflow-auto">
+      {isOpen && filtered.length > 0 && (
+        <div className="absolute top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 z-20 max-h-60 overflow-auto dropdown-in">
           {filtered.map(opt => (
             <div
               key={opt.value}
-              onClick={() => handleSelect(opt)}
-              className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm"
+              onClick={() => { onChange(opt); setIsOpen(false); setSearchTerm('') }}
+              className="px-3 py-2.5 hover:bg-indigo-50 cursor-pointer text-sm transition-colors first:rounded-t-xl last:rounded-b-xl"
             >
               {renderOption ? renderOption(opt) : opt.label}
             </div>
           ))}
         </div>
       )}
-      {error && <span className="text-sm text-red-500 block mt-1">{error}</span>}
+      {error && <span className="text-xs text-red-500 font-medium block mt-1">{error}</span>}
     </div>
-  );
-};
+  )
+}
+
+// ─── BADGE ─────────────────────────────────────────────────
 export const Badge = ({ children, variant = 'default', className = '' }) => {
   const variants = {
-    default: 'bg-blue-100 text-blue-800',
-    success: 'bg-green-100 text-green-800',
-    warning: 'bg-yellow-100 text-yellow-800',
-    danger: 'bg-red-100 text-red-800',
-    gray: 'bg-gray-100 text-gray-800',
-  };
-
+    default: 'bg-slate-100 text-slate-600',
+    primary: 'bg-indigo-50 text-indigo-700',
+    info: 'bg-blue-50 text-blue-700',
+    success: 'bg-emerald-50 text-emerald-700',
+    warning: 'bg-amber-50 text-amber-700',
+    danger: 'bg-red-50 text-red-700',
+    purple: 'bg-purple-50 text-purple-700',
+  }
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${variants[variant]} ${className}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold tracking-wide ${variants[variant] || variants.default} ${className}`}>
       {children}
     </span>
-  );
-};
+  )
+}
+
+// ─── STATUS BADGE ──────────────────────────────────────────
+const STATUS_MAP = {
+  draft: { variant: 'default', label: 'Draft' },
+  booking: { variant: 'primary', label: 'Booking' },
+  approved: { variant: 'info', label: 'Approved' },
+  production: { variant: 'warning', label: 'Production' },
+  qc: { variant: 'purple', label: 'QC' },
+  dispatch: { variant: 'success', label: 'Dispatch' },
+  completed: { variant: 'success', label: 'Completed' },
+  cancelled: { variant: 'danger', label: 'Cancelled' },
+  new: { variant: 'primary', label: 'New' },
+  follow_up: { variant: 'warning', label: 'Follow Up' },
+  quoted: { variant: 'info', label: 'Quoted' },
+  converted: { variant: 'success', label: 'Converted' },
+  lost: { variant: 'danger', label: 'Lost' },
+}
 
 export const StatusBadge = ({ status }) => {
-  const statusConfig = {
-    pending: { variant: 'warning', label: 'Pending' },
-    confirmed: { variant: 'info', label: 'Confirmed' },
-    partial_delivery: { variant: 'warning', label: 'Partial Delivery' },
-    delivered: { variant: 'success', label: 'Delivered' },
-    cancelled: { variant: 'danger', label: 'Cancelled' },
-    new: { variant: 'default', label: 'New' },
-    follow_up: { variant: 'warning', label: 'Follow Up' },
-    quoted: { variant: 'info', label: 'Quoted' },
-    converted: { variant: 'success', label: 'Converted' },
-    lost: { variant: 'danger', label: 'Lost' },
-  };
+  const config = STATUS_MAP[status] || { variant: 'default', label: status }
+  return <Badge variant={config.variant}>{config.label}</Badge>
+}
 
-  const config = statusConfig[status] || { variant: 'default', label: status };
-
-  return <Badge variant={config.variant}>{config.label}</Badge>;
-};
-
-export const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
-  if (!isOpen) return null;
-
-  const sizes = {
-    sm: 'max-w-sm',
-    md: 'max-w-md',
-    lg: 'max-w-lg',
-    xl: 'max-w-xl',
-  };
+// ─── MODAL ─────────────────────────────────────────────────
+export const Modal = ({ isOpen, open, onClose, title, children, footer, size = 'md' }) => {
+  const visible = isOpen ?? open
+  if (!visible) return null
+  const sizes = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg', xl: 'max-w-xl', '2xl': 'max-w-2xl' }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className={`bg-white rounded-lg shadow-xl ${sizes[size]} w-full mx-4`}>
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 transition-colors"
-          >
-            <X className="w-5 h-5" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-in" onClick={onClose}>
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-[2px]" />
+      <div
+        className={`relative bg-white rounded-2xl shadow-2xl shadow-slate-900/10 ${sizes[size] || sizes.md} w-full max-h-[85vh] flex flex-col scale-in`}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+            <X size={18} />
           </button>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="px-6 py-5 overflow-y-auto flex-1">{children}</div>
+        {footer && (
+          <div className="px-6 py-3.5 border-t border-slate-100 flex items-center justify-end gap-2 bg-slate-50/50 rounded-b-2xl">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
-  );
-};
+  )
+}
 
-export const ConfirmDialog = ({ isOpen, onConfirm, onCancel, title, message, isDangerous = false }) => {
-  return (
-    <Modal isOpen={isOpen} onClose={onCancel} title={title} size="sm">
-      <div className="space-y-4">
-        <p className="text-gray-700">{message}</p>
-        <div className="flex gap-2 justify-end">
-          <Button variant="secondary" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button
-            variant={isDangerous ? 'danger' : 'primary'}
-            onClick={onConfirm}
-          >
-            Confirm
-          </Button>
-        </div>
+// ─── CONFIRM DIALOG ────────────────────────────────────────
+export const ConfirmDialog = ({ isOpen, onConfirm, onCancel, title, message, isDangerous }) => (
+  <Modal isOpen={isOpen} onClose={onCancel} title={title} size="sm">
+    <div className="space-y-4">
+      <p className="text-sm text-slate-600 leading-relaxed">{message}</p>
+      <div className="flex gap-2 justify-end">
+        <Button variant="secondary" size="sm" onClick={onCancel}>Cancel</Button>
+        <Button variant={isDangerous ? 'danger' : 'primary'} size="sm" onClick={onConfirm}>Confirm</Button>
       </div>
-    </Modal>
-  );
-};
-
-export const EmptyState = ({ icon: Icon, title, description, action }) => {
-  return (
-    <div className="flex flex-col items-center justify-center py-12 px-4">
-      {Icon && <Icon className="w-12 h-12 text-gray-400 mb-4" />}
-      <h3 className="text-lg font-medium text-gray-900 mb-2">{title}</h3>
-      {description && <p className="text-gray-600 text-sm mb-4">{description}</p>}
-      {action}
     </div>
-  );
-};
+  </Modal>
+)
 
+// ─── EMPTY STATE ───────────────────────────────────────────
+export const EmptyState = ({ icon: Icon, title, description, action }) => (
+  <div className="flex flex-col items-center justify-center py-16 px-4">
+    {Icon && (
+      <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+        <Icon size={24} className="text-slate-400" />
+      </div>
+    )}
+    <h3 className="text-sm font-semibold text-slate-600 mb-1">{title}</h3>
+    {description && <p className="text-[13px] text-slate-400 mb-5 text-center max-w-xs">{description}</p>}
+    {action}
+  </div>
+)
+
+// ─── SPINNER ───────────────────────────────────────────────
 export const Spinner = ({ size = 'md' }) => {
-  const sizes = {
-    sm: 'w-4 h-4',
-    md: 'w-8 h-8',
-    lg: 'w-12 h-12',
-  };
-
+  const s = { sm: 'w-4 h-4', md: 'w-6 h-6', lg: 'w-10 h-10' }
   return (
-    <Loader className={`${sizes[size]} animate-spin text-blue-600`} />
-  );
-};
+    <div className={`${s[size]} border-2 border-indigo-100 border-t-indigo-600 rounded-full`}
+      style={{ animation: 'spin 0.6s linear infinite' }} />
+  )
+}
 
-export const PageLoader = () => {
-  return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="text-center">
-        <Spinner size="lg" />
-        <p className="mt-4 text-gray-600">Loading...</p>
-      </div>
+// ─── PAGE LOADER ───────────────────────────────────────────
+export const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="text-center">
+      <Spinner size="lg" />
+      <p className="mt-3 text-sm text-slate-400 font-medium">Loading...</p>
     </div>
-  );
-};
+  </div>
+)
+
+// ─── PHOTO UPLOAD ──────────────────────────────────────────
 export const PhotoUpload = ({ onUpload, isLoading = false }) => {
-  const [isDragActive, setIsDragActive] = useState(false);
-
-  const handleDrag = e => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setIsDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setIsDragActive(false);
-    }
-  };
-
-  const handleDrop = e => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragActive(false);
-
-    const files = e.dataTransfer.files;
-    if (files && files[0]) {
-      onUpload(files[0]);
-    }
-  };
-
-  const handleChange = e => {
-    if (e.target.files && e.target.files[0]) {
-      onUpload(e.target.files[0]);
-    }
-  };
-
+  const [drag, setDrag] = useState(false)
+  const handleDrop = (e) => { e.preventDefault(); setDrag(false); if (e.dataTransfer.files?.[0]) onUpload(e.dataTransfer.files[0]) }
   return (
     <div
-      onDragEnter={handleDrag}
-      onDragLeave={handleDrag}
-      onDragOver={handleDrag}
+      onDragEnter={(e) => { e.preventDefault(); setDrag(true) }}
+      onDragLeave={(e) => { e.preventDefault(); setDrag(false) }}
+      onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}
-      className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-        isDragActive
-          ? 'border-blue-500 bg-blue-50'
-          : 'border-gray-300 hover:border-gray-400'
-      }`}
+      className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200
+        ${drag ? 'border-indigo-400 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'}`}
     >
-      <input
-        type="file"
-        onChange={handleChange}
-        accept="image/*"
-        className="hidden"
-        id="photo-upload"
-        disabled={isLoading}
-      />
+      <input type="file" onChange={e => e.target.files?.[0] && onUpload(e.target.files[0])} accept="image/*" className="hidden" id="photo-upload" disabled={isLoading} />
       <label htmlFor="photo-upload" className="cursor-pointer block">
         {isLoading ? (
-          <>
-            <Spinner size="sm" />
-            <p className="mt-2 text-sm text-gray-600">Uploading...</p>
-          </>
+          <><Spinner size="sm" /><p className="mt-2 text-sm text-slate-500">Uploading...</p></>
         ) : (
           <>
-            <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-            <p className="text-sm text-gray-700">
-              Drag and drop your photo here, or click to select
-            </p>
-            <p className="text-xs text-gray-500 mt-1">PNG, JPG up to 10MB</p>
+            <Upload size={22} className="text-slate-400 mx-auto mb-2" />
+            <p className="text-sm text-slate-600 font-medium">Drop photo here or click to select</p>
+            <p className="text-xs text-slate-400 mt-1">PNG, JPG up to 10MB</p>
           </>
         )}
       </label>
     </div>
-  );
-};
+  )
+}
 
-export const StatCard = ({ icon: Icon, label, value, trend }) => {
+// ─── STAT CARD ─────────────────────────────────────────────
+const STAT_COLORS = {
+  indigo: { bg: 'bg-indigo-50/70', icon: 'bg-indigo-100 text-indigo-600', text: 'text-indigo-600', border: 'border-indigo-100/60' },
+  blue: { bg: 'bg-blue-50/70', icon: 'bg-blue-100 text-blue-600', text: 'text-blue-600', border: 'border-blue-100/60' },
+  amber: { bg: 'bg-amber-50/70', icon: 'bg-amber-100 text-amber-600', text: 'text-amber-600', border: 'border-amber-100/60' },
+  green: { bg: 'bg-emerald-50/70', icon: 'bg-emerald-100 text-emerald-600', text: 'text-emerald-600', border: 'border-emerald-100/60' },
+  red: { bg: 'bg-red-50/70', icon: 'bg-red-100 text-red-600', text: 'text-red-600', border: 'border-red-100/60' },
+  purple: { bg: 'bg-purple-50/70', icon: 'bg-purple-100 text-purple-600', text: 'text-purple-600', border: 'border-purple-100/60' },
+}
+
+export const StatCard = ({ icon: Icon, label, value, trend, color = 'indigo' }) => {
+  const c = STAT_COLORS[color] || STAT_COLORS.indigo
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm hover:shadow-md transition-shadow">
+    <div className={`${c.bg} rounded-2xl p-5 transition-all duration-200 border ${c.border} hover:shadow-sm`}>
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm text-gray-600 mb-1">{label}</p>
-          <p className="text-2xl font-bold text-gray-900">{value}</p>
-          {trend && (
-            <p className={`text-xs mt-2 ${trend > 0 ? 'text-green-600' : 'text-red-600'}`}>
+          <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">{label}</p>
+          <p className="text-2xl font-bold text-slate-900 tracking-tight">{value}</p>
+          {trend !== undefined && (
+            <p className={`text-[11px] mt-2 font-semibold ${trend > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
               {trend > 0 ? '+' : ''}{trend}% from last month
             </p>
           )}
         </div>
-        {Icon && <Icon className="w-8 h-8 text-blue-600 opacity-20" />}
+        {Icon && (
+          <div className={`w-10 h-10 rounded-xl ${c.icon} flex items-center justify-center`}>
+            <Icon size={19} strokeWidth={1.8} />
+          </div>
+        )}
       </div>
     </div>
-  );
-};
+  )
+}
 
+// ─── DATA TABLE ────────────────────────────────────────────
 export const DataTable = ({
-  columns,
-  data,
-  onRowClick,
-  isLoading = false,
-  emptyMessage = 'No data available',
+  columns, data, onRowClick, isLoading, loading,
+  emptyMessage = 'No data available', emptyTitle,
 }) => {
-  if (isLoading) return <PageLoader />;
+  const isLoadingFinal = isLoading ?? loading ?? false
+  const emptyText = emptyTitle || emptyMessage
+
+  if (isLoadingFinal) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-12">
+        <div className="flex flex-col items-center justify-center">
+          <Spinner size="md" />
+          <p className="mt-3 text-sm text-slate-400">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (!data || data.length === 0) {
     return (
-      <EmptyState
-        title={emptyMessage}
-        description="Try adjusting your search or filters"
-      />
-    );
+      <EmptyState title={emptyText} description="Try adjusting your search or filters" />
+    )
   }
 
   return (
-    <div className="overflow-x-auto border border-gray-200 rounded-lg">
-      <table className="w-full">
-        <thead className="bg-gray-50 border-b border-gray-200">
-          <tr>
-            {columns.map(col => (
-              <th
-                key={col.key}
-                className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider"
-              >
-                {col.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-200">
-          {data.map((row, idx) => (
-            <tr
-              key={idx}
-              onClick={() => onRowClick?.(row)}
-              className={onRowClick ? 'hover:bg-gray-50 cursor-pointer' : ''}
-            >
+    <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm shadow-slate-100">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-slate-100">
               {columns.map(col => (
-                <td key={col.key} className="px-6 py-4 text-sm text-gray-900">
-                  {col.render ? col.render(row[col.key], row) : row[col.key]}
-                </td>
+                <th key={col.key} className="px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/70">
+                  {col.label}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {data.map((row, idx) => (
+              <tr
+                key={row.id || idx}
+                onClick={() => onRowClick?.(row)}
+                className={`table-row-hover ${onRowClick ? 'cursor-pointer' : ''} transition-colors`}
+              >
+                {columns.map(col => (
+                  <td key={col.key} className="px-5 py-3 text-sm text-slate-600">
+                    {col.render ? col.render(row[col.key], row) : row[col.key]}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
-  );
-};
-export const Tabs = ({ tabs, defaultTab = 0, onChange }) => {
-  const [activeTab, setActiveTab] = React.useState(defaultTab);
+  )
+}
 
-  const handleTabChange = idx => {
-    setActiveTab(idx);
-    onChange?.(idx);
-  };
+// ─── TABS ──────────────────────────────────────────────────
+export const Tabs = ({ tabs, defaultTab = 0, onChange }) => {
+  const [active, setActive] = useState(defaultTab)
+  const handleChange = (idx) => { setActive(idx); onChange?.(idx) }
 
   return (
     <div>
-      <div className="flex border-b border-gray-200 gap-8">
+      <div className="flex gap-0.5 bg-slate-100/80 p-1 rounded-xl w-fit">
         {tabs.map((tab, idx) => (
           <button
             key={idx}
-            onClick={() => handleTabChange(idx)}
-            className={`py-3 text-sm font-medium transition-colors ${
-              activeTab === idx
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
+            onClick={() => handleChange(idx)}
+            className={`px-4 py-1.5 text-[13px] font-medium rounded-lg transition-all duration-200
+              ${active === idx
+                ? 'bg-white text-slate-800 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
+              }`}
           >
             {tab.label}
           </button>
         ))}
       </div>
       <div className="mt-4">
-        {tabs[activeTab] && tabs[activeTab].content}
+        {tabs[active]?.content}
       </div>
     </div>
-  );
-};
+  )
+}
 
+// ─── CURRENCY ──────────────────────────────────────────────
 export const Currency = ({ amount, currency = 'INR' }) => {
-  const formatter = new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-
-  return <span>{formatter.format(amount)}</span>;
-};
+  const fmt = new Intl.NumberFormat('en-IN', {
+    style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2,
+  })
+  return <span className="tabular-nums">{fmt.format(amount || 0)}</span>
+}

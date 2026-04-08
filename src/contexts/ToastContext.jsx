@@ -1,93 +1,73 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
-import { X, CheckCircle, AlertCircle, InfoIcon } from 'lucide-react';
+import { createContext, useContext, useState, useCallback } from 'react'
+import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react'
 
-const ToastContext = createContext();
+const ToastContext = createContext()
 
 export const ToastProvider = ({ children }) => {
-  const [toasts, setToasts] = useState([]);
+  const [toasts, setToasts] = useState([])
 
-  const addToast = useCallback((message, type = 'info', duration = 3000) => {
-    const id = Date.now();
-    const toast = { id, message, type };
-    
-    setToasts(prev => [...prev, toast]);
-
+  const addToast = useCallback((message, type = 'info', duration = 3500) => {
+    const id = Date.now() + Math.random()
+    setToasts(prev => [...prev, { id, message, type }])
     if (duration > 0) {
-      setTimeout(() => {
-        setToasts(prev => prev.filter(t => t.id !== id));
-      }, duration);
+      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), duration)
     }
-
-    return id;
-  }, []);
+    return id
+  }, [])
 
   const removeToast = useCallback((id) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  }, []);
+    setToasts(prev => prev.filter(t => t.id !== id))
+  }, [])
 
-  const value = { addToast, removeToast };
+  // Convenience methods
+  const success = useCallback((msg) => addToast(msg, 'success'), [addToast])
+  const error = useCallback((msg) => addToast(msg, 'error'), [addToast])
+  const warning = useCallback((msg) => addToast(msg, 'warning'), [addToast])
+  const info = useCallback((msg) => addToast(msg, 'info'), [addToast])
+
+  const value = { addToast, removeToast, success, error, warning, info }
 
   return (
     <ToastContext.Provider value={value}>
       {children}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </ToastContext.Provider>
-  );
-};
-const ToastContainer = ({ toasts, onRemove }) => {
-  const getIcon = (type) => {
-    switch (type) {
-      case 'success':
-        return <CheckCircle className="w-5 h-5" />;
-      case 'error':
-        return <AlertCircle className="w-5 h-5" />;
-      case 'warning':
-        return <AlertCircle className="w-5 h-5" />;
-      default:
-        return <InfoIcon className="w-5 h-5" />;
-    }
-  };
+  )
+}
 
-  const getColor = (type) => {
-    switch (type) {
-      case 'success':
-        return 'bg-green-50 text-green-800 border-green-200';
-      case 'error':
-        return 'bg-red-50 text-red-800 border-red-200';
-      case 'warning':
-        return 'bg-yellow-50 text-yellow-800 border-yellow-200';
-      default:
-        return 'bg-blue-50 text-blue-800 border-blue-200';
-    }
-  };
+const TOAST_STYLES = {
+  success: { bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-800', Icon: CheckCircle },
+  error: { bg: 'bg-red-50 border-red-200', text: 'text-red-800', Icon: AlertCircle },
+  warning: { bg: 'bg-amber-50 border-amber-200', text: 'text-amber-800', Icon: AlertTriangle },
+  info: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-800', Icon: Info },
+}
 
-  return (
-    <div className="fixed bottom-4 right-4 z-50 space-y-2">
-      {toasts.map(toast => (
+const ToastContainer = ({ toasts, onRemove }) => (
+  <div className="fixed bottom-4 right-4 z-50 space-y-2 max-w-sm">
+    {toasts.map(toast => {
+      const style = TOAST_STYLES[toast.type] || TOAST_STYLES.info
+      const { Icon } = style
+      return (
         <div
           key={toast.id}
-          className={`flex items-center gap-3 px-4 py-3 rounded-lg border ${getColor(
-            toast.type
-          )} shadow-lg animate-slide-in`}
+          className={`flex items-center gap-3 px-4 py-3 rounded-xl border ${style.bg} shadow-lg toast-enter`}
         >
-          {getIcon(toast.type)}
-          <span className="text-sm font-medium">{toast.message}</span>
+          <Icon size={18} className={style.text} />
+          <span className={`text-sm font-medium flex-1 ${style.text}`}>{toast.message}</span>
           <button
             onClick={() => onRemove(toast.id)}
-            className="ml-auto p-1 hover:bg-black hover:bg-opacity-10 rounded"
+            className="p-0.5 rounded hover:bg-black/5 transition-colors"
           >
-            <X className="w-4 h-4" />
+            <X size={14} className={style.text} />
           </button>
         </div>
-      ))}
-    </div>
-  );
-};
+      )
+    })}
+  </div>
+)
 
 export const useToast = () => {
-  const context = useContext(ToastContext);
-  if (!context) {
-    throw new Error('useToast must be used within ToastProvider');
-  }
-  return context;
-};
+  const ctx = useContext(ToastContext)
+  if (!ctx) throw new Error('useToast must be used within ToastProvider')
+  return ctx
+}
