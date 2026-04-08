@@ -149,7 +149,7 @@ const stockMovementsBase = createTable('stock_movements', {
   orderBy: 'created_at',
   orderAsc: false,
   ownerFilter: false,
-  select: '*, products(name), materials(name), warehouses(name)',
+  select: '*, products(name), materials(name), yarn_types(name), product_types(name), warehouses(name)',
 })
 export const stockMovements = {
   ...stockMovementsBase,
@@ -160,17 +160,40 @@ export const stockMovements = {
       .order('created_at', { ascending: false })
   ),
   computeBalances: async () => {
-    // Aggregate all stock movements into running balances per product/material/warehouse
-    const { data, error } = await supabase.from('stock_movements').select('*, products(name), materials(name), warehouses(name)')
+    // Aggregate all stock movements into running balances per item × warehouse.
+    // Item key includes legacy products/materials AND new yarn_types/product_types
+    // so purchases (yarn_type_id) and production (product_id) all roll up.
+    const { data, error } = await supabase
+      .from('stock_movements')
+      .select('*, products(name), materials(name), yarn_types(name), product_types(name), warehouses(name)')
     if (error) return { data: null, error }
     const map = new Map()
     for (const m of data || []) {
-      const key = `${m.product_id || ''}|${m.material_id || ''}|${m.warehouse_id || ''}`
+      const key = [
+        m.product_id || '',
+        m.material_id || '',
+        m.yarn_type_id || '',
+        m.product_type_id || '',
+        m.warehouse_id || '',
+      ].join('|')
       const cur = map.get(key) || {
         key,
-        product_id: m.product_id, material_id: m.material_id, warehouse_id: m.warehouse_id,
-        product_name: m.products?.name, material_name: m.materials?.name, warehouse_name: m.warehouses?.name,
-        unit: m.unit, quantity: 0, last_move: m.created_at,
+        product_id: m.product_id,
+        material_id: m.material_id,
+        yarn_type_id: m.yarn_type_id,
+        product_type_id: m.product_type_id,
+        warehouse_id: m.warehouse_id,
+        product_name:
+          m.products?.name ||
+          m.product_types?.name ||
+          m.materials?.name ||
+          m.yarn_types?.name,
+        material_name: m.materials?.name || m.yarn_types?.name,
+        warehouse_name: m.warehouses?.name,
+        is_finished_good: !!(m.product_id || m.product_type_id),
+        unit: m.unit,
+        quantity: 0,
+        last_move: m.created_at,
       }
       const sign = m.kind === 'out' ? -1 : 1
       cur.quantity += sign * Number(m.quantity || 0)

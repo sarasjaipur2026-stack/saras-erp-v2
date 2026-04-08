@@ -110,7 +110,7 @@ export default function StockPage() {
                 <tr key={b.key} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
                   <td className="px-4 py-3 font-medium text-slate-700">{b.product_name || b.material_name || '—'}</td>
                   <td className="px-4 py-3">
-                    <Badge variant={b.product_id ? 'primary' : 'info'}>{b.product_id ? 'FG' : 'Raw'}</Badge>
+                    <Badge variant={b.is_finished_good ? 'primary' : 'info'}>{b.is_finished_good ? 'FG' : 'Raw'}</Badge>
                   </td>
                   <td className="px-4 py-3 text-slate-600 text-[13px]">{b.warehouse_name || '—'}</td>
                   <td className={`px-4 py-3 font-mono font-semibold ${b.quantity < 0 ? 'text-red-600' : 'text-slate-800'}`}>{fmt(b.quantity)}</td>
@@ -136,7 +136,7 @@ export default function StockPage() {
               {movements.map(m => (
                 <tr key={m.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
                   <td className="px-4 py-3 text-[12px] text-slate-500 font-mono">{fmtDate(m.created_at)}</td>
-                  <td className="px-4 py-3 font-medium text-slate-700">{m.products?.name || m.materials?.name || '—'}</td>
+                  <td className="px-4 py-3 font-medium text-slate-700">{m.products?.name || m.product_types?.name || m.yarn_types?.name || m.materials?.name || '—'}</td>
                   <td className="px-4 py-3">
                     <Badge variant={m.kind === 'in' ? 'success' : m.kind === 'out' ? 'danger' : 'default'}>{m.kind}</Badge>
                   </td>
