@@ -200,7 +200,7 @@ export default function PurchasePage() {
     const q = search.toLowerCase()
     return poList.filter(po =>
       (po.po_number || '').toLowerCase().includes(q) ||
-      (po.suppliers?.firm_name || '').toLowerCase().includes(q)
+      (po.suppliers?.firm || po.suppliers?.name || '').toLowerCase().includes(q)
     )
   }, [poList, search])
 
@@ -209,7 +209,7 @@ export default function PurchasePage() {
     const q = search.toLowerCase()
     return grnList.filter(g =>
       (g.grn_number || '').toLowerCase().includes(q) ||
-      (g.suppliers?.firm_name || '').toLowerCase().includes(q) ||
+      (g.suppliers?.firm || g.suppliers?.name || '').toLowerCase().includes(q) ||
       (g.purchase_orders?.po_number || '').toLowerCase().includes(q)
     )
   }, [grnList, search])
@@ -305,7 +305,7 @@ export default function PurchasePage() {
                   <tr key={po.id} onClick={() => setDetail(po)} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 cursor-pointer">
                     <td className="px-4 py-3 font-mono text-[13px] font-semibold text-indigo-700">{po.po_number}</td>
                     <td className="px-4 py-3 text-[12px] text-slate-500 font-mono">{fmtDate(po.po_date)}</td>
-                    <td className="px-4 py-3 text-slate-700">{po.suppliers?.firm_name || '—'}</td>
+                    <td className="px-4 py-3 text-slate-700">{po.suppliers?.firm || po.suppliers?.name || '—'}</td>
                     <td className="px-4 py-3 font-mono text-[13px]">{itemCount}</td>
                     <td className="px-4 py-3 font-mono font-semibold text-slate-800">{fmtMoney(po.grand_total)}</td>
                     <td className="px-4 py-3"><Badge variant={S.variant}>{S.label}</Badge></td>
@@ -343,7 +343,7 @@ export default function PurchasePage() {
                     <FileText size={13} /> {g.grn_number}
                   </td>
                   <td className="px-4 py-3 text-[12px] text-slate-500 font-mono">{fmtDate(g.received_date)}</td>
-                  <td className="px-4 py-3 text-slate-700">{g.suppliers?.firm_name || '—'}</td>
+                  <td className="px-4 py-3 text-slate-700">{g.suppliers?.firm || g.suppliers?.name || '—'}</td>
                   <td className="px-4 py-3 font-mono text-[12px] text-slate-500">{g.purchase_orders?.po_number || '—'}</td>
                   <td className="px-4 py-3 font-mono text-[13px]">{(g.goods_receipt_items || []).length}</td>
                   <td className="px-4 py-3 text-[12px] text-slate-600 font-mono">{g.vehicle_number || '—'}</td>
@@ -379,7 +379,7 @@ export default function PurchasePage() {
               >
                 <option value="">— select supplier —</option>
                 {(suppliers || []).map(s => (
-                  <option key={s.id} value={s.id}>{s.firm_name}</option>
+                  <option key={s.id} value={s.id}>{s.firm || s.name}</option>
                 ))}
               </select>
             </div>
@@ -487,7 +487,7 @@ export default function PurchasePage() {
           <div className="space-y-4">
             <div className="bg-slate-50/60 rounded-xl p-3 text-[12px]">
               <div className="flex justify-between font-semibold text-slate-700">
-                <span>{grnSourcePo.suppliers?.firm_name}</span>
+                <span>{grnSourcePo.suppliers?.firm || grnSourcePo.suppliers?.name}</span>
                 <span className="font-mono text-indigo-700">{grnSourcePo.po_number}</span>
               </div>
               <div className="mt-2 space-y-1">
@@ -541,7 +541,7 @@ export default function PurchasePage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <div className="text-[10px] font-bold text-slate-400 uppercase">Supplier</div>
-                <div className="font-medium">{detail.suppliers?.firm_name}</div>
+                <div className="font-medium">{detail.suppliers?.firm || detail.suppliers?.name}</div>
               </div>
               <div>
                 <div className="text-[10px] font-bold text-slate-400 uppercase">GSTIN</div>

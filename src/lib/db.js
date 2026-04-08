@@ -186,7 +186,7 @@ const purchaseOrdersBase = createTable('purchase_orders', {
   orderBy: 'po_date',
   orderAsc: false,
   ownerFilter: false,
-  select: '*, suppliers(firm_name, gstin), purchase_order_items(*, yarn_types(name))',
+  select: '*, suppliers(name, firm, gstin), purchase_order_items(*, yarn_types(name))',
 })
 export const purchaseOrders = {
   ...purchaseOrdersBase,
@@ -252,7 +252,7 @@ const goodsReceiptsBase = createTable('goods_receipts', {
   orderBy: 'received_date',
   orderAsc: false,
   ownerFilter: false,
-  select: '*, suppliers(firm_name), purchase_orders(po_number), goods_receipt_items(*, yarn_types(name))',
+  select: '*, suppliers(name, firm), purchase_orders(po_number), goods_receipt_items(*, yarn_types(name))',
 })
 export const goodsReceipts = {
   ...goodsReceiptsBase,
