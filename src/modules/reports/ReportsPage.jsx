@@ -171,7 +171,11 @@ export default function ReportsPage() {
             return (
               <button
                 key={t.key}
-                onClick={() => setActiveTab(t.key)}
+                onClick={() => {
+                  setData(null)
+                  setLoadError(null)
+                  setActiveTab(t.key)
+                }}
                 className={`flex items-center gap-2 px-4 py-3 text-[13px] font-semibold border-b-2 transition-colors ${
                   active
                     ? 'border-indigo-500 text-indigo-700 bg-indigo-50/40'
@@ -239,11 +243,11 @@ export default function ReportsPage() {
       {/* Report bodies */}
       {!loading && !loadError && (
         <>
-          {activeTab === 'sales' && <SalesRegister rows={data || []} />}
-          {activeTab === 'gst' && <GstSummary payload={data} />}
-          {activeTab === 'outstanding' && <CustomerOutstanding rows={data || []} />}
-          {activeTab === 'stock' && <StockRegister rows={data || []} />}
-          {activeTab === 'purchase' && <PurchaseRegister rows={data || []} />}
+          {activeTab === 'sales' && <SalesRegister rows={Array.isArray(data) ? data : []} />}
+          {activeTab === 'gst' && <GstSummary payload={data && !Array.isArray(data) ? data : null} />}
+          {activeTab === 'outstanding' && <CustomerOutstanding rows={Array.isArray(data) ? data : []} />}
+          {activeTab === 'stock' && <StockRegister rows={Array.isArray(data) ? data : []} />}
+          {activeTab === 'purchase' && <PurchaseRegister rows={Array.isArray(data) ? data : []} />}
         </>
       )}
     </div>
@@ -332,7 +336,15 @@ function SalesRegister({ rows }) {
 
 // ─── GST SUMMARY ─────────────────────────────────────────────
 function GstSummary({ payload }) {
-  if (!payload) return null
+  // Guard against stale data leaking from a previous tab (e.g. an empty array
+  // from Sales Register before the GST fetch fires).
+  if (!payload || !payload.summary) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-12 text-center text-sm text-slate-400">
+        No GST data in this date range.
+      </div>
+    )
+  }
   const { summary, monthly } = payload
 
   const exportCsv = () => {
