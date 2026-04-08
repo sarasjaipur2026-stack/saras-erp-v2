@@ -441,6 +441,11 @@ export const orders = {
       .single()
   ),
 
+  // Shim for legacy OrdersPage bulk action — thin wrapper around update().
+  updateStatus: async (id, status) => safe(() =>
+    supabase.from('orders').update({ status }).eq('id', id).select().single()
+  ),
+
   create: async (order) => {
     try {
       // Call Supabase function to generate order number
@@ -1037,10 +1042,33 @@ export const jobworkJobs = {
             notes: it.notes || null,
           }))
         if (rows.length) {
-          const { error: itemErr } = await supabase.from('jobwork_items').insert(rows)
+          const { data: insertedItems, error: itemErr } = await supabase
+            .from('jobwork_items')
+            .insert(rows)
+            .select()
           if (itemErr) return { data: job, error: itemErr }
           // Mark job as in_progress once initial materials have been received/sent
           await supabase.from('jobwork_jobs').update({ status: 'in_progress' }).eq('id', job.id)
+
+          // Stock ledger side-effect for each initial movement
+          try {
+            const stockRows = (insertedItems || []).map(it => ({
+              kind: (it.kind === 'material_received' || it.kind === 'finished_received') ? 'in' : 'out',
+              yarn_type_id: it.yarn_type_id,
+              product_type_id: it.product_type_id,
+              quantity: it.quantity,
+              unit: it.unit,
+              source_type: 'jobwork',
+              source_id: it.id,
+              notes: `Jobwork ${it.kind.replace('_', ' ')} (${jobNum})`,
+            }))
+            if (stockRows.length) {
+              await supabase.from('stock_movements').insert(stockRows)
+            }
+          } catch (sErr) {
+            // eslint-disable-next-line no-console
+            console.error('[jobworkJobs.createWithItems] stock hook failed', sErr)
+          }
         }
       }
       return { data: { ...job, job_number: jobNum }, error: null }
@@ -1049,7 +1077,10 @@ export const jobworkJobs = {
     }
   },
 
-  // Record a material/finished-goods movement against an existing job (e.g. return of finished goods)
+  // Record a material/finished-goods movement against an existing job (e.g. return of finished goods).
+  // Emits a corresponding stock_movements row so /stock reflects jobwork reality:
+  //   Inward  (customer → us → customer): material_received = in,  finished_returned = out
+  //   Outward (us → jobworker → us):      material_sent     = out, finished_received = in
   addItem: async ({ job_id, kind, yarn_type_id, product_type_id, quantity, unit, event_date, notes }) => {
     try {
       const { data, error } = await supabase.from('jobwork_items').insert([{
@@ -1062,7 +1093,28 @@ export const jobworkJobs = {
         event_date: event_date || new Date().toISOString().slice(0, 10),
         notes: notes || null,
       }]).select().single()
-      return { data, error }
+      if (error) return { data, error }
+
+      // Stock ledger side-effect — map jobwork kind to stock movement direction.
+      // `in` means material physically arrives at our premises; `out` means it leaves.
+      const stockKind = (kind === 'material_received' || kind === 'finished_received') ? 'in' : 'out'
+      try {
+        await supabase.from('stock_movements').insert([{
+          kind: stockKind,
+          yarn_type_id: yarn_type_id || null,
+          product_type_id: product_type_id || null,
+          quantity: Number(quantity),
+          unit: unit || 'kg',
+          source_type: 'jobwork',
+          source_id: data?.id || null,
+          notes: `Jobwork ${kind.replace('_', ' ')} (item ${data?.id?.slice(0, 8) || ''})`,
+        }])
+      } catch (sErr) {
+        // eslint-disable-next-line no-console
+        console.error('[jobworkJobs.addItem] stock hook failed', sErr)
+      }
+
+      return { data, error: null }
     } catch (error) {
       return { data: null, error }
     }
@@ -1139,7 +1191,26 @@ export const qualityInspections = {
         .eq('id', inspection_id)
         .select()
         .single()
-      return { data, error }
+      if (error) return { data: null, error }
+
+      // Gating side-effect — if this inspection is linked to a GRN, propagate
+      // the pass/fail decision onto every line of that GRN so the purchase
+      // flow can react (e.g. hold the bill, trigger rework).
+      try {
+        if (data?.source_type === 'grn' && data?.source_id && finalStatus !== 'pending') {
+          const qcMap = { passed: 'passed', failed: 'failed', rework: 'rework' }
+          const grnQc = qcMap[finalStatus] || 'pending'
+          await supabase
+            .from('goods_receipt_items')
+            .update({ qc_status: grnQc })
+            .eq('grn_id', data.source_id)
+        }
+      } catch (gErr) {
+        // eslint-disable-next-line no-console
+        console.error('[qualityInspections.submitResults] GRN gating failed', gErr)
+      }
+
+      return { data, error: null }
     } catch (error) {
       return { data: null, error }
     }
