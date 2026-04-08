@@ -987,6 +987,165 @@ export const importLog = createTable('import_log', { orderBy: 'created_at', orde
 // ─── SHEETS SYNC ───────────────────────────────────────────
 export const sheetsSync = createTable('sheets_sync', { orderBy: 'last_sync_at', orderAsc: false, ownerFilter: false })
 
+// ─── JOBWORK JOBS ──────────────────────────────────────────
+const jobworkJobsBase = createTable('jobwork_jobs', {
+  orderBy: 'start_date',
+  orderAsc: false,
+  ownerFilter: false,
+  select: '*, customers(firm_name, phone), suppliers(name, firm), jobwork_items(*, yarn_types(name), product_types(name))',
+})
+export const jobworkJobs = {
+  ...jobworkJobsBase,
+
+  createWithItems: async ({ direction, customer_id, supplier_id, order_id, start_date, due_date, rate_per_unit, rate_unit, notes, items }) => {
+    try {
+      const { data: jobNum, error: numErr } = await supabase.rpc('next_jobwork_number')
+      if (numErr) return { data: null, error: numErr }
+      if (direction === 'inward' && !customer_id) return { data: null, error: new Error('Inward jobwork needs a customer') }
+      if (direction === 'outward' && !supplier_id) return { data: null, error: new Error('Outward jobwork needs a jobworker (supplier)') }
+
+      const { data: job, error: jobErr } = await supabase
+        .from('jobwork_jobs')
+        .insert([{
+          job_number: jobNum,
+          direction,
+          status: 'pending',
+          customer_id: direction === 'inward' ? customer_id : null,
+          supplier_id: direction === 'outward' ? supplier_id : null,
+          order_id: order_id || null,
+          start_date: start_date || new Date().toISOString().slice(0, 10),
+          due_date: due_date || null,
+          rate_per_unit: rate_per_unit || null,
+          rate_unit: rate_unit || 'kg',
+          notes: notes || null,
+        }])
+        .select()
+        .single()
+      if (jobErr) return { data: null, error: jobErr }
+
+      if (items?.length) {
+        const rows = items
+          .filter(it => Number(it.quantity) > 0 && (it.yarn_type_id || it.product_type_id))
+          .map(it => ({
+            job_id: job.id,
+            kind: it.kind,
+            yarn_type_id: it.yarn_type_id || null,
+            product_type_id: it.product_type_id || null,
+            quantity: Number(it.quantity),
+            unit: it.unit || 'kg',
+            event_date: it.event_date || start_date || new Date().toISOString().slice(0, 10),
+            notes: it.notes || null,
+          }))
+        if (rows.length) {
+          const { error: itemErr } = await supabase.from('jobwork_items').insert(rows)
+          if (itemErr) return { data: job, error: itemErr }
+          // Mark job as in_progress once initial materials have been received/sent
+          await supabase.from('jobwork_jobs').update({ status: 'in_progress' }).eq('id', job.id)
+        }
+      }
+      return { data: { ...job, job_number: jobNum }, error: null }
+    } catch (error) {
+      return { data: null, error }
+    }
+  },
+
+  // Record a material/finished-goods movement against an existing job (e.g. return of finished goods)
+  addItem: async ({ job_id, kind, yarn_type_id, product_type_id, quantity, unit, event_date, notes }) => {
+    try {
+      const { data, error } = await supabase.from('jobwork_items').insert([{
+        job_id,
+        kind,
+        yarn_type_id: yarn_type_id || null,
+        product_type_id: product_type_id || null,
+        quantity: Number(quantity),
+        unit: unit || 'kg',
+        event_date: event_date || new Date().toISOString().slice(0, 10),
+        notes: notes || null,
+      }]).select().single()
+      return { data, error }
+    } catch (error) {
+      return { data: null, error }
+    }
+  },
+
+  markCompleted: async (id) => {
+    return await jobworkJobsBase.update(id, {
+      status: 'completed',
+      completed_date: new Date().toISOString().slice(0, 10),
+    })
+  },
+}
+
+// ─── QUALITY INSPECTIONS ───────────────────────────────────
+const qualityInspectionsBase = createTable('quality_inspections', {
+  orderBy: 'inspected_at',
+  orderAsc: false,
+  ownerFilter: false,
+  select: '*, quality_inspection_results(*, quality_parameters(name, unit, min_value, max_value))',
+})
+export const qualityInspections = {
+  ...qualityInspectionsBase,
+
+  createInspection: async ({ source_type, source_id, inspector, sample_size, notes }) => {
+    try {
+      const { data: qiNum, error: numErr } = await supabase.rpc('next_qi_number')
+      if (numErr) return { data: null, error: numErr }
+      const { data, error } = await supabase.from('quality_inspections').insert([{
+        qi_number: qiNum,
+        source_type: source_type || 'manual',
+        source_id: source_id || null,
+        inspector: inspector || null,
+        sample_size: sample_size || null,
+        overall_status: 'pending',
+        notes: notes || null,
+      }]).select().single()
+      return { data, error }
+    } catch (error) {
+      return { data: null, error }
+    }
+  },
+
+  // Submit per-parameter results. `results` is an array of
+  //   { parameter_id, parameter_name, measured_value, text_value, pass, notes }
+  submitResults: async ({ inspection_id, results, overall_status }) => {
+    try {
+      // Delete existing results first (idempotent re-entry)
+      await supabase.from('quality_inspection_results').delete().eq('inspection_id', inspection_id)
+      if (results?.length) {
+        const rows = results.map(r => ({
+          inspection_id,
+          parameter_id: r.parameter_id || null,
+          parameter_name: r.parameter_name || null,
+          measured_value: r.measured_value != null && r.measured_value !== '' ? Number(r.measured_value) : null,
+          text_value: r.text_value || null,
+          pass: r.pass ?? null,
+          notes: r.notes || null,
+        }))
+        const { error: insErr } = await supabase.from('quality_inspection_results').insert(rows)
+        if (insErr) return { data: null, error: insErr }
+      }
+
+      // Auto-compute overall status if not explicitly provided
+      let finalStatus = overall_status
+      if (!finalStatus) {
+        const anyFail = (results || []).some(r => r.pass === false)
+        const allPass = (results || []).length > 0 && (results || []).every(r => r.pass === true)
+        finalStatus = anyFail ? 'failed' : allPass ? 'passed' : 'pending'
+      }
+
+      const { data, error } = await supabase
+        .from('quality_inspections')
+        .update({ overall_status: finalStatus, inspected_at: new Date().toISOString() })
+        .eq('id', inspection_id)
+        .select()
+        .single()
+      return { data, error }
+    } catch (error) {
+      return { data: null, error }
+    }
+  },
+}
+
 // ─── REPORTS ───────────────────────────────────────────────
 // All report queries take an optional { from, to } date range (ISO date strings).
 // They return the same { data, error } envelope as the rest of the db layer.

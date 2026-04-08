@@ -14,6 +14,8 @@ const NAV_ITEMS = [
   { path: '/enquiries', label: 'Enquiries', icon: MessageSquare, category: 'main' },
   { path: '/calculator', label: 'Calculator', icon: Calculator, category: 'production' },
   { path: '/production', label: 'Production', icon: Factory, category: 'production' },
+  { path: '/jobwork', label: 'Jobwork', icon: Briefcase, category: 'production' },
+  { path: '/quality', label: 'Quality Check', icon: ShieldCheck, category: 'production' },
   { path: '/masters/customers', label: 'Customers', icon: Users, category: 'masters' },
   { path: '/masters/products', label: 'Products', icon: Package, category: 'masters' },
   { path: '/masters/materials', label: 'Materials', icon: Box, category: 'masters' },

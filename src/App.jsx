@@ -73,6 +73,8 @@ const InvoicesPage = lazy(() => import('./modules/invoicing/InvoicesPage'))
 const PaymentsPage = lazy(() => import('./modules/finance/PaymentsPage'))
 const PurchasePage = lazy(() => import('./modules/purchase/PurchasePage'))
 const ReportsPage = lazy(() => import('./modules/reports/ReportsPage'))
+const JobworkPage = lazy(() => import('./modules/jobwork/JobworkPage'))
+const QualityPage = lazy(() => import('./modules/quality/QualityPage'))
 const CustomersPage = lazy(() => import('./modules/masters/CustomersPage'))
 const ProductsPage = lazy(() => import('./modules/masters/ProductsPage'))
 const MaterialsPage = lazy(() => import('./modules/masters/MaterialsPage'))
@@ -147,6 +149,8 @@ export default function App() {
       <Route path="/payments" element={<ProtectedRoute><PaymentsPage /></ProtectedRoute>} />
       <Route path="/purchase" element={<ProtectedRoute><PurchasePage /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
+      <Route path="/jobwork" element={<ProtectedRoute><JobworkPage /></ProtectedRoute>} />
+      <Route path="/quality" element={<ProtectedRoute><QualityPage /></ProtectedRoute>} />
 
       {/* Masters */}
       <Route path="/masters/customers" element={<ProtectedRoute><CustomersPage /></ProtectedRoute>} />
