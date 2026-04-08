@@ -278,11 +278,13 @@ const OrdersPage = () => {
     );
   }
 
-  // Table columns based on view mode
+  // Table columns based on view mode — uses the project's DataTable API:
+  //   { key: string, label: ReactNode, render?: (value, row) => ReactNode }
   const getTableColumns = () => {
     const baseColumns = [
       {
-        header: (
+        key: 'checkbox',
+        label: (
           <input
             type="checkbox"
             checked={
@@ -293,50 +295,53 @@ const OrdersPage = () => {
             className="w-4 h-4"
           />
         ),
-        accessorKey: 'checkbox',
-        cell: (row) => (
+        render: (_value, row) => (
           <input
             type="checkbox"
-            checked={selectedOrders.has(row.original.id)}
-            onChange={() => handleSelectOrder(row.original.id)}
+            checked={selectedOrders.has(row.id)}
+            onChange={(e) => {
+              e.stopPropagation()
+              handleSelectOrder(row.id)
+            }}
+            onClick={(e) => e.stopPropagation()}
             className="w-4 h-4"
           />
         ),
       },
       {
-        header: 'Order #',
-        accessorKey: 'order_number',
-        cell: (value) => <span className="font-semibold">{value}</span>,
+        key: 'order_number',
+        label: 'Order #',
+        render: (value) => <span className="font-mono font-semibold text-indigo-700">{value || '—'}</span>,
       },
       {
-        header: 'Customer',
-        accessorKey: 'customers.firm_name',
-        cell: (value, row) =>
-          value || row.original.customers?.contact_name || '-',
+        key: 'customers',
+        label: 'Customer',
+        render: (_value, row) =>
+          row.customers?.firm_name || row.customers?.contact_name || '—',
       },
     ];
 
     if (viewMode === 'allInfo' || viewMode === 'finance') {
       baseColumns.push({
-        header: 'Amount',
-        accessorKey: 'grand_total',
-        cell: (value) => <Currency value={value || 0} />,
+        key: 'grand_total',
+        label: 'Amount',
+        render: (value) => <Currency amount={value || 0} />,
       });
     }
 
     if (viewMode === 'allInfo') {
       baseColumns.push(
         {
-          header: 'Priority',
-          accessorKey: 'priority',
-          cell: (value) => (
+          key: 'priority',
+          label: 'Priority',
+          render: (value) => (
             <Badge
               variant={
                 value === 'High'
-                  ? 'destructive'
+                  ? 'danger'
                   : value === 'Medium'
                   ? 'warning'
-                  : 'secondary'
+                  : 'default'
               }
             >
               {value || 'Normal'}
@@ -344,27 +349,27 @@ const OrdersPage = () => {
           ),
         },
         {
-          header: 'Status',
-          accessorKey: 'status',
-          cell: (value) => <StatusBadge status={value} />,
+          key: 'status',
+          label: 'Status',
+          render: (value) => <StatusBadge status={value} />,
         },
         {
-          header: 'Created',
-          accessorKey: 'created_at',
-          cell: (value) =>
-            value ? new Date(value).toLocaleDateString() : '-',
+          key: 'created_at',
+          label: 'Created',
+          render: (value) =>
+            value ? new Date(value).toLocaleDateString('en-IN') : '—',
         },
         {
-          header: 'Delivery',
-          accessorKey: 'delivery_date_1',
-          cell: (value) =>
-            value ? new Date(value).toLocaleDateString() : '-',
+          key: 'delivery_date_1',
+          label: 'Delivery',
+          render: (value) =>
+            value ? new Date(value).toLocaleDateString('en-IN') : '—',
         },
         {
-          header: 'Items',
-          accessorKey: 'order_line_items',
-          cell: (value) => (
-            <span className="text-sm text-gray-600">
+          key: 'order_line_items',
+          label: 'Items',
+          render: (value) => (
+            <span className="text-sm text-slate-600 font-mono">
               {Array.isArray(value) ? value.length : 0}
             </span>
           ),
@@ -374,104 +379,103 @@ const OrdersPage = () => {
 
     if (viewMode === 'simple') {
       baseColumns.push({
-        header: 'Status',
-        accessorKey: 'status',
-        cell: (value) => <StatusBadge status={value} />,
+        key: 'status',
+        label: 'Status',
+        render: (value) => <StatusBadge status={value} />,
       });
     }
 
     if (viewMode === 'finance') {
       baseColumns.push(
         {
-          header: 'Balance Due',
-          accessorKey: 'balance_due',
-          cell: (value) => <Currency value={value || 0} />,
+          key: 'balance_due',
+          label: 'Balance Due',
+          render: (value) => <Currency amount={value || 0} />,
         },
         {
-          header: 'Advance Paid',
-          accessorKey: 'advance_paid',
-          cell: (value) => <Currency value={value || 0} />,
+          key: 'advance_paid',
+          label: 'Advance Paid',
+          render: (value) => <Currency amount={value || 0} />,
         },
         {
-          header: 'Status',
-          accessorKey: 'status',
-          cell: (value) => <StatusBadge status={value} />,
+          key: 'status',
+          label: 'Status',
+          render: (value) => <StatusBadge status={value} />,
         }
       );
     }
 
     // Actions column
     baseColumns.push({
-      header: 'Actions',
-      accessorKey: 'actions',
-      cell: (_, row) => (
-        <div className="relative">
+      key: 'actions',
+      label: 'Actions',
+      render: (_value, row) => (
+        <div className="relative" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() =>
-              setOpenMenuId(openMenuId === row.original.id ? null : row.original.id)
+              setOpenMenuId(openMenuId === row.id ? null : row.id)
             }
-            className="p-1 hover:bg-gray-200 rounded"
+            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-700 transition-colors"
           >
-            <MoreVertical size={18} />
+            <MoreVertical size={16} />
           </button>
 
-          {openMenuId === row.original.id && (
-            <div className="absolute right-0 mt-2 w-48 bg-white border rounded-lg shadow-lg z-10">
+          {openMenuId === row.id && (
+            <div className="absolute right-0 mt-2 w-44 bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 z-10 overflow-hidden">
               <button
                 onClick={() => {
-                  navigate(`/orders/${row.original.id}`);
-                  setOpenMenuId(null);
+                  navigate(`/orders/${row.id}`)
+                  setOpenMenuId(null)
                 }}
-                className="block w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2"
+                className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 text-[13px]"
               >
-                <Eye size={16} /> View
+                <Eye size={14} /> View
               </button>
               <button
                 onClick={() => {
-                  navigate(`/orders/${row.original.id}/edit`);
-                  setOpenMenuId(null);
+                  navigate(`/orders/${row.id}/edit`)
+                  setOpenMenuId(null)
                 }}
-                className="block w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2"
+                className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 text-[13px]"
               >
-                <Edit size={16} /> Edit
+                <Edit size={14} /> Edit
               </button>
               <button
                 onClick={() => {
-                  navigate(`/orders/${row.original.id}/duplicate`);
-                  setOpenMenuId(null);
+                  navigate(`/orders/${row.id}/duplicate`)
+                  setOpenMenuId(null)
                 }}
-                className="block w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2"
+                className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 text-[13px]"
               >
-                <Copy size={16} /> Duplicate
+                <Copy size={14} /> Duplicate
               </button>
               <button
                 onClick={() => {
-                  // TODO: Implement print
-                  toast.success('Print started');
-                  setOpenMenuId(null);
+                  toast.success('Print started')
+                  setOpenMenuId(null)
                 }}
-                className="block w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2"
+                className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 text-[13px]"
               >
-                <Printer size={16} /> Print
+                <Printer size={14} /> Print
               </button>
               <button
                 onClick={() => {
-                  setDeleteTarget(row.original.id);
-                  setShowDeleteModal(true);
-                  setOpenMenuId(null);
+                  setDeleteTarget(row.id)
+                  setShowDeleteModal(true)
+                  setOpenMenuId(null)
                 }}
-                className="block w-full text-left px-4 py-2 hover:bg-red-100 text-red-600 flex items-center gap-2"
+                className="w-full text-left px-3 py-2 hover:bg-red-50 text-red-600 flex items-center gap-2 text-[13px] border-t border-slate-100"
               >
-                <Trash2 size={16} /> Delete
+                <Trash2 size={14} /> Delete
               </button>
             </div>
           )}
         </div>
       ),
-    });
+    })
 
-    return baseColumns;
-  };
+    return baseColumns
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -486,30 +490,34 @@ const OrdersPage = () => {
       {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <StatCard
-          title="Total Orders"
+          label="Total Orders"
           value={stats.totalOrders}
-          icon={<ShoppingCart size={24} />}
+          icon={ShoppingCart}
+          color="indigo"
         />
         <StatCard
-          title="Active"
+          label="Active"
           value={stats.activeOrders}
-          icon={<TrendingUp size={24} />}
+          icon={TrendingUp}
+          color="blue"
         />
         <StatCard
-          title="Revenue"
-          value={<Currency value={stats.totalRevenue} />}
-          icon={<ShoppingCart size={24} />}
+          label="Revenue"
+          value={<Currency amount={stats.totalRevenue} />}
+          icon={ShoppingCart}
+          color="green"
         />
         <StatCard
-          title="Outstanding"
-          value={<Currency value={stats.outstandingBalance} />}
-          icon={<AlertCircle size={24} />}
+          label="Outstanding"
+          value={<Currency amount={stats.outstandingBalance} />}
+          icon={AlertCircle}
+          color="amber"
         />
         <StatCard
-          title="Overdue"
+          label="Overdue"
           value={stats.overdue}
-          icon={<Calendar size={24} />}
-          variant={stats.overdue > 0 ? 'warning' : 'default'}
+          icon={Calendar}
+          color={stats.overdue > 0 ? 'red' : 'indigo'}
         />
       </div>
 
@@ -574,33 +582,34 @@ const OrdersPage = () => {
           placeholder="Search customer..."
           value={customerFilter}
           onChange={(e) => setCustomerFilter(e.target.value)}
-          icon={<Search size={16} />}
+          icon={Search}
         />
         <Select
           label="View Mode"
           value={viewMode}
           onChange={(e) => setViewMode(e.target.value)}
-          options={viewModes}
+          options={viewModes.map((v) => ({ value: v.id, label: v.label }))}
         />
       </div>
 
       {/* Bulk Actions */}
       {selectedOrders.size > 0 && (
-        <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg flex items-center justify-between">
-          <span className="text-sm font-medium">
+        <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-xl flex items-center justify-between">
+          <span className="text-sm font-medium text-indigo-900">
             {selectedOrders.size} order{selectedOrders.size !== 1 ? 's' : ''} selected
           </span>
           <div className="flex gap-2">
             <Button
-              variant="outline"
+              variant="secondary"
+              size="sm"
               onClick={() => setBulkStatusModal(true)}
             >
               Change Status
             </Button>
-            <Button variant="outline" onClick={handleBulkPrint}>
+            <Button variant="secondary" size="sm" onClick={handleBulkPrint}>
               Print
             </Button>
-            <Button variant="outline" onClick={handleBulkExport}>
+            <Button variant="secondary" size="sm" onClick={handleBulkExport}>
               Export
             </Button>
           </div>
@@ -621,19 +630,41 @@ const OrdersPage = () => {
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         title="Delete Order"
-        description="Are you sure you want to delete this order? This action cannot be undone."
-        onConfirm={handleDeleteOrder}
-        confirmText="Delete"
-        confirmVariant="destructive"
-      />
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setShowDeleteModal(false)}>
+              Cancel
+            </Button>
+            <Button variant="danger" size="sm" onClick={handleDeleteOrder}>
+              Delete
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-slate-600">
+          Are you sure you want to delete this order? This action cannot be undone.
+        </p>
+      </Modal>
 
       {/* Bulk Status Change Modal */}
       <Modal
         isOpen={bulkStatusModal}
         onClose={() => setBulkStatusModal(false)}
         title="Change Status"
-        description={`Change status for ${selectedOrders.size} order${selectedOrders.size !== 1 ? 's' : ''}`}
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setBulkStatusModal(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleBulkStatusChange}>
+              Apply
+            </Button>
+          </>
+        }
       >
+        <p className="text-sm text-slate-600 mb-4">
+          Change status for {selectedOrders.size} order{selectedOrders.size !== 1 ? 's' : ''}
+        </p>
         <Select
           label="New Status"
           value={bulkNewStatus}
@@ -643,15 +674,6 @@ const OrdersPage = () => {
             label: status,
           }))}
         />
-        <div className="mt-4 flex gap-2">
-          <Button onClick={handleBulkStatusChange}>Apply</Button>
-          <Button
-            variant="outline"
-            onClick={() => setBulkStatusModal(false)}
-          >
-            Cancel
-          </Button>
-        </div>
       </Modal>
     </div>
   );

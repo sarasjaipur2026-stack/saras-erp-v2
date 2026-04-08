@@ -554,7 +554,7 @@ export default function OrderForm() {
           <Button
             onClick={handlePrevStep}
             disabled={currentStep === 1}
-            variant="outline"
+            variant="secondary"
           >
             <ChevronLeft size={16} />
             Previous
@@ -564,7 +564,7 @@ export default function OrderForm() {
             {currentStep < STEPS.length && (
               <Button
                 onClick={handleSaveDraft}
-                variant="outline"
+                variant="secondary"
                 disabled={saving}
               >
                 {saving ? 'Saving...' : 'Save as Draft'}
@@ -873,7 +873,7 @@ function StepPricingCharges({
                 </label>
                 <Button
                   onClick={() => onRemoveCharge(charge.id)}
-                  variant="outline"
+                  variant="secondary"
                   className="text-red-600 hover:text-red-700"
                 >
                   <Trash2 size={16} />
@@ -959,50 +959,50 @@ function StepPricingCharges({
         <div className="bg-indigo-50 p-6 rounded-lg space-y-3">
           <div className="flex justify-between text-sm">
             <span className="text-slate-700">Subtotal</span>
-            <Currency value={formData.subtotal} />
+            <Currency amount={formData.subtotal} />
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-slate-700">Item Discounts</span>
-            <Currency value={-formData.total_item_discount} />
+            <Currency amount={-formData.total_item_discount} />
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-slate-700">Order Discount</span>
-            <Currency value={-formData.order_discount_amount} />
+            <Currency amount={-formData.order_discount_amount} />
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-slate-700">Additional Charges</span>
-            <Currency value={formData.total_charges} />
+            <Currency amount={formData.total_charges} />
           </div>
           <div className="border-t border-indigo-200 pt-3 flex justify-between text-sm font-semibold">
             <span className="text-slate-900">Taxable Amount</span>
-            <Currency value={formData.taxable_amount} />
+            <Currency amount={formData.taxable_amount} />
           </div>
 
           {formData.gst_type === 'intra_state' ? (
             <>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-700">CGST (9%)</span>
-                <Currency value={formData.cgst_amount} />
+                <Currency amount={formData.cgst_amount} />
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-700">SGST (9%)</span>
-                <Currency value={formData.sgst_amount} />
+                <Currency amount={formData.sgst_amount} />
               </div>
             </>
           ) : (
             <div className="flex justify-between text-sm">
               <span className="text-slate-700">IGST (18%)</span>
-              <Currency value={formData.igst_amount} />
+              <Currency amount={formData.igst_amount} />
             </div>
           )}
 
           <div className="border-t border-indigo-300 pt-3 flex justify-between text-lg font-bold">
             <span className="text-slate-900">Grand Total</span>
-            <Currency value={formData.grand_total} />
+            <Currency amount={formData.grand_total} />
           </div>
           <div className="border-t border-indigo-300 pt-3 flex justify-between text-sm">
             <span className="text-slate-700">Balance Due</span>
-            <Currency value={formData.balance_due} />
+            <Currency amount={formData.balance_due} />
           </div>
         </div>
       </div>
@@ -1121,7 +1121,7 @@ function StepReview({
             <div key={item.id} className="p-4 bg-slate-50 rounded-lg">
               <div className="flex justify-between items-start mb-2">
                 <p className="font-semibold text-slate-900">Item {idx + 1}</p>
-                <Currency value={item.amount} />
+                <Currency amount={item.amount} />
               </div>
               <p className="text-sm text-slate-600">
                 {item.meters} meters @ {item.rate_per_unit}/unit
@@ -1137,54 +1137,54 @@ function StepReview({
         <div className="bg-indigo-50 p-6 rounded-lg space-y-3">
           <div className="flex justify-between text-sm">
             <span className="text-slate-700">Subtotal</span>
-            <Currency value={formData.subtotal} />
+            <Currency amount={formData.subtotal} />
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-slate-700">Item Discounts</span>
-            <Currency value={-formData.total_item_discount} />
+            <Currency amount={-formData.total_item_discount} />
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-slate-700">Order Discount</span>
-            <Currency value={-formData.order_discount_amount} />
+            <Currency amount={-formData.order_discount_amount} />
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-slate-700">Additional Charges</span>
-            <Currency value={formData.total_charges} />
+            <Currency amount={formData.total_charges} />
           </div>
           <div className="border-t border-indigo-200 pt-3 flex justify-between text-sm font-semibold">
             <span className="text-slate-900">Taxable Amount</span>
-            <Currency value={formData.taxable_amount} />
+            <Currency amount={formData.taxable_amount} />
           </div>
 
           {formData.gst_type === 'intra_state' ? (
             <>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-700">CGST (9%)</span>
-                <Currency value={formData.cgst_amount} />
+                <Currency amount={formData.cgst_amount} />
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-700">SGST (9%)</span>
-                <Currency value={formData.sgst_amount} />
+                <Currency amount={formData.sgst_amount} />
               </div>
             </>
           ) : (
             <div className="flex justify-between text-sm">
               <span className="text-slate-700">IGST (18%)</span>
-              <Currency value={formData.igst_amount} />
+              <Currency amount={formData.igst_amount} />
             </div>
           )}
 
           <div className="border-t border-indigo-300 pt-3 flex justify-between text-lg font-bold">
             <span className="text-slate-900">Grand Total</span>
-            <Currency value={formData.grand_total} />
+            <Currency amount={formData.grand_total} />
           </div>
           <div className="border-t border-indigo-300 pt-3 flex justify-between text-sm">
             <span className="text-slate-700">Advance Paid</span>
-            <Currency value={formData.advance_paid} />
+            <Currency amount={formData.advance_paid} />
           </div>
           <div className="border-t border-indigo-300 pt-3 flex justify-between text-sm font-semibold">
             <span className="text-slate-900">Balance Due</span>
-            <Currency value={formData.balance_due} />
+            <Currency amount={formData.balance_due} />
           </div>
         </div>
       </div>
