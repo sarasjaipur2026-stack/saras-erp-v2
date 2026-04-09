@@ -624,89 +624,67 @@ function StepCustomer({
 
       {selectedCustomer && (
         <div className="grid grid-cols-2 gap-6 pt-6 border-t border-slate-200">
-          <div>
-            <label className="block text-sm font-semibold text-slate-900 mb-2">Order Type</label>
-            <Select
-              value={formData.order_type_id || ''}
-              onChange={(e) => setFormData({ ...formData, order_type_id: e.target.value })}
-            >
-              <option value="">Select order type</option>
-              {orderTypes?.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </Select>
-          </div>
+          <Select
+            label="Order Type"
+            value={formData.order_type_id || ''}
+            onChange={(e) => setFormData({ ...formData, order_type_id: e.target.value })}
+            options={[
+              { value: '', label: 'Select order type' },
+              ...(orderTypes || []).map((type) => ({ value: type.id, label: type.name })),
+            ]}
+          />
 
-          <div>
-            <label className="block text-sm font-semibold text-slate-900 mb-2">Order Nature</label>
-            <Select
-              value={formData.nature}
-              onChange={(e) => setFormData({ ...formData, nature: e.target.value })}
-            >
-              <option value="sample">Sample</option>
-              <option value="production">Production</option>
-              <option value="export">Export</option>
-            </Select>
-          </div>
+          <Select
+            label="Order Nature"
+            value={formData.nature}
+            onChange={(e) => setFormData({ ...formData, nature: e.target.value })}
+            options={[
+              { value: 'sample', label: 'Sample' },
+              { value: 'production', label: 'Production' },
+              { value: 'export', label: 'Export' },
+            ]}
+          />
 
-          <div>
-            <label className="block text-sm font-semibold text-slate-900 mb-2">Priority</label>
-            <Select
-              value={formData.priority}
-              onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-            >
-              <option value="normal">Normal</option>
-              <option value="high">High</option>
-              <option value="urgent">Urgent</option>
-            </Select>
-          </div>
+          <Select
+            label="Priority"
+            value={formData.priority}
+            onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+            options={[
+              { value: 'normal', label: 'Normal' },
+              { value: 'high', label: 'High' },
+              { value: 'urgent', label: 'Urgent' },
+            ]}
+          />
 
-          <div>
-            <label className="block text-sm font-semibold text-slate-900 mb-2">Payment Terms</label>
-            <Select
-              value={formData.payment_terms_id || ''}
-              onChange={(e) => setFormData({ ...formData, payment_terms_id: e.target.value })}
-            >
-              <option value="">Select payment terms</option>
-              {paymentTerms?.map((term) => (
-                <option key={term.id} value={term.id}>
-                  {term.name}
-                </option>
-              ))}
-            </Select>
-          </div>
+          <Select
+            label="Payment Terms"
+            value={formData.payment_terms_id || ''}
+            onChange={(e) => setFormData({ ...formData, payment_terms_id: e.target.value })}
+            options={[
+              { value: '', label: 'Select payment terms' },
+              ...(paymentTerms || []).map((term) => ({ value: term.id, label: term.name })),
+            ]}
+          />
 
-          <div>
-            <label className="block text-sm font-semibold text-slate-900 mb-2">Broker</label>
-            <Select
-              value={formData.broker_id || ''}
-              onChange={(e) => setFormData({ ...formData, broker_id: e.target.value })}
-            >
-              <option value="">Select broker (optional)</option>
-              {brokers?.map((broker) => (
-                <option key={broker.id} value={broker.id}>
-                  {broker.name}
-                </option>
-              ))}
-            </Select>
-          </div>
+          <Select
+            label="Broker"
+            value={formData.broker_id || ''}
+            onChange={(e) => setFormData({ ...formData, broker_id: e.target.value })}
+            options={[
+              { value: '', label: 'Select broker (optional)' },
+              ...(brokers || []).map((broker) => ({ value: broker.id, label: broker.name })),
+            ]}
+          />
 
-          <div>
-            <label className="block text-sm font-semibold text-slate-900 mb-2">Currency</label>
-            <Select
-              value={formData.currency_id || ''}
-              onChange={(e) => setFormData({ ...formData, currency_id: e.target.value })}
-            >
-              <option value="">Select currency</option>
-              {currencies?.map((currency) => (
-                <option key={currency.id} value={currency.id}>
-                  {currency.code}
-                </option>
-              ))}
-            </Select>
-          </div>
+          <Select
+            label="Currency"
+            value={formData.currency_id || ''}
+            onChange={(e) => setFormData({ ...formData, currency_id: e.target.value })}
+            options={[
+              { value: '', label: 'Select currency' },
+              ...(currencies || []).map((c) => ({ value: c.id, label: c.code })),
+            ]}
+          />
 
           <div className="col-span-2 pt-6 border-t border-slate-200">
             <label className="block text-sm font-semibold text-slate-900 mb-4">Delivery Dates</label>
@@ -833,18 +811,15 @@ function StepPricingCharges({
             {formData.charges.map((charge) => (
               <div key={charge.id} className="flex gap-4 items-end p-4 bg-slate-50 rounded-lg">
                 <div className="flex-1">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Charge Type</label>
                   <Select
+                    label="Charge Type"
                     value={charge.charge_type_id || ''}
                     onChange={(e) => onUpdateCharge(charge.id, { charge_type_id: e.target.value })}
-                  >
-                    <option value="">Select charge type</option>
-                    {chargeTypes?.map((type) => (
-                      <option key={type.id} value={type.id}>
-                        {type.name}
-                      </option>
-                    ))}
-                  </Select>
+                    options={[
+                      { value: '', label: 'Select charge type' },
+                      ...(chargeTypes || []).map((type) => ({ value: type.id, label: type.name })),
+                    ]}
+                  />
                 </div>
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
@@ -859,14 +834,15 @@ function StepPricingCharges({
                   />
                 </div>
                 <div className="flex-1">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Scope</label>
                   <Select
+                    label="Scope"
                     value={charge.scope}
                     onChange={(e) => onUpdateCharge(charge.id, { scope: e.target.value })}
-                  >
-                    <option value="per_order">Per Order</option>
-                    <option value="per_item">Per Item</option>
-                  </Select>
+                    options={[
+                      { value: 'per_order', label: 'Per Order' },
+                      { value: 'per_item', label: 'Per Item' },
+                    ]}
+                  />
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -896,19 +872,18 @@ function StepPricingCharges({
       <div className="border-t border-slate-200 pt-8">
         <h3 className="text-lg font-semibold text-slate-900 mb-6">Order Discount</h3>
         <div className="grid grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Discount Type</label>
-            <Select
-              value={formData.order_discount_type}
-              onChange={(e) => {
-                setFormData({ ...formData, order_discount_type: e.target.value });
-                recalculatePricing();
-              }}
-            >
-              <option value="flat">Flat Amount</option>
-              <option value="percent">Percentage</option>
-            </Select>
-          </div>
+          <Select
+            label="Discount Type"
+            value={formData.order_discount_type}
+            onChange={(e) => {
+              setFormData({ ...formData, order_discount_type: e.target.value });
+              recalculatePricing();
+            }}
+            options={[
+              { value: 'flat', label: 'Flat Amount' },
+              { value: 'percent', label: 'Percentage' },
+            ]}
+          />
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
               {formData.order_discount_type === 'percent' ? 'Percentage (%)' : 'Amount'}
@@ -929,19 +904,18 @@ function StepPricingCharges({
       <div className="border-t border-slate-200 pt-8">
         <h3 className="text-lg font-semibold text-slate-900 mb-6">GST Configuration</h3>
         <div className="grid grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">GST Type</label>
-            <Select
-              value={formData.gst_type}
-              onChange={(e) => {
-                setFormData({ ...formData, gst_type: e.target.value });
-                recalculatePricing();
-              }}
-            >
-              <option value="intra_state">Intra-State (CGST + SGST)</option>
-              <option value="inter_state">Inter-State (IGST)</option>
-            </Select>
-          </div>
+          <Select
+            label="GST Type"
+            value={formData.gst_type}
+            onChange={(e) => {
+              setFormData({ ...formData, gst_type: e.target.value });
+              recalculatePricing();
+            }}
+            options={[
+              { value: 'intra_state', label: 'Intra-State (CGST + SGST)' },
+              { value: 'inter_state', label: 'Inter-State (IGST)' },
+            ]}
+          />
         </div>
       </div>
 

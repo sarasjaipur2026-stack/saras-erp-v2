@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useAuth } from '../../contexts/AuthContext'
 import { suppliers as supplierDb } from '../../lib/db'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, Input, Modal, DataTable } from '../../components/ui'
 import { Plus, Edit2 } from 'lucide-react'
 
 export default function SuppliersPage() {
+  const { user } = useAuth()
   const [suppliers, setSuppliers] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -26,7 +28,7 @@ export default function SuppliersPage() {
   const handleSave = async () => {
     if (!form.name) { toast.error('Name required'); return }
     setSaving(true)
-    const { error } = editing ? await supplierDb.update(editing.id, form) : await supplierDb.create(form)
+    const { error } = editing ? await supplierDb.update(editing.id, form) : await supplierDb.create({ ...form, user_id: user.id })
     if (error) toast.error(error.message)
     else { toast.success('Saved'); setShowForm(false); load() }
     setSaving(false)

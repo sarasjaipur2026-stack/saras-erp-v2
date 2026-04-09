@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useApp } from '../../contexts/AppContext'
+import { useAuth } from '../../contexts/AuthContext'
 import { materials as matDb } from '../../lib/db'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, Input, Select, Modal, DataTable, Badge } from '../../components/ui'
@@ -9,6 +10,7 @@ const CATEGORIES = ['Cotton', 'PolyCotton', 'Polyester DTY', 'Spun Polyester', '
 
 export default function MaterialsPage() {
   const { materials, loadMasterData } = useApp()
+  const { user } = useAuth()
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const emptyForm = { name: '', category: '', price_per_kg: '', hsn_code: '', gst_rate: 5 }
@@ -23,7 +25,7 @@ export default function MaterialsPage() {
     if (!form.name || !form.category) { toast.error('Name and Category required'); return }
     setSaving(true)
     const payload = { ...form, price_per_kg: parseFloat(form.price_per_kg) || null }
-    const { error } = editing ? await matDb.update(editing.id, payload) : await matDb.create(payload)
+    const { error } = editing ? await matDb.update(editing.id, payload) : await matDb.create({ ...payload, user_id: user.id })
     if (error) toast.error(error.message)
     else { toast.success('Saved'); setShowForm(false); loadMasterData() }
     setSaving(false)

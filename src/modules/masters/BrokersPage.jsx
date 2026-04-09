@@ -39,7 +39,7 @@ export default function BrokersPage() {
     try {
       const { error } = editingId
         ? await brokers.update(editingId, form)
-        : await brokers.create(form)
+        : await brokers.create({ ...form, user_id: user.id })
       if (error) throw error
       toast.success(editingId ? 'Broker updated' : 'Broker added')
       setShowModal(false); fetchData()

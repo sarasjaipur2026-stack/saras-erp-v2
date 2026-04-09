@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useApp } from '../../contexts/AppContext'
+import { useAuth } from '../../contexts/AuthContext'
 import { products as productDb } from '../../lib/db'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, Input, Select, Modal, DataTable, Badge } from '../../components/ui'
@@ -7,6 +8,7 @@ import { Plus, Edit2 } from 'lucide-react'
 
 export default function ProductsPage() {
   const { products, loadMasterData } = useApp()
+  const { user } = useAuth()
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const emptyForm = { code: '', name: '', name_hi: '', uses_filler: false, hsn_code: '5607', gst_rate: 12, default_rate_unit: 'per_meter' }
@@ -17,7 +19,7 @@ export default function ProductsPage() {
   const handleSave = async () => {
     if (!form.code || !form.name) { toast.error('Code and Name required'); return }
     setSaving(true)
-    const { error } = editing ? await productDb.update(editing.id, form) : await productDb.create(form)
+    const { error } = editing ? await productDb.update(editing.id, form) : await productDb.create({ ...form, user_id: user.id })
     if (error) toast.error(error.message)
     else { toast.success(editing ? 'Updated' : 'Created'); setShowForm(false); loadMasterData() }
     setSaving(false)

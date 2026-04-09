@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, Input, Modal } from '../../components/ui'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
@@ -15,6 +16,7 @@ import { Plus, Pencil, Trash2 } from 'lucide-react'
  * @param {function} [props.onChanged] - called after successful mutation
  */
 export default function SimpleMasterPage({ title, subtitle, api, fields, defaults = {}, onChanged }) {
+  const { user } = useAuth()
   const toast = useToast()
   const [list, setList] = useState([])
   const [showModal, setShowModal] = useState(false)
@@ -56,7 +58,7 @@ export default function SimpleMasterPage({ title, subtitle, api, fields, default
     }
     const { error } = editing
       ? await api.update(editing.id, payload)
-      : await api.create(payload)
+      : await api.create({ ...payload, user_id: user.id })
     if (error) { toast.error(error.message || 'Save failed'); return }
     toast.success(editing ? 'Updated' : 'Created')
     setShowModal(false)
