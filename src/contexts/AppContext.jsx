@@ -1,7 +1,13 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import * as db from '../lib/db'
 
 const AppContext = createContext(null)
+
+// Schedule work after the browser is idle (paint-friendly)
+const whenIdle = (fn, timeout = 100) =>
+  typeof requestIdleCallback === 'function'
+    ? requestIdleCallback(fn, { timeout })
+    : setTimeout(fn, timeout)
 
 export function AppProvider({ children }) {
   const [products, setProducts] = useState([])
@@ -18,7 +24,6 @@ export function AppProvider({ children }) {
   const [staff, setStaff] = useState([])
   const [currencies, setCurrencies] = useState([])
   const [customers, setCustomers] = useState([])
-  // New masters (Session A)
   const [hsnCodes, setHsnCodes] = useState([])
   const [units, setUnits] = useState([])
   const [machineTypes, setMachineTypes] = useState([])
@@ -31,48 +36,77 @@ export function AppProvider({ children }) {
   const [transports, setTransports] = useState([])
   const [qualityParameters, setQualityParameters] = useState([])
   const [loading, setLoading] = useState(false)
+  const loaded = useRef(false)
 
-  const loadMasterData = useCallback(async () => {
-    setLoading(true)
+  // Phase 1: Core masters needed by order forms and most pages
+  const loadCritical = useCallback(async () => {
     const results = await Promise.all([
       db.products.getAll(),        // 0
       db.materials.getAll(),       // 1
       db.machines.getAll(),        // 2
       db.colors.getAll(),          // 3
-      db.suppliers.getAll(),       // 4
-      db.brokers.getAll(),         // 5
+      db.orderTypes.getAll(),      // 4
+      db.paymentTerms.getAll(),    // 5
       db.chargeTypes.getAll(),     // 6
-      db.orderTypes.getAll(),      // 7
-      db.paymentTerms.getAll(),    // 8
-      db.warehouses.getAll(),      // 9
-      db.banks.getAll(),           // 10
-      db.staff.getAll(),           // 11
-      db.currencies.getAll(),      // 12
-      db.customers.getAll(),       // 13
-      db.hsnCodes.getAll(),        // 14
-      db.units.getAll(),           // 15
-      db.machineTypes.getAll(),    // 16
-      db.productTypes.getAll(),    // 17
-      db.yarnTypes.getAll(),       // 18
-      db.chaalTypes.getAll(),      // 19
-      db.processTypes.getAll(),    // 20
-      db.operators.getAll(),       // 21
-      db.packagingTypes.getAll(),  // 22
-      db.transports.getAll(),      // 23
-      db.qualityParameters.getAll(), // 24
+      db.customers.getAll(),       // 7
+      db.brokers.getAll(),         // 8
+      db.currencies.getAll(),      // 9
     ])
     const setters = [
-      setProducts, setMaterials, setMachines, setColors, setSuppliers,
-      setBrokers, setChargeTypes, setOrderTypes, setPaymentTerms, setWarehouses,
-      setBanks, setStaff, setCurrencies, setCustomers, setHsnCodes, setUnits,
-      setMachineTypes, setProductTypes, setYarnTypes, setChaalTypes, setProcessTypes,
+      setProducts, setMaterials, setMachines, setColors,
+      setOrderTypes, setPaymentTerms, setChargeTypes, setCustomers,
+      setBrokers, setCurrencies,
+    ]
+    results.forEach((r, i) => { if (r?.data) setters[i](r.data) })
+  }, [])
+
+  // Phase 2: Secondary masters — loaded in background after first paint
+  const loadDeferred = useCallback(async () => {
+    const results = await Promise.all([
+      db.suppliers.getAll(),       // 0
+      db.warehouses.getAll(),      // 1
+      db.banks.getAll(),           // 2
+      db.staff.getAll(),           // 3
+      db.hsnCodes.getAll(),        // 4
+      db.units.getAll(),           // 5
+      db.machineTypes.getAll(),    // 6
+      db.productTypes.getAll(),    // 7
+      db.yarnTypes.getAll(),       // 8
+      db.chaalTypes.getAll(),      // 9
+      db.processTypes.getAll(),    // 10
+      db.operators.getAll(),       // 11
+      db.packagingTypes.getAll(),  // 12
+      db.transports.getAll(),      // 13
+      db.qualityParameters.getAll(), // 14
+    ])
+    const setters = [
+      setSuppliers, setWarehouses, setBanks, setStaff,
+      setHsnCodes, setUnits, setMachineTypes, setProductTypes,
+      setYarnTypes, setChaalTypes, setProcessTypes,
       setOperatorsList, setPackagingTypes, setTransports, setQualityParameters,
     ]
     results.forEach((r, i) => { if (r?.data) setters[i](r.data) })
-    setLoading(false)
   }, [])
 
-  useEffect(() => { loadMasterData() }, [loadMasterData])
+  const loadMasterData = useCallback(async () => {
+    setLoading(true)
+    await loadCritical()
+    await loadDeferred()
+    setLoading(false)
+    loaded.current = true
+  }, [loadCritical, loadDeferred])
+
+  // On mount: defer ALL master loading so Dashboard/Login paint instantly
+  useEffect(() => {
+    whenIdle(async () => {
+      setLoading(true)
+      await loadCritical()
+      setLoading(false)
+      // Phase 2 loads silently in background — no loading state
+      whenIdle(() => { loadDeferred() }, 200)
+      loaded.current = true
+    })
+  }, [loadCritical, loadDeferred])
 
   const getProductsForMachine = useCallback((machineCode) => {
     const machine = machines.find(m => m.code === machineCode)

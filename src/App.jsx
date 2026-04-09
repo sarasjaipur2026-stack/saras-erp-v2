@@ -1,9 +1,19 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { lazy, Suspense, Component } from 'react'
+import { lazy, Suspense, Component, useEffect } from 'react'
 import { useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import { PageLoader } from './components/ui'
+
+// Prefetch top routes after first paint so navigation feels instant
+const prefetchRoutes = () => {
+  const idle = typeof requestIdleCallback === 'function' ? requestIdleCallback : (fn) => setTimeout(fn, 300)
+  idle(() => {
+    import('./pages/Dashboard')
+    import('./modules/orders/OrdersPage')
+    import('./modules/enquiry/EnquiriesPage')
+  })
+}
 
 // Per-route error boundary so a single broken page does not blank the whole app.
 class PageErrorBoundary extends Component {
@@ -121,6 +131,9 @@ function ProtectedRoute({ children }) {
 
 export default function App() {
   const { user, loading } = useAuth()
+
+  // Prefetch common routes once auth resolves
+  useEffect(() => { if (!loading && user) prefetchRoutes() }, [loading, user])
 
   if (loading) return <PageLoader />
 

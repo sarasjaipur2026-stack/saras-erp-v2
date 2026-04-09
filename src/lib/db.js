@@ -153,6 +153,16 @@ const stockMovementsBase = createTable('stock_movements', {
 })
 export const stockMovements = {
   ...stockMovementsBase,
+
+  // Lightweight list for StockPage — skip some nested joins
+  getAll: async () => safe(() =>
+    supabase
+      .from('stock_movements')
+      .select('id, kind, quantity, unit, source_type, source_id, notes, created_at, product_id, material_id, yarn_type_id, product_type_id, warehouse_id, products(name), materials(name), yarn_types(name), product_types(name), warehouses(name)')
+      .order('created_at', { ascending: false })
+      .limit(500)
+  ),
+
   listForEntity: async (kind, id) => safe(() =>
     supabase.from('stock_movements')
       .select('*, products(name), materials(name), warehouses(name)')
@@ -213,6 +223,14 @@ const purchaseOrdersBase = createTable('purchase_orders', {
 })
 export const purchaseOrders = {
   ...purchaseOrdersBase,
+
+  // Lightweight list for PurchasePage — skip nested items join
+  getAll: async () => safe(() =>
+    supabase
+      .from('purchase_orders')
+      .select('id, po_number, po_date, expected_date, status, subtotal, grand_total, supplier_id, created_at, suppliers(name, firm)')
+      .order('po_date', { ascending: false })
+  ),
 
   createWithItems: async ({ supplier_id, po_date, expected_date, notes, items }) => {
     try {
@@ -279,6 +297,14 @@ const goodsReceiptsBase = createTable('goods_receipts', {
 })
 export const goodsReceipts = {
   ...goodsReceiptsBase,
+
+  // Lightweight list — skip nested items join
+  getAll: async () => safe(() =>
+    supabase
+      .from('goods_receipts')
+      .select('id, grn_number, received_date, status, supplier_id, po_id, created_at, suppliers(name, firm), purchase_orders(po_number)')
+      .order('received_date', { ascending: false })
+  ),
 
   listByPo: async (poId) => safe(() =>
     supabase.from('goods_receipts').select('*').eq('po_id', poId).order('received_date', { ascending: false })
@@ -735,6 +761,13 @@ const productionPlansBase = createTable('production_plans', {
 })
 export const productionPlans = {
   ...productionPlansBase,
+  // Lightweight list for ProductionPage
+  getAll: async () => safe(() =>
+    supabase
+      .from('production_plans')
+      .select('id, status, planned_qty, completed_qty, start_date, end_date, machine_id, material_id, order_id, created_at, orders(id, order_number, customers(firm_name)), machines(id, name, code), materials(id, name)')
+      .order('created_at', { ascending: false })
+  ),
   listByOrder: async (orderId) => safe(() =>
     supabase.from('production_plans').select('*, machines(name), materials(name)').eq('order_id', orderId).order('created_at', { ascending: false })
   ),
@@ -805,6 +838,14 @@ export const productionPlans = {
 // ─── ENQUIRIES ─────────────────────────────────────────────
 export const enquiries = {
   ...createTable('enquiries', { select: '*, customers(*)', ownerFilter: false }),
+
+  // Lightweight list for EnquiriesPage
+  list: async (userId) => safe(() =>
+    supabase
+      .from('enquiries')
+      .select('id, enquiry_number, status, source, priority, expected_value, followup_date, created_at, customers(firm_name, contact_name)')
+      .order('created_at', { ascending: false })
+  ),
 
   create: async (data) => {
     try {
@@ -1223,6 +1264,14 @@ const jobworkJobsBase = createTable('jobwork_jobs', {
 export const jobworkJobs = {
   ...jobworkJobsBase,
 
+  // Lightweight list for JobworkPage — skip nested items join
+  getAll: async () => safe(() =>
+    supabase
+      .from('jobwork_jobs')
+      .select('id, job_number, direction, status, start_date, due_date, rate_per_unit, rate_unit, customer_id, supplier_id, order_id, created_at, customers(firm_name), suppliers(name, firm)')
+      .order('start_date', { ascending: false })
+  ),
+
   createWithItems: async ({ direction, customer_id, supplier_id, order_id, start_date, due_date, rate_per_unit, rate_unit, notes, items }) => {
     try {
       const { data: jobNum, error: numErr } = await supabase.rpc('next_jobwork_number')
@@ -1358,6 +1407,14 @@ const qualityInspectionsBase = createTable('quality_inspections', {
 })
 export const qualityInspections = {
   ...qualityInspectionsBase,
+
+  // Lightweight list for QualityPage — skip nested results join
+  getAll: async () => safe(() =>
+    supabase
+      .from('quality_inspections')
+      .select('id, qi_number, source_type, source_id, inspector, sample_size, overall_status, inspected_at, created_at')
+      .order('inspected_at', { ascending: false })
+  ),
 
   createInspection: async ({ source_type, source_id, inspector, sample_size, notes }) => {
     try {
