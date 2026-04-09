@@ -411,11 +411,19 @@ export const customFieldDefinitions = createTable('custom_field_definitions', { 
 // ─── ORDERS (custom select with joins) ─────────────────────
 export const orders = {
   ...createTable('orders', {
-    select: '*, customers(*), order_types(*), brokers(*), payment_terms(*), order_line_items(*)',
+    select: '*, customers(firm_name, contact_name, city)',
     ownerFilter: false,
   }),
 
-  // Override get with deep joins
+  // Lightweight list for OrdersPage — only the columns the table actually renders
+  list: async (userId) => safe(() =>
+    supabase
+      .from('orders')
+      .select('id, order_number, status, priority, grand_total, balance_due, advance_paid, delivery_date_1, created_at, nature, customers(firm_name, contact_name)')
+      .order('created_at', { ascending: false })
+  ),
+
+  // Override get with deep joins (for detail/edit pages)
   get: async (id) => safe(() =>
     supabase
       .from('orders')
