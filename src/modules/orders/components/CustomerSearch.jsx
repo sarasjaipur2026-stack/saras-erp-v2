@@ -5,7 +5,7 @@ import { useToast } from '../../../contexts/ToastContext'
 import { Input, Modal, Button } from '../../../components/ui'
 import { Plus, Search, X, Building2, Phone, MapPin } from 'lucide-react'
 
-export const CustomerSearch = ({ value, onChange }) => {
+export const CustomerSearch = ({ value, onChange, onSelect }) => {
   const { user } = useAuth()
   const toast = useToast()
   const [allCustomers, setAllCustomers] = useState([])
@@ -29,7 +29,9 @@ export const CustomerSearch = ({ value, onChange }) => {
     const { data } = await customers.list(user.id)
     if (data) {
       setAllCustomers(data)
-      if (value) setSelected(data.find(c => c.id === value) || null)
+      // value can be a customer_id (string) or a customer object
+      const valueId = typeof value === 'object' ? value?.id : value
+      if (valueId) setSelected(data.find(c => c.id === valueId) || null)
     }
   }
 
@@ -40,7 +42,8 @@ export const CustomerSearch = ({ value, onChange }) => {
 
   const handleSelect = (customer) => {
     setSelected(customer)
-    onChange(customer.id)
+    if (onSelect) onSelect(customer)
+    else if (onChange) onChange(customer.id)
     setIsOpen(false)
     setSearchTerm('')
   }

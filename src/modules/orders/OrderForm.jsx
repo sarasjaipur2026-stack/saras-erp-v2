@@ -34,8 +34,8 @@ const DEFAULT_ORDER = {
   broker_id: null,
   payment_terms_id: null,
   priority: 'normal',
-  order_nature: 'sample',
-  currency_id: null,
+  nature: 'sample',
+  currency_code: 'INR',
   delivery_date_1: null,
   delivery_date_2: null,
   delivery_date_3: null,
@@ -310,8 +310,10 @@ export default function OrderForm() {
   const handleSaveDraft = async () => {
     setSaving(true);
     try {
+      // Strip virtual fields that don't exist on the orders table
+      const { line_items: _li, charges: _ch, customer: _cust, ...orderFields } = formData;
       const draftData = {
-        ...formData,
+        ...orderFields,
         status: 'draft',
       };
 
@@ -320,6 +322,11 @@ export default function OrderForm() {
         if (error) throw error;
         toast.success('Order updated as draft');
       } else {
+        if (!draftData.customer_id) {
+          toast.error('Please select a customer first');
+          setSaving(false);
+          return;
+        }
         const { data: newOrder, error } = await orders.create(draftData);
         if (error) throw error;
         navigate(`/orders/${newOrder.id}`);
@@ -340,8 +347,10 @@ export default function OrderForm() {
 
     setSaving(true);
     try {
+      // Strip virtual fields that don't exist on the orders table
+      const { line_items: _li, charges: _ch, customer: _cust, ...orderFields } = formData;
       const orderData = {
-        ...formData,
+        ...orderFields,
         status: 'confirmed',
       };
 
@@ -633,8 +642,8 @@ function StepCustomer({
           <div>
             <label className="block text-sm font-semibold text-slate-900 mb-2">Order Nature</label>
             <Select
-              value={formData.order_nature}
-              onChange={(e) => setFormData({ ...formData, order_nature: e.target.value })}
+              value={formData.nature}
+              onChange={(e) => setFormData({ ...formData, nature: e.target.value })}
             >
               <option value="sample">Sample</option>
               <option value="production">Production</option>
@@ -1090,7 +1099,7 @@ function StepReview({
           </div>
           <div>
             <p className="text-sm text-slate-600">Order Nature</p>
-            <Badge variant="info">{formData.order_nature}</Badge>
+            <Badge variant="info">{formData.nature}</Badge>
           </div>
           <div>
             <p className="text-sm text-slate-600">Priority</p>

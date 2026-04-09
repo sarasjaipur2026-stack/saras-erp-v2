@@ -460,9 +460,26 @@ export const orders = {
 
   create: async (order) => {
     try {
+      // Resolve prefix from order_type_id (falls back to 'ORD')
+      let prefix = 'ORD'
+      if (order.order_type_id) {
+        const { data: ot } = await supabase
+          .from('order_types')
+          .select('prefix')
+          .eq('id', order.order_type_id)
+          .single()
+        if (ot?.prefix) prefix = ot.prefix
+      }
+
+      // Resolve current user id
+      const { data: sess } = await supabase.auth.getSession()
+      const userId = sess?.session?.user?.id
+      if (!userId) return { data: null, error: new Error('Not authenticated') }
+
       // Call Supabase function to generate order number
       const { data: result, error: fnErr } = await supabase.rpc('generate_order_number', {
-        p_order_type_id: order.order_type_id,
+        p_user_id: userId,
+        p_prefix: prefix,
       })
 
       if (fnErr) {
@@ -472,7 +489,7 @@ export const orders = {
       const order_number = result
 
       return await safe(() =>
-        supabase.from('orders').insert([{ ...order, order_number }]).select().single()
+        supabase.from('orders').insert([{ ...order, order_number, user_id: userId }]).select().single()
       )
     } catch (error) {
       return { data: null, error }
@@ -780,6 +797,42 @@ export const productionPlans = {
 // ─── ENQUIRIES ─────────────────────────────────────────────
 export const enquiries = {
   ...createTable('enquiries', { select: '*, customers(*)', ownerFilter: false }),
+
+  create: async (data) => {
+    try {
+      const { data: sess } = await supabase.auth.getSession()
+      const userId = sess?.session?.user?.id
+      if (!userId) return { data: null, error: new Error('Not authenticated') }
+
+      // Generate enquiry number from enquiries table (not orders)
+      const now = new Date()
+      const month = now.getMonth() + 1
+      const yearStart = month >= 4 ? now.getFullYear() : now.getFullYear() - 1
+      const yearEnd = yearStart + 1
+      const fyPrefix = `${yearStart % 100}-${yearEnd % 100}`
+      const pattern = `ENQ/${fyPrefix}/%`
+
+      const { data: maxRow } = await supabase
+        .from('enquiries')
+        .select('enquiry_number')
+        .eq('user_id', userId)
+        .like('enquiry_number', pattern)
+        .order('enquiry_number', { ascending: false })
+        .limit(1)
+        .single()
+
+      const lastSeq = maxRow?.enquiry_number
+        ? parseInt(maxRow.enquiry_number.split('/')[2], 10) || 0
+        : 0
+      const enquiry_number = `ENQ/${fyPrefix}/${String(lastSeq + 1).padStart(4, '0')}`
+
+      return await safe(() =>
+        supabase.from('enquiries').insert([{ ...data, enquiry_number, user_id: userId }]).select('*, customers(*)').single()
+      )
+    } catch (error) {
+      return { data: null, error }
+    }
+  },
 
   get: async (id) => safe(() =>
     supabase.from('enquiries').select('*, customers(*)').eq('id', id).single()
