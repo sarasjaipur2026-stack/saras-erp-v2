@@ -364,21 +364,21 @@ export const goodsReceipts = {
         const { error: itemErr } = await supabase.from('goods_receipt_items').insert(grnItemRows)
         if (itemErr) return { data: grn, error: itemErr }
 
-        // Bump quantity_received on PO items
-        for (const it of grnItemRows) {
-          if (!it.po_item_id) continue
-          const { data: prev } = await supabase
+        // Bump quantity_received on PO items — batch fetch then batch update
+        const poItemIds = grnItemRows.filter(it => it.po_item_id).map(it => it.po_item_id)
+        if (poItemIds.length) {
+          const { data: poItems } = await supabase
             .from('purchase_order_items')
-            .select('quantity, quantity_received')
-            .eq('id', it.po_item_id)
-            .single()
-          if (prev) {
-            await supabase
-              .from('purchase_order_items')
-              .update({
-                quantity_received: Number(prev.quantity_received || 0) + Number(it.quantity_received),
-              })
-              .eq('id', it.po_item_id)
+            .select('id, quantity, quantity_received')
+            .in('id', poItemIds)
+          if (poItems) {
+            const receivedMap = new Map(grnItemRows.map(it => [it.po_item_id, it.quantity_received]))
+            await Promise.all(poItems.map(prev =>
+              supabase
+                .from('purchase_order_items')
+                .update({ quantity_received: Number(prev.quantity_received || 0) + Number(receivedMap.get(prev.id) || 0) })
+                .eq('id', prev.id)
+            ))
           }
         }
 
@@ -447,6 +447,7 @@ export const orders = {
       .from('orders')
       .select('id, order_number, status, priority, grand_total, balance_due, advance_paid, delivery_date_1, created_at, nature, customers(firm_name, contact_name)')
       .order('created_at', { ascending: false })
+      .limit(1000)
   ),
 
   // Override get with deep joins (for detail/edit pages)
