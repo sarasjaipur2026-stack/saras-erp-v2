@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { ChevronDown, X, Upload, Loader2, Search } from 'lucide-react'
 
 // ─── BUTTON ────────────────────────────────────────────────
@@ -119,9 +119,11 @@ export const SearchSelect = ({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const filtered = options.filter(opt =>
-    opt.label.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filtered = useMemo(() => {
+    if (!searchTerm) return options
+    const term = searchTerm.toLowerCase()
+    return options.filter(opt => opt.label.toLowerCase().includes(term))
+  }, [options, searchTerm])
 
   return (
     <div className={`relative ${className}`} ref={ref}>
@@ -424,6 +426,7 @@ export const DataTable = ({
                 } : undefined}
                 tabIndex={onRowClick ? 0 : undefined}
                 role={onRowClick ? 'button' : undefined}
+                style={data.length > 50 ? { contentVisibility: 'auto', containIntrinsicSize: '0 42px' } : undefined}
                 className={`table-row-hover ${onRowClick ? 'cursor-pointer focus:outline-none focus:bg-indigo-50/40' : ''} transition-colors`}
               >
                 {columns.map(col => (

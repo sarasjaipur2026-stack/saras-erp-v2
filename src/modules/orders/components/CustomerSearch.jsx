@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { customers } from '../../../lib/db'
 import { useAuth } from '../../../contexts/AuthContext'
 import { useToast } from '../../../contexts/ToastContext'
@@ -35,10 +35,14 @@ export const CustomerSearch = ({ value, onChange, onSelect }) => {
     }
   }
 
-  const filtered = allCustomers.filter(c =>
-    (c.contact_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (c.firm_name || '').toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filtered = useMemo(() => {
+    if (!searchTerm) return allCustomers
+    const term = searchTerm.toLowerCase()
+    return allCustomers.filter(c =>
+      (c.contact_name || '').toLowerCase().includes(term) ||
+      (c.firm_name || '').toLowerCase().includes(term)
+    )
+  }, [allCustomers, searchTerm])
 
   const handleSelect = (customer) => {
     setSelected(customer)

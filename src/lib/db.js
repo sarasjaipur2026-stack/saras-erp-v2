@@ -39,7 +39,7 @@ function createTable(table, opts = {}) {
     }),
 
     getAll: async () => safe(() =>
-      supabase.from(table).select(select).order(orderBy, { ascending: orderAsc })
+      supabase.from(table).select(select).order(orderBy, { ascending: orderAsc }).limit(1000)
     ),
 
     get: async (id) => safe(() =>

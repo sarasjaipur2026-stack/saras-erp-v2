@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ShoppingCart,
   TrendingUp,
@@ -39,7 +39,6 @@ const OrdersPage = () => {
 
   // State management
   const [ordersList, setOrdersList] = useState([]);
-  const [filteredOrders, setFilteredOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrders, setSelectedOrders] = useState(new Set());
   const [activeTab, setActiveTab] = useState('All');
@@ -127,21 +126,16 @@ const OrdersPage = () => {
     }
   }, [user?.id, toast]);
 
-  // Filter orders based on active filters
-  useEffect(() => {
-    let filtered = [...ordersList];
+  // Derived: filtered orders (computed, not stored in state)
+  const filteredOrders = useMemo(() => {
+    let filtered = ordersList;
 
-    // Tab filter
     if (activeTab !== 'All') {
       filtered = filtered.filter((order) => order.status === activeTab);
     }
-
-    // Status pipeline filter
     if (selectedStatus) {
       filtered = filtered.filter((order) => order.status === selectedStatus);
     }
-
-    // Date range filter
     if (dateRange && dateRange !== 'custom') {
       const { start, end } = getDateRange(dateRange);
       if (start && end) {
@@ -151,44 +145,31 @@ const OrdersPage = () => {
         });
       }
     }
-
-    // Customer filter
     if (customerFilter) {
+      const term = customerFilter.toLowerCase();
       filtered = filtered.filter(
         (order) =>
-          order.customers?.contact_name
-            ?.toLowerCase()
-            .includes(customerFilter.toLowerCase()) ||
-          order.customers?.firm_name
-            ?.toLowerCase()
-            .includes(customerFilter.toLowerCase())
+          order.customers?.contact_name?.toLowerCase().includes(term) ||
+          order.customers?.firm_name?.toLowerCase().includes(term)
       );
     }
-
-    setFilteredOrders(filtered);
+    return filtered;
   }, [ordersList, activeTab, selectedStatus, dateRange, customerFilter]);
 
-  // Calculate statistics
-  const calculateStats = () => {
-    const stats = {
-      totalOrders: ordersList.length,
-      activeOrders: ordersList.filter((o) =>
-        ['Production', 'QC', 'Dispatch'].includes(o.status)
-      ).length,
-      totalRevenue: ordersList.reduce((sum, o) => sum + (o.grand_total || 0), 0),
-      outstandingBalance: ordersList.reduce(
-        (sum, o) => sum + (o.balance_due || 0),
-        0
-      ),
-      overdue: ordersList.filter((o) => {
-        const dueDate = new Date(o.delivery_date_1);
-        return dueDate < new Date() && o.status !== 'Completed';
-      }).length,
-    };
-    return stats;
-  };
+  // Derived: statistics (computed from ordersList)
+  const stats = useMemo(() => {
+    const now = new Date();
+    const activeStatuses = new Set(['Production', 'QC', 'Dispatch']);
+    let activeOrders = 0, totalRevenue = 0, outstandingBalance = 0, overdue = 0;
 
-  const stats = calculateStats();
+    for (const o of ordersList) {
+      if (activeStatuses.has(o.status)) activeOrders++;
+      totalRevenue += o.grand_total || 0;
+      outstandingBalance += o.balance_due || 0;
+      if (o.delivery_date_1 && new Date(o.delivery_date_1) < now && o.status !== 'Completed') overdue++;
+    }
+    return { totalOrders: ordersList.length, activeOrders, totalRevenue, outstandingBalance, overdue };
+  }, [ordersList]);
 
   // Handle bulk actions
   const handleBulkStatusChange = async () => {
@@ -266,9 +247,9 @@ const OrdersPage = () => {
     setSelectedOrders(newSelected);
   };
 
-  const handleRowClick = (orderId) => {
-    navigate(`/orders/${orderId}`);
-  };
+  const handleRowClick = useCallback((row) => {
+    navigate(`/orders/${row.id}`);
+  }, [navigate]);
 
   if (loading) {
     return (
