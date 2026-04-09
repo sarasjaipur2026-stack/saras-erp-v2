@@ -104,15 +104,22 @@ export function AppProvider({ children }) {
     return () => { cancelled = true }
   }, [loadCritical, loadDeferred])
 
-  // Memoize lookup helpers
+  // O(1) lookup maps — rebuilt only when underlying arrays change
+  const machinesByCode = useMemo(() => new Map(masters.machines.map(m => [m.code, m])), [masters.machines])
+  const customersById = useMemo(() => new Map(masters.customers.map(c => [c.id, c])), [masters.customers])
+  const paymentTermsById = useMemo(() => new Map(masters.paymentTerms.map(pt => [pt.id, pt])), [masters.paymentTerms])
+  const currenciesByCode = useMemo(() => new Map(masters.currencies.map(c => [c.code, c])), [masters.currencies])
+
+  // Lookup helpers using maps
   const getProductsForMachine = useCallback((machineCode) => {
-    const machine = masters.machines.find(m => m.code === machineCode)
+    const machine = machinesByCode.get(machineCode)
     if (!machine) return masters.products
-    return masters.products.filter(p => machine.products.includes(p.code))
-  }, [masters.machines, masters.products])
+    const codes = new Set(machine.products)
+    return masters.products.filter(p => codes.has(p.code))
+  }, [machinesByCode, masters.products])
 
   const getMachinesForProduct = useCallback((productCode) => {
-    return masters.machines.filter(m => m.products.includes(productCode))
+    return masters.machines.filter(m => m.products?.includes(productCode))
   }, [masters.machines])
 
   const getChargeTypesByScope = useCallback((scope) => {
@@ -120,15 +127,15 @@ export function AppProvider({ children }) {
   }, [masters.chargeTypes])
 
   const getDefaultPaymentTerms = useCallback((customerId) => {
-    const customer = masters.customers.find(c => c.id === customerId)
+    const customer = customersById.get(customerId)
     if (!customer || !customer.payment_term_id) return null
-    return masters.paymentTerms.find(pt => pt.id === customer.payment_term_id)
-  }, [masters.customers, masters.paymentTerms])
+    return paymentTermsById.get(customer.payment_term_id) || null
+  }, [customersById, paymentTermsById])
 
   const getExchangeRate = useCallback((currencyCode) => {
-    const currency = masters.currencies.find(c => c.code === currencyCode)
+    const currency = currenciesByCode.get(currencyCode)
     return currency ? currency.exchange_rate : null
-  }, [masters.currencies])
+  }, [currenciesByCode])
 
   // Stable context value — only changes when masters or loading change
   const value = useMemo(() => ({
