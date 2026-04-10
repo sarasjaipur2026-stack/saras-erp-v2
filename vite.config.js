@@ -8,6 +8,7 @@ export default defineConfig({
     alias: { '@': '/src' }
   },
   build: {
+    sourcemap: false,
     rollupOptions: {
       output: {
         manualChunks(id) {

@@ -476,9 +476,15 @@ export const Tabs = ({ tabs, defaultTab = 0, onChange }) => {
 }
 
 // ─── CURRENCY ──────────────────────────────────────────────
+const currencyFormatters = new Map()
+const getCurrencyFormatter = (currency) => {
+  if (!currencyFormatters.has(currency)) {
+    currencyFormatters.set(currency, new Intl.NumberFormat('en-IN', {
+      style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2,
+    }))
+  }
+  return currencyFormatters.get(currency)
+}
 export const Currency = ({ amount, currency = 'INR' }) => {
-  const fmt = new Intl.NumberFormat('en-IN', {
-    style: 'currency', currency, minimumFractionDigits: 2, maximumFractionDigits: 2,
-  })
-  return <span className="tabular-nums">{fmt.format(amount || 0)}</span>
+  return <span className="tabular-nums">{getCurrencyFormatter(currency).format(amount || 0)}</span>
 }

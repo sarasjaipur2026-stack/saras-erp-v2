@@ -7,7 +7,7 @@ export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([])
 
   const addToast = useCallback((message, type = 'info', duration = 3500) => {
-    const id = Date.now() + Math.random()
+    const id = crypto.randomUUID()
     setToasts(prev => [...prev, { id, message, type }])
     if (duration > 0) {
       setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), duration)
