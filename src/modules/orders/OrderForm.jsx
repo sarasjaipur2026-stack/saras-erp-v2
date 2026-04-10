@@ -7,19 +7,17 @@ import {
   CheckCircle,
   ChevronRight,
   ChevronLeft,
-  Plus,
-  Trash2,
-  ChevronDown,
-  ChevronUp,
   AlertCircle,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useApp } from '../../contexts/AppContext';
 import { useToast } from '../../contexts/ToastContext';
 import { orders, lineItems, orderCharges } from '../../lib/db';
-import { Button, Input, Select, Textarea, Modal, Badge, Currency, Spinner } from '../../components/ui';
-import { CustomerSearch } from './components/CustomerSearch';
-import { LineItemRow } from './components/LineItemRow';
+import { Button, Spinner } from '../../components/ui';
+import { StepCustomer } from './steps/StepCustomer';
+import { StepLineItems } from './steps/StepLineItems';
+import { StepPricingCharges } from './steps/StepPricingCharges';
+import { StepReview } from './steps/StepReview';
 
 const STEPS = [
   { id: 1, name: 'Customer', icon: Users },
@@ -222,26 +220,21 @@ export default function OrderForm() {
       let sgst = 0;
       let igst = 0;
 
-      // Calculate line items totals
       (prev.line_items || []).forEach((item) => {
         subtotal += item.amount || 0;
         totalItemDiscount += item.item_discount_amount || 0;
       });
 
-      // Calculate charges
       const totalCharges = (prev.charges || []).reduce((sum, charge) => sum + (charge.amount || 0), 0);
 
-      // Apply order discount
       let orderDiscountAmount = prev.order_discount_amount || 0;
       if (prev.order_discount_type === 'percent') {
         orderDiscountAmount = (subtotal * (prev.order_discount_value || 0)) / 100;
       }
 
-      // Calculate taxable amount
       totalTaxable = subtotal - totalItemDiscount - orderDiscountAmount + totalCharges;
 
-      // Calculate GST
-      const gstRate = prev.gst_type === 'intra_state' ? 9 : 0; // 9% CGST + 9% SGST for intra, 0 for inter (18% IGST)
+      const gstRate = prev.gst_type === 'intra_state' ? 9 : 0;
       if (prev.gst_type === 'intra_state') {
         cgst = (totalTaxable * gstRate) / 100;
         sgst = (totalTaxable * gstRate) / 100;
@@ -310,12 +303,8 @@ export default function OrderForm() {
   const handleSaveDraft = async () => {
     setSaving(true);
     try {
-      // Strip virtual fields that don't exist on the orders table
       const { line_items: _li, charges: _ch, customer: _cust, ...orderFields } = formData;
-      const draftData = {
-        ...orderFields,
-        status: 'draft',
-      };
+      const draftData = { ...orderFields, status: 'draft' };
 
       if (isEdit) {
         const { error } = await orders.update(orderId, draftData);
@@ -347,12 +336,8 @@ export default function OrderForm() {
 
     setSaving(true);
     try {
-      // Strip virtual fields that don't exist on the orders table
       const { line_items: _li, charges: _ch, customer: _cust, ...orderFields } = formData;
-      const orderData = {
-        ...orderFields,
-        status: 'confirmed',
-      };
+      const orderData = { ...orderFields, status: 'confirmed' };
 
       let finalOrderId;
       if (isEdit) {
@@ -367,28 +352,18 @@ export default function OrderForm() {
         toast.success('Order created');
       }
 
-      // Create line items
       const linesToCreate = (formData.line_items || []).filter((item) => item.id?.toString().startsWith('temp_'));
       if (linesToCreate.length > 0) {
         const { error } = await lineItems.createMany(
-          linesToCreate.map((item) => ({
-            order_id: finalOrderId,
-            ...item,
-            id: undefined, // Remove temp ID
-          }))
+          linesToCreate.map((item) => ({ order_id: finalOrderId, ...item, id: undefined }))
         );
         if (error) throw error;
       }
 
-      // Create charges
       const chargesToCreate = (formData.charges || []).filter((charge) => charge.id?.toString().startsWith('temp_'));
       if (chargesToCreate.length > 0) {
         const { error } = await orderCharges.createMany(
-          chargesToCreate.map((charge) => ({
-            order_id: finalOrderId,
-            ...charge,
-            id: undefined, // Remove temp ID
-          }))
+          chargesToCreate.map((charge) => ({ order_id: finalOrderId, ...charge, id: undefined }))
         );
         if (error) throw error;
       }
@@ -600,604 +575,6 @@ export default function OrderForm() {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-// Step 1: Customer
-function StepCustomer({
-  formData,
-  setFormData,
-  selectedCustomer,
-  onCustomerSelect,
-  orderTypes,
-  paymentTerms,
-  brokers,
-  currencies,
-}) {
-  return (
-    <div className="space-y-6">
-      <div>
-        <label className="block text-sm font-semibold text-slate-900 mb-2">Customer</label>
-        <CustomerSearch onSelect={onCustomerSelect} value={selectedCustomer} />
-      </div>
-
-      {selectedCustomer && (
-        <div className="grid grid-cols-2 gap-6 pt-6 border-t border-slate-200">
-          <Select
-            label="Order Type"
-            value={formData.order_type_id || ''}
-            onChange={(e) => setFormData({ ...formData, order_type_id: e.target.value })}
-            options={[
-              { value: '', label: 'Select order type' },
-              ...(orderTypes || []).map((type) => ({ value: type.id, label: type.name })),
-            ]}
-          />
-
-          <Select
-            label="Order Nature"
-            value={formData.nature}
-            onChange={(e) => setFormData({ ...formData, nature: e.target.value })}
-            options={[
-              { value: 'sample', label: 'Sample' },
-              { value: 'production', label: 'Production' },
-              { value: 'export', label: 'Export' },
-            ]}
-          />
-
-          <Select
-            label="Priority"
-            value={formData.priority}
-            onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-            options={[
-              { value: 'normal', label: 'Normal' },
-              { value: 'high', label: 'High' },
-              { value: 'urgent', label: 'Urgent' },
-            ]}
-          />
-
-          <Select
-            label="Payment Terms"
-            value={formData.payment_terms_id || ''}
-            onChange={(e) => setFormData({ ...formData, payment_terms_id: e.target.value })}
-            options={[
-              { value: '', label: 'Select payment terms' },
-              ...(paymentTerms || []).map((term) => ({ value: term.id, label: term.name })),
-            ]}
-          />
-
-          <Select
-            label="Broker"
-            value={formData.broker_id || ''}
-            onChange={(e) => setFormData({ ...formData, broker_id: e.target.value })}
-            options={[
-              { value: '', label: 'Select broker (optional)' },
-              ...(brokers || []).map((broker) => ({ value: broker.id, label: broker.name })),
-            ]}
-          />
-
-          <Select
-            label="Currency"
-            value={formData.currency_id || ''}
-            onChange={(e) => setFormData({ ...formData, currency_id: e.target.value })}
-            options={[
-              { value: '', label: 'Select currency' },
-              ...(currencies || []).map((c) => ({ value: c.id, label: c.code })),
-            ]}
-          />
-
-          <div className="col-span-2 pt-6 border-t border-slate-200">
-            <label className="block text-sm font-semibold text-slate-900 mb-4">Delivery Dates</label>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Input
-                  type="date"
-                  value={formData.delivery_date_1 || ''}
-                  onChange={(e) => setFormData({ ...formData, delivery_date_1: e.target.value })}
-                  placeholder="Delivery Date 1"
-                />
-              </div>
-              <div>
-                <Input
-                  type="date"
-                  value={formData.delivery_date_2 || ''}
-                  onChange={(e) => setFormData({ ...formData, delivery_date_2: e.target.value })}
-                  placeholder="Delivery Date 2 (optional)"
-                />
-              </div>
-              <div>
-                <Input
-                  type="date"
-                  value={formData.delivery_date_3 || ''}
-                  onChange={(e) => setFormData({ ...formData, delivery_date_3: e.target.value })}
-                  placeholder="Delivery Date 3 (optional)"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Step 2: Line Items
-function StepLineItems({
-  formData,
-  onAddItem,
-  onUpdateItem,
-  onRemoveItem,
-  onReorder,
-  expandedItems,
-  setExpandedItems,
-  products,
-  materials,
-  machines,
-  colors,
-}) {
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-slate-900">Order Line Items</h3>
-        <Button onClick={onAddItem} className="bg-indigo-600 text-white hover:bg-indigo-700">
-          <Plus size={16} />
-          Add Item
-        </Button>
-      </div>
-
-      {(!formData.line_items || formData.line_items.length === 0) ? (
-        <div className="text-center py-8 text-slate-500">
-          <Package size={32} className="mx-auto mb-2 opacity-50" />
-          <p>No line items added yet. Click "Add Item" to get started.</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {formData.line_items.map((item, idx) => (
-            <LineItemRow
-              key={item.id}
-              item={item}
-              index={idx}
-              isExpanded={expandedItems[item.id]}
-              onToggle={() =>
-                setExpandedItems((prev) => ({
-                  ...prev,
-                  [item.id]: !prev[item.id],
-                }))
-              }
-              onUpdate={(updates) => onUpdateItem(item.id, updates)}
-              onRemove={() => onRemoveItem(item.id)}
-              onMoveUp={() => onReorder(item.id, 'up')}
-              onMoveDown={() => onReorder(item.id, 'down')}
-              canMoveUp={idx > 0}
-              canMoveDown={idx < formData.line_items.length - 1}
-              products={products}
-              materials={materials}
-              machines={machines}
-              colors={colors}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Step 3: Pricing & Charges
-function StepPricingCharges({
-  formData,
-  setFormData,
-  onAddCharge,
-  onUpdateCharge,
-  onRemoveCharge,
-  chargeTypes,
-  recalculatePricing,
-}) {
-  return (
-    <div className="space-y-8">
-      {/* Charges */}
-      <div>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold text-slate-900">Additional Charges</h3>
-          <Button onClick={onAddCharge} className="bg-indigo-600 text-white hover:bg-indigo-700">
-            <Plus size={16} />
-            Add Charge
-          </Button>
-        </div>
-
-        {(!formData.charges || formData.charges.length === 0) ? (
-          <p className="text-slate-500 text-sm">No additional charges added.</p>
-        ) : (
-          <div className="space-y-3">
-            {formData.charges.map((charge) => (
-              <div key={charge.id} className="flex gap-4 items-end p-4 bg-slate-50 rounded-lg">
-                <div className="flex-1">
-                  <Select
-                    label="Charge Type"
-                    value={charge.charge_type_id || ''}
-                    onChange={(e) => onUpdateCharge(charge.id, { charge_type_id: e.target.value })}
-                    options={[
-                      { value: '', label: 'Select charge type' },
-                      ...(chargeTypes || []).map((type) => ({ value: type.id, label: type.name })),
-                    ]}
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
-                  <Input
-                    type="number"
-                    value={charge.amount || 0}
-                    onChange={(e) => {
-                      onUpdateCharge(charge.id, { amount: parseFloat(e.target.value) });
-                      recalculatePricing();
-                    }}
-                    placeholder="0.00"
-                  />
-                </div>
-                <div className="flex-1">
-                  <Select
-                    label="Scope"
-                    value={charge.scope}
-                    onChange={(e) => onUpdateCharge(charge.id, { scope: e.target.value })}
-                    options={[
-                      { value: 'per_order', label: 'Per Order' },
-                      { value: 'per_item', label: 'Per Item' },
-                    ]}
-                  />
-                </div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={charge.is_taxable}
-                    onChange={(e) => {
-                      onUpdateCharge(charge.id, { is_taxable: e.target.checked });
-                      recalculatePricing();
-                    }}
-                    className="w-4 h-4 rounded"
-                  />
-                  <span className="text-sm text-slate-700">Taxable</span>
-                </label>
-                <Button
-                  onClick={() => onRemoveCharge(charge.id)}
-                  variant="secondary"
-                  className="text-red-600 hover:text-red-700"
-                >
-                  <Trash2 size={16} />
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="border-t border-slate-200 pt-8">
-        <h3 className="text-lg font-semibold text-slate-900 mb-6">Order Discount</h3>
-        <div className="grid grid-cols-2 gap-6">
-          <Select
-            label="Discount Type"
-            value={formData.order_discount_type}
-            onChange={(e) => {
-              setFormData({ ...formData, order_discount_type: e.target.value });
-              recalculatePricing();
-            }}
-            options={[
-              { value: 'flat', label: 'Flat Amount' },
-              { value: 'percent', label: 'Percentage' },
-            ]}
-          />
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              {formData.order_discount_type === 'percent' ? 'Percentage (%)' : 'Amount'}
-            </label>
-            <Input
-              type="number"
-              value={formData.order_discount_value || 0}
-              onChange={(e) => {
-                setFormData({ ...formData, order_discount_value: parseFloat(e.target.value) });
-                recalculatePricing();
-              }}
-              placeholder="0"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="border-t border-slate-200 pt-8">
-        <h3 className="text-lg font-semibold text-slate-900 mb-6">GST Configuration</h3>
-        <div className="grid grid-cols-2 gap-6">
-          <Select
-            label="GST Type"
-            value={formData.gst_type}
-            onChange={(e) => {
-              setFormData({ ...formData, gst_type: e.target.value });
-              recalculatePricing();
-            }}
-            options={[
-              { value: 'intra_state', label: 'Intra-State (CGST + SGST)' },
-              { value: 'inter_state', label: 'Inter-State (IGST)' },
-            ]}
-          />
-        </div>
-      </div>
-
-      <div className="border-t border-slate-200 pt-8">
-        <h3 className="text-lg font-semibold text-slate-900 mb-6">Payment Details</h3>
-        <div className="grid grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Advance Paid</label>
-            <Input
-              type="number"
-              value={formData.advance_paid || 0}
-              onChange={(e) => {
-                setFormData({ ...formData, advance_paid: parseFloat(e.target.value) });
-                recalculatePricing();
-              }}
-              placeholder="0.00"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Pricing Summary */}
-      <div className="border-t border-slate-200 pt-8">
-        <div className="bg-indigo-50 p-6 rounded-lg space-y-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-700">Subtotal</span>
-            <Currency amount={formData.subtotal} />
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-700">Item Discounts</span>
-            <Currency amount={-formData.total_item_discount} />
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-700">Order Discount</span>
-            <Currency amount={-formData.order_discount_amount} />
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-700">Additional Charges</span>
-            <Currency amount={formData.total_charges} />
-          </div>
-          <div className="border-t border-indigo-200 pt-3 flex justify-between text-sm font-semibold">
-            <span className="text-slate-900">Taxable Amount</span>
-            <Currency amount={formData.taxable_amount} />
-          </div>
-
-          {formData.gst_type === 'intra_state' ? (
-            <>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-700">CGST (9%)</span>
-                <Currency amount={formData.cgst_amount} />
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-700">SGST (9%)</span>
-                <Currency amount={formData.sgst_amount} />
-              </div>
-            </>
-          ) : (
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-700">IGST (18%)</span>
-              <Currency amount={formData.igst_amount} />
-            </div>
-          )}
-
-          <div className="border-t border-indigo-300 pt-3 flex justify-between text-lg font-bold">
-            <span className="text-slate-900">Grand Total</span>
-            <Currency amount={formData.grand_total} />
-          </div>
-          <div className="border-t border-indigo-300 pt-3 flex justify-between text-sm">
-            <span className="text-slate-700">Balance Due</span>
-            <Currency amount={formData.balance_due} />
-          </div>
-        </div>
-      </div>
-
-      {/* Notes */}
-      <div className="border-t border-slate-200 pt-8 space-y-4">
-        <h3 className="text-lg font-semibold text-slate-900">Notes</h3>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Customer Notes</label>
-          <Textarea
-            value={formData.customer_notes}
-            onChange={(e) => setFormData({ ...formData, customer_notes: e.target.value })}
-            placeholder="Notes to be shared with customer..."
-            rows={3}
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Internal Notes</label>
-          <Textarea
-            value={formData.internal_notes}
-            onChange={(e) => setFormData({ ...formData, internal_notes: e.target.value })}
-            placeholder="Internal notes only..."
-            rows={3}
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Production Notes</label>
-          <Textarea
-            value={formData.production_notes}
-            onChange={(e) => setFormData({ ...formData, production_notes: e.target.value })}
-            placeholder="Special instructions for production..."
-            rows={3}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Step 4: Review
-function StepReview({
-  formData,
-  selectedCustomer,
-  orderTypes,
-  paymentTerms,
-  chargeTypes,
-  currencies,
-}) {
-  const getTypeLabel = (typeId, list) => list?.find((item) => item.id === typeId)?.name || 'N/A';
-
-  return (
-    <div className="space-y-8">
-      {/* Customer Summary */}
-      {selectedCustomer && (
-        <div>
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Customer</h3>
-          <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg">
-            <div>
-              <p className="text-sm text-slate-600">Name</p>
-              <p className="font-semibold text-slate-900">{selectedCustomer.name}</p>
-            </div>
-            <div>
-              <p className="text-sm text-slate-600">Email</p>
-              <p className="font-semibold text-slate-900">{selectedCustomer.email}</p>
-            </div>
-            <div>
-              <p className="text-sm text-slate-600">Phone</p>
-              <p className="font-semibold text-slate-900">{selectedCustomer.phone}</p>
-            </div>
-            <div>
-              <p className="text-sm text-slate-600">GST Registration</p>
-              <p className="font-semibold text-slate-900">{selectedCustomer.gst_no || 'N/A'}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Order Details Summary */}
-      <div className="border-t border-slate-200 pt-8">
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Order Details</h3>
-        <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg">
-          <div>
-            <p className="text-sm text-slate-600">Order Type</p>
-            <p className="font-semibold text-slate-900">{getTypeLabel(formData.order_type_id, orderTypes)}</p>
-          </div>
-          <div>
-            <p className="text-sm text-slate-600">Order Nature</p>
-            <Badge variant="info">{formData.nature}</Badge>
-          </div>
-          <div>
-            <p className="text-sm text-slate-600">Priority</p>
-            <Badge variant={formData.priority === 'urgent' ? 'error' : formData.priority === 'high' ? 'warning' : 'success'}>
-              {formData.priority}
-            </Badge>
-          </div>
-          <div>
-            <p className="text-sm text-slate-600">Payment Terms</p>
-            <p className="font-semibold text-slate-900">{getTypeLabel(formData.payment_terms_id, paymentTerms)}</p>
-          </div>
-          <div className="col-span-2">
-            <p className="text-sm text-slate-600 mb-2">Delivery Dates</p>
-            <div className="flex gap-4">
-              {formData.delivery_date_1 && <Badge>{formData.delivery_date_1}</Badge>}
-              {formData.delivery_date_2 && <Badge>{formData.delivery_date_2}</Badge>}
-              {formData.delivery_date_3 && <Badge>{formData.delivery_date_3}</Badge>}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Line Items Summary */}
-      <div className="border-t border-slate-200 pt-8">
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Line Items ({formData.line_items?.length || 0})</h3>
-        <div className="space-y-3">
-          {(formData.line_items || []).map((item, idx) => (
-            <div key={item.id} className="p-4 bg-slate-50 rounded-lg">
-              <div className="flex justify-between items-start mb-2">
-                <p className="font-semibold text-slate-900">Item {idx + 1}</p>
-                <Currency amount={item.amount} />
-              </div>
-              <p className="text-sm text-slate-600">
-                {item.meters} meters @ {item.rate_per_unit}/unit
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Pricing Summary */}
-      <div className="border-t border-slate-200 pt-8">
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Pricing Summary</h3>
-        <div className="bg-indigo-50 p-6 rounded-lg space-y-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-700">Subtotal</span>
-            <Currency amount={formData.subtotal} />
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-700">Item Discounts</span>
-            <Currency amount={-formData.total_item_discount} />
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-700">Order Discount</span>
-            <Currency amount={-formData.order_discount_amount} />
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-700">Additional Charges</span>
-            <Currency amount={formData.total_charges} />
-          </div>
-          <div className="border-t border-indigo-200 pt-3 flex justify-between text-sm font-semibold">
-            <span className="text-slate-900">Taxable Amount</span>
-            <Currency amount={formData.taxable_amount} />
-          </div>
-
-          {formData.gst_type === 'intra_state' ? (
-            <>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-700">CGST (9%)</span>
-                <Currency amount={formData.cgst_amount} />
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-700">SGST (9%)</span>
-                <Currency amount={formData.sgst_amount} />
-              </div>
-            </>
-          ) : (
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-700">IGST (18%)</span>
-              <Currency amount={formData.igst_amount} />
-            </div>
-          )}
-
-          <div className="border-t border-indigo-300 pt-3 flex justify-between text-lg font-bold">
-            <span className="text-slate-900">Grand Total</span>
-            <Currency amount={formData.grand_total} />
-          </div>
-          <div className="border-t border-indigo-300 pt-3 flex justify-between text-sm">
-            <span className="text-slate-700">Advance Paid</span>
-            <Currency amount={formData.advance_paid} />
-          </div>
-          <div className="border-t border-indigo-300 pt-3 flex justify-between text-sm font-semibold">
-            <span className="text-slate-900">Balance Due</span>
-            <Currency amount={formData.balance_due} />
-          </div>
-        </div>
-      </div>
-
-      {/* Notes */}
-      {(formData.customer_notes || formData.internal_notes || formData.production_notes) && (
-        <div className="border-t border-slate-200 pt-8">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Notes</h3>
-          <div className="space-y-4">
-            {formData.customer_notes && (
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <p className="text-sm font-semibold text-blue-900 mb-2">Customer Notes</p>
-                <p className="text-sm text-blue-800">{formData.customer_notes}</p>
-              </div>
-            )}
-            {formData.internal_notes && (
-              <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
-                <p className="text-sm font-semibold text-amber-900 mb-2">Internal Notes</p>
-                <p className="text-sm text-amber-800">{formData.internal_notes}</p>
-              </div>
-            )}
-            {formData.production_notes && (
-              <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                <p className="text-sm font-semibold text-green-900 mb-2">Production Notes</p>
-                <p className="text-sm text-green-800">{formData.production_notes}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
