@@ -14,9 +14,8 @@ const num = (v) => {
   const n = parseFloat(v)
   return Number.isFinite(n) ? n : 0
 }
+import { fmtMoney, fmtInt } from '../../lib/format'
 const fmt = (v, d = 2) => (Number.isFinite(v) ? v.toFixed(d) : '—')
-const fmtInt = (v) => (Number.isFinite(v) ? Math.round(v).toLocaleString('en-IN') : '—')
-const fmtMoney = (v) => (Number.isFinite(v) ? `₹${v.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '—')
 
 const emptyYarn = () => ({ id: crypto.randomUUID(), yarn_type_id: '', rate_per_kg: 0, carriers: 0, weight_pct: 0 })
 const emptyProcessRow = (processType = null) => ({
@@ -254,7 +253,7 @@ export default function CalculatorPage() {
         processes: processTypes.filter(p => p && !p.is_optional).map(p => emptyProcessRow(p))
       }
     })
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- functional setState reads current state
   }, [processTypes])
 
   // Auto-fill carriers when machine selected
@@ -265,7 +264,7 @@ export default function CalculatorPage() {
         setState(s => ({ ...s, carriers: mt.default_carriers, speed_m_per_min: s.speed_m_per_min || mt.default_speed_m_per_min || 0 }))
       }
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only re-run on machine change
   }, [state.machine_type_id])
 
   const derived = useMemo(() => calculate(state, masters), [state, masters])
@@ -284,7 +283,7 @@ export default function CalculatorPage() {
     } else if (cov_wt_g > 0 && fil_wt_g > 0 && !total_wt_g) {
       patchSample('total_wt_g', cov_wt_g + fil_wt_g)
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- patchSample is stable (useCallback with [])
   }, [state.sample.total_wt_g, state.sample.cov_wt_g, state.sample.fil_wt_g])
 
   const addYarn = (kind) => setState(s => ({

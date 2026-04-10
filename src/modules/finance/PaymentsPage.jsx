@@ -4,11 +4,7 @@ import { useApp } from '../../contexts/AppContext'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, Modal, Badge, Input } from '../../components/ui'
 import { CreditCard, Plus, Search } from 'lucide-react'
-
-const fmtMoney = (v) => Number.isFinite(+v)
-  ? `₹${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
-  : '—'
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'
+import { fmtMoney, fmtDate } from '../../lib/format'
 
 // NOTE: must match DB constraint `payments_payment_mode_check`
 // Allowed: cash | cheque | upi | neft | rtgs | card | other

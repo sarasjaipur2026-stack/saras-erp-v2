@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { notifications, appSettings } from '../../lib/db'
 import { useAuth } from '../../contexts/AuthContext'
@@ -100,7 +100,7 @@ export default function NotificationsPage() {
     }
   }
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!user?.id) return
     setLoading(true)
     setLoadError(null)
@@ -113,8 +113,8 @@ export default function NotificationsPage() {
     } finally {
       setLoading(false)
     }
-  }
-  useEffect(() => { load() }, [user?.id]) // eslint-disable-line
+  }, [user?.id])
+  useEffect(() => { load() }, [load])
 
   const filtered = useMemo(() => {
     let rows = list

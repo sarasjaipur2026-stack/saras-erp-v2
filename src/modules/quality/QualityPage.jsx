@@ -5,10 +5,7 @@ import { useToast } from '../../contexts/ToastContext'
 import { Button, Modal, Input, Badge } from '../../components/ui'
 import { ShieldCheck, Plus, Search, CheckCircle2, XCircle, RotateCw, Clock } from 'lucide-react'
 
-const fmtDate = (d) =>
-  d
-    ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })
-    : '—'
+import { fmtDate } from '../../lib/format'
 
 const STATUS = {
   pending: { variant: 'default', label: 'Pending', icon: Clock },

@@ -7,18 +7,7 @@ import {
 } from 'lucide-react'
 
 // ─── HELPERS ─────────────────────────────────────────────────
-const fmtMoney = (v) =>
-  Number.isFinite(+v)
-    ? `₹${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
-    : '—'
-const fmt = (v) =>
-  Number.isFinite(+v)
-    ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 3 })
-    : '—'
-const fmtDate = (d) =>
-  d
-    ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })
-    : '—'
+import { fmt, fmtMoney, fmtDate } from '../../lib/format'
 const fmtMonth = (m) => {
   if (!m) return '—'
   const [y, mm] = m.split('-')
@@ -140,8 +129,7 @@ export default function ReportsPage() {
     } finally {
       setLoading(false)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, from, to])
+  }, [activeTab, currentTab, from, to])
 
   useEffect(() => { load() }, [load])
 

@@ -94,7 +94,8 @@ export function StepPricingCharges({
             label="Discount Type"
             value={formData.order_discount_type}
             onChange={(e) => {
-              setFormData({ ...formData, order_discount_type: e.target.value });
+              const val = e.target.value;
+              setFormData((prev) => ({ ...prev, order_discount_type: val }));
               recalculatePricing();
             }}
             options={[
@@ -110,7 +111,8 @@ export function StepPricingCharges({
               type="number"
               value={formData.order_discount_value || 0}
               onChange={(e) => {
-                setFormData({ ...formData, order_discount_value: parseFloat(e.target.value) });
+                const val = parseFloat(e.target.value);
+                setFormData((prev) => ({ ...prev, order_discount_value: val }));
                 recalculatePricing();
               }}
               placeholder="0"
@@ -126,7 +128,8 @@ export function StepPricingCharges({
             label="GST Type"
             value={formData.gst_type}
             onChange={(e) => {
-              setFormData({ ...formData, gst_type: e.target.value });
+              const val = e.target.value;
+              setFormData((prev) => ({ ...prev, gst_type: val }));
               recalculatePricing();
             }}
             options={[
@@ -146,7 +149,8 @@ export function StepPricingCharges({
               type="number"
               value={formData.advance_paid || 0}
               onChange={(e) => {
-                setFormData({ ...formData, advance_paid: parseFloat(e.target.value) });
+                const val = parseFloat(e.target.value);
+                setFormData((prev) => ({ ...prev, advance_paid: val }));
                 recalculatePricing();
               }}
               placeholder="0.00"
@@ -215,7 +219,7 @@ export function StepPricingCharges({
           <label className="block text-sm font-medium text-slate-700 mb-2">Customer Notes</label>
           <Textarea
             value={formData.customer_notes}
-            onChange={(e) => setFormData({ ...formData, customer_notes: e.target.value })}
+            onChange={(e) => { const val = e.target.value; setFormData((prev) => ({ ...prev, customer_notes: val })); }}
             placeholder="Notes to be shared with customer..."
             rows={3}
           />
@@ -224,7 +228,7 @@ export function StepPricingCharges({
           <label className="block text-sm font-medium text-slate-700 mb-2">Internal Notes</label>
           <Textarea
             value={formData.internal_notes}
-            onChange={(e) => setFormData({ ...formData, internal_notes: e.target.value })}
+            onChange={(e) => { const val = e.target.value; setFormData((prev) => ({ ...prev, internal_notes: val })); }}
             placeholder="Internal notes only..."
             rows={3}
           />
@@ -233,7 +237,7 @@ export function StepPricingCharges({
           <label className="block text-sm font-medium text-slate-700 mb-2">Production Notes</label>
           <Textarea
             value={formData.production_notes}
-            onChange={(e) => setFormData({ ...formData, production_notes: e.target.value })}
+            onChange={(e) => { const val = e.target.value; setFormData((prev) => ({ ...prev, production_notes: val })); }}
             placeholder="Special instructions for production..."
             rows={3}
           />

@@ -3,11 +3,7 @@ import { invoices, orders as ordersApi } from '../../lib/db'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, Modal, Badge, Input } from '../../components/ui'
 import { FileText, Plus, Search } from 'lucide-react'
-
-const fmtMoney = (v) => Number.isFinite(+v)
-  ? `₹${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
-  : '—'
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'
+import { fmtMoney, fmtDate } from '../../lib/format'
 
 const STATUS = {
   draft:          { variant: 'default', label: 'Draft' },

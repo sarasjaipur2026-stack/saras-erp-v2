@@ -4,11 +4,7 @@ import { useApp } from '../../contexts/AppContext'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, Input, Modal, Badge } from '../../components/ui'
 import { Package, Search, TrendingUp, TrendingDown, RotateCw, SlidersHorizontal, Plus, Minus } from 'lucide-react'
-
-const fmt = (v) => Number.isFinite(+v)
-  ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 3 })
-  : '—'
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'
+import { fmt, fmtDate } from '../../lib/format'
 
 export default function StockPage() {
   const toast = useToast()

@@ -46,7 +46,14 @@ const OrdersPage = () => {
   const [customerFilter, setCustomerFilter] = useState('');
   const [viewMode, setViewMode] = useState('allInfo');
   const [openMenuId, setOpenMenuId] = useState(null);
-  const [statusPipeline, setStatusPipeline] = useState({});
+  const statusPipeline = useMemo(() => {
+    const pipeline = {};
+    ordersList.forEach((order) => {
+      const status = order.status || 'Draft';
+      pipeline[status] = (pipeline[status] || 0) + 1;
+    });
+    return pipeline;
+  }, [ordersList]);
   const [selectedStatus, setSelectedStatus] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -105,14 +112,6 @@ const OrdersPage = () => {
         if (error) throw error;
 
         setOrdersList(data || []);
-
-        // Build status pipeline
-        const pipeline = {};
-        (data || []).forEach((order) => {
-          const status = order.status || 'Draft';
-          pipeline[status] = (pipeline[status] || 0) + 1;
-        });
-        setStatusPipeline(pipeline);
       } catch (error) {
         toast.error('Failed to load orders');
         if (import.meta.env.DEV) console.error('Error loading orders:', error);

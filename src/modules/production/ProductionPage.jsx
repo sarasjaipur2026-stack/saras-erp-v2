@@ -15,8 +15,7 @@ const STATUS = {
   cancelled:   { label: 'Cancelled',   variant: 'danger',   icon: Pause },
 }
 
-const fmt = (v) => Number.isFinite(+v) ? Number(v).toLocaleString('en-IN') : '—'
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'
+import { fmt, fmtDateShort as fmtDate } from '../../lib/format'
 
 export default function ProductionPage() {
   const toast = useToast()

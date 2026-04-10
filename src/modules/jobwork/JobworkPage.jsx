@@ -7,18 +7,7 @@ import {
   Briefcase, Plus, Search, Package, ArrowDownLeft, ArrowUpRight, X, CheckCircle2,
 } from 'lucide-react'
 
-const fmtMoney = (v) =>
-  Number.isFinite(+v)
-    ? `₹${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
-    : '—'
-const fmt = (v) =>
-  Number.isFinite(+v)
-    ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 3 })
-    : '—'
-const fmtDate = (d) =>
-  d
-    ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })
-    : '—'
+import { fmt, fmtMoney, fmtDate } from '../../lib/format'
 
 const STATUS = {
   pending: { variant: 'default', label: 'Pending' },

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, Input, Modal } from '../../components/ui'
@@ -26,7 +26,7 @@ export default function SimpleMasterPage({ title, subtitle, api, fields, default
   const [loadError, setLoadError] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true)
     setLoadError(null)
     try {
@@ -38,8 +38,8 @@ export default function SimpleMasterPage({ title, subtitle, api, fields, default
     } finally {
       setLoading(false)
     }
-  }
-  useEffect(() => { loadData() }, []) // eslint-disable-line
+  }, [api])
+  useEffect(() => { loadData() }, [loadData])
 
   const openAdd = () => { setEditing(null); setForm(defaults); setShowModal(true) }
   const openEdit = (row) => { setEditing(row); setForm({ ...defaults, ...row }); setShowModal(true) }

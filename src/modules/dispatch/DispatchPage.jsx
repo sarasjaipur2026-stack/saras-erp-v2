@@ -3,9 +3,7 @@ import { deliveries, orders as ordersApi } from '../../lib/db'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, Modal, Input, Badge } from '../../components/ui'
 import { Truck, Plus, FileText } from 'lucide-react'
-
-const fmt = (v) => Number.isFinite(+v) ? Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—'
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'
+import { fmt, fmtDate } from '../../lib/format'
 
 export default function DispatchPage() {
   const toast = useToast()

@@ -171,11 +171,9 @@ export default function OrderForm() {
       if (targetIdx < 0 || targetIdx >= items.length) return prev;
 
       [items[currentIdx], items[targetIdx]] = [items[targetIdx], items[currentIdx]];
-      items.forEach((item, idx) => {
-        item.sort_order = idx + 1;
-      });
+      const reordered = items.map((item, idx) => ({ ...item, sort_order: idx + 1 }));
 
-      return { ...prev, line_items: items };
+      return { ...prev, line_items: reordered };
     });
   };
 

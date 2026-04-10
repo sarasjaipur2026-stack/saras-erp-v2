@@ -1,21 +1,6 @@
 import { supabase } from '../supabase'
 import { safe, createTable } from './core'
 
-// ─── JOBWORK TRACKING ──────────────────────────────────────
-const jobworkBase = createTable('jobwork_tracking', { ownerFilter: false })
-export const jobwork = {
-  ...jobworkBase,
-
-  listByLineItem: async (lineItemId) => safe(() =>
-    supabase
-      .from('jobwork_tracking')
-      .select('*')
-      .eq('line_item_id', lineItemId)
-      .order('created_at', { ascending: false })
-      .limit(100)
-  ),
-}
-
 // ─── PRODUCTION PLANS ──────────────────────────────────────
 const productionPlansBase = createTable('production_plans', {
   orderBy: 'created_at',

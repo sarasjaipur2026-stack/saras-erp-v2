@@ -36,6 +36,4 @@ export const customFieldDefinitions = createTable('custom_field_definitions', { 
 // ─── SIMPLE MODULE TABLES ──────────────────────────────────
 export const lineItems = createTable('order_line_items', { ownerFilter: false })
 export const orderCharges = createTable('order_charges', { ownerFilter: false })
-export const orderTemplates = createTable('order_templates', { ownerFilter: false })
 export const importLog = createTable('import_log', { orderBy: 'created_at', orderAsc: false, ownerFilter: false })
-export const sheetsSync = createTable('sheets_sync', { orderBy: 'last_sync_at', orderAsc: false, ownerFilter: false })
