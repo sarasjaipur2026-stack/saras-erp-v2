@@ -5,3 +5,4 @@ dist/
 *.log
 _old_app_backup/
 .DS_Store
+e2e/.auth/
