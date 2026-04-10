@@ -55,10 +55,16 @@ export default function OrderDetail() {
   const loadOrderData = async () => {
     try {
       setLoading(true);
-      const { data: orderData } = await orders.get(orderId);
-      const { data: deliveryData } = await deliveries.list({ order_id: orderId });
-      const { data: timelineData } = await activityLog.list({ entity_type: 'order', entity_id: orderId });
-      const { data: attachmentData } = await attachments.list({ entity_type: 'order', entity_id: orderId });
+      const [orderRes, deliveryRes, timelineRes, attachmentRes] = await Promise.all([
+        orders.get(orderId),
+        deliveries.listByOrder(orderId),
+        activityLog.listByEntity('order', orderId),
+        attachments.listByEntity('order', orderId),
+      ]);
+      const { data: orderData } = orderRes;
+      const { data: deliveryData } = deliveryRes;
+      const { data: timelineData } = timelineRes;
+      const { data: attachmentData } = attachmentRes;
 
       setOrder(orderData);
       setOrderDeliveries(deliveryData || []);

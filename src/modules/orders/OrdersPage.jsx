@@ -178,9 +178,7 @@ const OrdersPage = () => {
     try {
       // Call API to update multiple orders
       const orderIds = Array.from(selectedOrders);
-      for (const orderId of orderIds) {
-        await ordersDb.updateStatus(orderId, bulkNewStatus);
-      }
+      await Promise.all(orderIds.map(id => ordersDb.updateStatus(id, bulkNewStatus)));
       toast.success(`Updated ${orderIds.length} orders`);
       setSelectedOrders(new Set());
       setBulkStatusModal(false);
