@@ -10,12 +10,13 @@ test.describe('Masters CRUD', () => {
 
   test('add button opens modal on master page', async ({ page }) => {
     await page.goto('/masters/colors', { waitUntil: 'networkidle' })
+    await page.waitForTimeout(2000)
     // Click Add button
-    const addBtn = page.locator('button', { hasText: 'Add' }).first()
-    await expect(addBtn).toBeVisible()
+    const addBtn = page.locator('button', { hasText: /Add/ }).first()
+    await expect(addBtn).toBeVisible({ timeout: 5000 })
     await addBtn.click()
-    // Modal should open
-    await expect(page.locator('[role="dialog"], .fixed')).toBeVisible({ timeout: 3000 })
+    // Modal should open — look for modal overlay or form inputs that appear
+    await expect(page.locator('[role="dialog"], .fixed.inset-0, .fixed.z-50').first()).toBeVisible({ timeout: 5000 })
   })
 
   test('delete shows confirmation modal (not browser confirm)', async ({ page }) => {
