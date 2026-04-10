@@ -176,7 +176,9 @@ export const stockMovements = {
     // so purchases (yarn_type_id) and production (product_id) all roll up.
     const { data, error } = await supabase
       .from('stock_movements')
-      .select('*, products(name), materials(name), yarn_types(name), product_types(name), warehouses(name)')
+      .select('id, kind, quantity, unit, product_id, material_id, yarn_type_id, product_type_id, warehouse_id, created_at, products(name), materials(name), yarn_types(name), product_types(name), warehouses(name)')
+      .order('created_at', { ascending: true })
+      .limit(5000)
     if (error) return { data: null, error }
     const map = new Map()
     for (const m of data || []) {
@@ -310,7 +312,7 @@ export const goodsReceipts = {
   ),
 
   listByPo: async (poId) => safe(() =>
-    supabase.from('goods_receipts').select('*').eq('po_id', poId).order('received_date', { ascending: false })
+    supabase.from('goods_receipts').select('*').eq('po_id', poId).order('received_date', { ascending: false }).limit(100)
   ),
 
   createFromPo: async ({ po_id, received_date, vehicle_number, warehouse_id, notes, items }) => {
@@ -658,6 +660,7 @@ export const deliveries = {
       .select('*')
       .eq('order_id', orderId)
       .order('created_at', { ascending: true })
+      .limit(200)
   ),
 
   listByLineItem: async (lineItemId) => safe(() =>
@@ -666,6 +669,7 @@ export const deliveries = {
       .select('*')
       .eq('line_item_id', lineItemId)
       .order('created_at', { ascending: true })
+      .limit(200)
   ),
 
   createFromOrder: async ({ order_id, vehicle_number, driver_name, delivery_note }) => {
@@ -753,6 +757,7 @@ export const jobwork = {
       .select('*')
       .eq('line_item_id', lineItemId)
       .order('created_at', { ascending: false })
+      .limit(100)
   ),
 }
 
@@ -774,7 +779,7 @@ export const productionPlans = {
       .limit(1000)
   ),
   listByOrder: async (orderId) => safe(() =>
-    supabase.from('production_plans').select('*, machines(name), materials(name)').eq('order_id', orderId).order('created_at', { ascending: false })
+    supabase.from('production_plans').select('*, machines(name), materials(name)').eq('order_id', orderId).order('created_at', { ascending: false }).limit(100)
   ),
   // Override update to emit a stock-in movement whenever a plan is marked completed
   // (or completed_qty is bumped on an already-completed plan).
@@ -850,6 +855,7 @@ export const enquiries = {
       .from('enquiries')
       .select('id, enquiry_number, status, source, priority, expected_value, followup_date, created_at, customers(firm_name, contact_name)')
       .order('created_at', { ascending: false })
+      .limit(1000)
   ),
 
   create: async (data) => {
@@ -933,6 +939,7 @@ export const activityLog = {
       .eq('entity_type', entityType)
       .eq('entity_id', entityId)
       .order('created_at', { ascending: false })
+      .limit(100)
   ),
 
   addComment: async (staffId, entityType, entityId, comment) => safe(() =>
@@ -1023,8 +1030,8 @@ export const notifications = {
         staff_id: n.staff_id || null,
       }
       const { data, error } = await supabase.from('notifications').insert([row]).select().single()
-      if (error && import.meta.env.DEV) {
-        console.error('[notifications.emit] insert failed', error)
+      if (error) {
+        if (import.meta.env.DEV) console.error('[notifications.emit] insert failed', error)
       }
       // Fire WhatsApp webhook in the background — do not await the result.
       fireWebhook(row).catch(err => {
@@ -1163,7 +1170,7 @@ export const payments = {
       if (pErr) return { data: null, error: pErr }
 
       // Recompute balances
-      const { data: allPayments } = await supabase.from('payments').select('amount').eq('order_id', order_id)
+      const { data: allPayments } = await supabase.from('payments').select('amount').eq('order_id', order_id).limit(500)
       const totalPaid = (allPayments || []).reduce((s, p) => s + Number(p.amount || 0), 0)
       const newBalance = Number(order.grand_total || 0) - totalPaid
       const newStatus = newBalance <= 0 ? 'completed' : undefined
@@ -1230,6 +1237,7 @@ export const payments = {
         .from('payments')
         .select('amount')
         .eq('order_id', orderId)
+        .limit(500)
 
       if (paymentsErr) return { data: null, error: paymentsErr }
 
@@ -1513,7 +1521,7 @@ export const reports = {
       .order('created_at', { ascending: false })
     if (from) q = q.gte('created_at', from)
     if (to) q = q.lte('created_at', to)
-    return q
+    return q.limit(5000)
   }),
 
   // GST summary: aggregate CGST/SGST/IGST/total tax across orders in range.
@@ -1555,6 +1563,7 @@ export const reports = {
       supabase
         .from('orders')
         .select('customer_id, customers(firm_name, phone), grand_total, advance_paid, balance_due, created_at, status')
+        .limit(5000)
     )
     if (error) return { data: null, error }
     const rows = data || []
@@ -1603,7 +1612,7 @@ export const reports = {
       .order('po_date', { ascending: false })
     if (from) q = q.gte('po_date', from)
     if (to) q = q.lte('po_date', to)
-    return q
+    return q.limit(5000)
   }),
 }
 
@@ -1612,10 +1621,10 @@ export const stats = {
   getDashboard: async () => {
     try {
       const [ordersRes, enquiriesRes, customersRes, paymentsRes] = await Promise.all([
-        supabase.from('orders').select('id, status, grand_total, balance_due', { count: 'exact' }),
-        supabase.from('enquiries').select('id, status', { count: 'exact' }).eq('status', 'new'),
-        supabase.from('customers').select('id', { count: 'exact' }),
-        supabase.from('payments').select('amount'),
+        supabase.from('orders').select('id, status, grand_total, balance_due', { count: 'exact' }).limit(5000),
+        supabase.from('enquiries').select('id, status', { count: 'exact' }).eq('status', 'new').limit(1000),
+        supabase.from('customers').select('id', { count: 'exact' }).limit(1),
+        supabase.from('payments').select('amount').limit(5000),
       ])
 
       const orderData = ordersRes.data || []

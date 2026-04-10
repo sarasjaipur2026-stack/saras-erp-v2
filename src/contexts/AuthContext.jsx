@@ -20,7 +20,7 @@ export function AuthProvider({ children }) {
     // Safety timeout - never hang forever
     const timeout = setTimeout(() => {
       if (mounted && loading) {
-        console.warn('Auth loading timeout - forcing ready state')
+        if (import.meta.env.DEV) console.warn('Auth loading timeout - forcing ready state')
         setLoading(false)
       }
     }, 5000)
@@ -29,14 +29,14 @@ export function AuthProvider({ children }) {
       if (!mounted) return
       if (session?.user) {
         setUser(session.user)
-        fetchProfile(session.user.id).catch(console.error).finally(() => {
+        fetchProfile(session.user.id).catch(e => { if (import.meta.env.DEV) console.error(e) }).finally(() => {
           if (mounted) setLoading(false)
         })
       } else {
         setLoading(false)
       }
     }).catch((err) => {
-      console.error('Auth getSession error:', err)
+      if (import.meta.env.DEV) console.error('Auth getSession error:', err)
       if (mounted) setLoading(false)
     })
 
@@ -44,7 +44,7 @@ export function AuthProvider({ children }) {
       if (!mounted) return
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user)
-        await fetchProfile(session.user.id).catch(console.error)
+        await fetchProfile(session.user.id).catch(e => { if (import.meta.env.DEV) console.error(e) })
       } else if (event === 'SIGNED_OUT') {
         setUser(null)
         setProfile(null)

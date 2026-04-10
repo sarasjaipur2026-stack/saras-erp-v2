@@ -25,8 +25,7 @@ class PageErrorBoundary extends Component {
     return { error }
   }
   componentDidCatch(error, info) {
-    // eslint-disable-next-line no-console
-    console.error('[PageErrorBoundary]', error, info)
+    if (import.meta.env.DEV) console.error('[PageErrorBoundary]', error, info)
   }
   componentDidUpdate(prevProps) {
     if (prevProps.locationKey !== this.props.locationKey && this.state.error) {

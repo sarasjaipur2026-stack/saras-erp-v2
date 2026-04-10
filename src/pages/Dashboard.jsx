@@ -13,9 +13,14 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(null)
 
   useEffect(() => {
-    stats.getDashboard().then(d => { setData(d); setLoading(false) }).catch(() => setLoading(false))
+    let cancelled = false
+    stats.getDashboard()
+      .then(d => { if (!cancelled) { setData(d); setLoading(false) } })
+      .catch(err => { if (!cancelled) { setLoadError(err?.message || 'Failed to load dashboard'); setLoading(false) } })
+    return () => { cancelled = true }
   }, [])
 
   const firstName = profile?.full_name?.split(' ')[0] || 'User'
@@ -24,6 +29,19 @@ export default function Dashboard() {
     return (
       <div className="flex items-center justify-center py-32">
         <Spinner size="lg" />
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="max-w-md mx-auto py-16 px-4 text-center">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-8">
+          <h2 className="text-lg font-bold text-red-900 mb-2">Failed to load dashboard</h2>
+          <p className="text-sm text-red-700 mb-4">{loadError}</p>
+          <button onClick={() => { setLoadError(null); setLoading(true); stats.getDashboard().then(d => { setData(d); setLoading(false) }).catch(err => { setLoadError(err?.message || 'Failed'); setLoading(false) }) }}
+            className="text-sm text-red-600 underline">Retry</button>
+        </div>
       </div>
     )
   }

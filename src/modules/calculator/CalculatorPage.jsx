@@ -238,18 +238,22 @@ export default function CalculatorPage() {
 
   // Load orders + profiles
   useEffect(() => {
-    ordersApi.getAll().then(r => setOrderList((r.data || []).filter(o => ['booking', 'approved', 'draft'].includes(o.status))))
-    calculatorProfiles.getAll().then(r => setProfileList(r.data || []))
+    let cancelled = false
+    ordersApi.getAll().then(r => { if (!cancelled) setOrderList((r?.data || []).filter(o => ['booking', 'approved', 'draft'].includes(o.status))) })
+    calculatorProfiles.getAll().then(r => { if (!cancelled) setProfileList(r?.data || []) })
+    return () => { cancelled = true }
   }, [])
 
   // Seed processes from masters once loaded
   useEffect(() => {
-    if (processTypes?.length && !state.processes.length) {
-      setState(s => ({
+    if (!processTypes?.length) return
+    setState(s => {
+      if (s.processes.length) return s // already seeded — no-op
+      return {
         ...s,
-        processes: processTypes.filter(p => !p.is_optional).map(p => emptyProcessRow(p))
-      }))
-    }
+        processes: processTypes.filter(p => p && !p.is_optional).map(p => emptyProcessRow(p))
+      }
+    })
     // eslint-disable-next-line
   }, [processTypes])
 

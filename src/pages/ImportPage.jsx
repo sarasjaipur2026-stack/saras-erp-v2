@@ -5,7 +5,7 @@ import { Button, Modal, Input, Select, DataTable, Spinner } from '../components/
 import { supabase } from '../lib/supabase'
 import { Upload, FileText, Users, Package, Boxes, Palette, Truck, UserCheck, Calendar, Eye, AlertCircle } from 'lucide-react'
 import * as Papa from 'papaparse'
-import * as XLSX from 'xlsx'
+// XLSX is lazy-loaded on first use to avoid 360KB in the initial bundle
 
 const IMPORT_TYPES = [
   { id: 'customers', label: 'Customers', icon: Users, color: 'indigo' },
@@ -168,8 +168,9 @@ export default function ImportPage() {
         })
       } else if (file.name.endsWith('.xlsx')) {
         const reader = new FileReader()
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
           try {
+            const XLSX = await import('xlsx')
             const data = new Uint8Array(e.target.result)
             const workbook = XLSX.read(data, { type: 'array' })
             const sheetName = workbook.SheetNames[0]
