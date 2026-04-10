@@ -70,9 +70,27 @@ const BUSY_WIN_DEFAULTS = {
   },
 }
 
+// Sanitize a string value: trim, limit length, strip control chars
+const sanitizeString = (val, maxLen = 500) => {
+  if (typeof val !== 'string') return val
+  return val.trim().replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').slice(0, maxLen)
+}
+
 export default function ImportPage() {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const toast = useToast()
+
+  // Admin-only gate
+  if (!isAdmin) {
+    return (
+      <div className="max-w-md mx-auto py-16 px-4 text-center">
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8">
+          <h2 className="text-lg font-bold text-amber-900 mb-2">Admin Only</h2>
+          <p className="text-sm text-amber-700">Only administrators can import data. Contact your admin for access.</p>
+        </div>
+      </div>
+    )
+  }
 
   // Import flow state
   const [showUploadModal, setShowUploadModal] = useState(false)
@@ -106,7 +124,7 @@ export default function ImportPage() {
           .select('id', { count: 'exact', head: true })
 
         if (error) {
-          console.error(`Failed to fetch count for ${tableName}:`, error)
+          if (import.meta.env.DEV) console.error(`Failed to fetch count for ${tableName}:`, error)
           counts[tableName] = 0
         } else {
           counts[tableName] = count || 0
@@ -115,7 +133,7 @@ export default function ImportPage() {
 
       setRecordCounts(counts)
     } catch (err) {
-      console.error('Failed to fetch record counts:', err)
+      if (import.meta.env.DEV) console.error('Failed to fetch record counts:', err)
     }
   }
 
@@ -131,7 +149,7 @@ export default function ImportPage() {
       if (error) throw error
       setImportLogs(data || [])
     } catch (err) {
-      console.error('Failed to fetch import logs:', err)
+      if (import.meta.env.DEV) console.error('Failed to fetch import logs:', err)
     }
   }
 
@@ -205,7 +223,7 @@ export default function ImportPage() {
       setShowMapping(true)
     } catch (err) {
       toast.error('Failed to parse file: ' + err.message)
-      console.error(err)
+      if (import.meta.env.DEV) console.error(err)
     }
   }
 
@@ -269,7 +287,7 @@ export default function ImportPage() {
             if (dbCol === 'requires_advance' && typeof value === 'string') {
               value = value.toLowerCase() === 'true' || value === '1' || value === 'yes'
             }
-            mappedRow[dbCol] = value
+            mappedRow[dbCol] = typeof value === 'string' ? sanitizeString(value) : value
           }
         })
         return mappedRow
@@ -279,6 +297,13 @@ export default function ImportPage() {
       const cleanedRows = mappedRows.filter(row => {
         return Object.values(row).some(v => v !== '' && v !== null && v !== undefined)
       })
+
+      // Guard: max 1000 rows per import to prevent abuse
+      if (cleanedRows.length > 1000) {
+        toast.error('Too many rows (max 1000 per import). Split your file and try again.')
+        setIsImporting(false)
+        return
+      }
 
       if (cleanedRows.length === 0) {
         toast.error('No valid rows to import')
@@ -305,7 +330,7 @@ export default function ImportPage() {
           created_at: new Date().toISOString(),
         })
 
-      if (logError) console.error('Failed to create import log:', logError)
+      if (logError && import.meta.env.DEV) console.error('Failed to create import log:', logError)
 
       toast.success(`Successfully imported ${cleanedRows.length} ${selectedType}`)
       resetImportFlow()
@@ -313,7 +338,7 @@ export default function ImportPage() {
       fetchRecordCounts()
     } catch (err) {
       toast.error('Import failed: ' + err.message)
-      console.error(err)
+      if (import.meta.env.DEV) console.error(err)
     }
     setIsImporting(false)
   }

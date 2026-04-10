@@ -115,7 +115,7 @@ const OrdersPage = () => {
         setStatusPipeline(pipeline);
       } catch (error) {
         toast.error('Failed to load orders');
-        console.error('Error loading orders:', error);
+        if (import.meta.env.DEV) console.error('Error loading orders:', error);
       } finally {
         setLoading(false);
       }
@@ -189,7 +189,7 @@ const OrdersPage = () => {
       setOrdersList(data || []);
     } catch (error) {
       toast.error('Failed to update orders');
-      console.error('Error:', error);
+      if (import.meta.env.DEV) console.error('Error:', error);
     }
   };
 
@@ -225,7 +225,7 @@ const OrdersPage = () => {
       setOrdersList(data || []);
     } catch (error) {
       toast.error('Failed to delete order');
-      console.error('Error:', error);
+      if (import.meta.env.DEV) console.error('Error:', error);
     }
   };
 

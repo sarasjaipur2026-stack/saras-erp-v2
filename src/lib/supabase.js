@@ -69,8 +69,17 @@ if (typeof window !== 'undefined') {
 }
 
 // ─── Storage helpers ───────────────────────────────────────
+const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf']
+const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
+
 export const uploadPhoto = async (bucket, file, path) => {
-  const ext = file.name.split('.').pop()
+  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+    throw new Error(`File type "${file.type}" not allowed. Accepted: JPEG, PNG, WebP, GIF, PDF`)
+  }
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum: 5 MB`)
+  }
+  const ext = file.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '')
   const name = `${Date.now()}_${Math.random().toString(36).slice(2, 9)}.${ext}`
   const filePath = `${path}/${name}`
   const { error } = await supabase.storage.from(bucket).upload(filePath, file)

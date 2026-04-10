@@ -24,6 +24,7 @@ export default function SimpleMasterPage({ title, subtitle, api, fields, default
   const [form, setForm] = useState(defaults)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const loadData = async () => {
     setLoading(true)
@@ -68,11 +69,12 @@ export default function SimpleMasterPage({ title, subtitle, api, fields, default
     onChanged?.()
   }
 
-  const handleDelete = async (row) => {
-    if (!confirm(`Delete "${row.name || row.code || row.id}"?`)) return
-    const { error } = await api.delete(row.id)
-    if (error) { toast.error(error.message || 'Delete failed'); return }
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    const { error } = await api.delete(deleteTarget.id)
+    if (error) { toast.error(error.message || 'Delete failed'); setDeleteTarget(null); return }
     toast.success('Deleted')
+    setDeleteTarget(null)
     loadData()
     onChanged?.()
   }
@@ -118,7 +120,7 @@ export default function SimpleMasterPage({ title, subtitle, api, fields, default
                 <td className="px-4 py-3 text-right">
                   <div className="inline-flex gap-1">
                     <button onClick={() => openEdit(row)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"><Pencil size={14} /></button>
-                    <button onClick={() => handleDelete(row)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                    <button onClick={() => setDeleteTarget(row)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
                   </div>
                 </td>
               </tr>
@@ -129,6 +131,21 @@ export default function SimpleMasterPage({ title, subtitle, api, fields, default
           </tbody>
         </table>
       </div>
+
+      {/* Delete confirmation */}
+      <Modal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title="Confirm Delete"
+        footer={<>
+          <Button variant="secondary" size="sm" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+          <Button variant="danger" size="sm" onClick={confirmDelete}>Delete</Button>
+        </>}
+      >
+        <p className="text-sm text-slate-600">
+          Are you sure you want to delete <strong>"{deleteTarget?.name || deleteTarget?.code || deleteTarget?.id}"</strong>? This action cannot be undone.
+        </p>
+      </Modal>
 
       <Modal
         isOpen={showModal}

@@ -66,7 +66,7 @@ export default function OrderDetail() {
       setOrderAttachments(attachmentData || []);
     } catch (error) {
       toast.error('Failed to load order details');
-      console.error(error);
+      if (import.meta.env.DEV) console.error(error);
     } finally {
       setLoading(false);
     }

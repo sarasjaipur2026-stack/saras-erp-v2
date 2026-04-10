@@ -35,7 +35,7 @@ function createTable(table, opts = {}) {
     list: async (userId) => safe(() => {
       let q = supabase.from(table).select(select)
       if (ownerFilter && userId) q = q.eq('user_id', userId)
-      return q.order(orderBy, { ascending: orderAsc })
+      return q.order(orderBy, { ascending: orderAsc }).limit(1000)
     }),
 
     getAll: async () => safe(() =>
@@ -168,6 +168,7 @@ export const stockMovements = {
       .select('*, products(name), materials(name), warehouses(name)')
       .eq(kind === 'product' ? 'product_id' : 'material_id', id)
       .order('created_at', { ascending: false })
+      .limit(500)
   ),
   computeBalances: async () => {
     // Aggregate all stock movements into running balances per item × warehouse.
@@ -230,6 +231,7 @@ export const purchaseOrders = {
       .from('purchase_orders')
       .select('id, po_number, po_date, expected_date, status, subtotal, grand_total, supplier_id, created_at, suppliers(name, firm)')
       .order('po_date', { ascending: false })
+      .limit(1000)
   ),
 
   createWithItems: async ({ supplier_id, po_date, expected_date, notes, items }) => {
@@ -304,6 +306,7 @@ export const goodsReceipts = {
       .from('goods_receipts')
       .select('id, grn_number, received_date, status, supplier_id, po_id, created_at, suppliers(name, firm), purchase_orders(po_number)')
       .order('received_date', { ascending: false })
+      .limit(1000)
   ),
 
   listByPo: async (poId) => safe(() =>
@@ -768,6 +771,7 @@ export const productionPlans = {
       .from('production_plans')
       .select('id, status, planned_qty, completed_qty, start_date, end_date, machine_id, material_id, order_id, created_at, orders(id, order_number, customers(firm_name)), machines(id, name, code), materials(id, name)')
       .order('created_at', { ascending: false })
+      .limit(1000)
   ),
   listByOrder: async (orderId) => safe(() =>
     supabase.from('production_plans').select('*, machines(name), materials(name)').eq('order_id', orderId).order('created_at', { ascending: false })
@@ -802,7 +806,7 @@ export const productionPlans = {
       } catch (e) {
         // Do not block the UI if stock-in write fails — surface in console.
         // eslint-disable-next-line no-console
-        console.error('[productionPlans.update] stock-in hook failed', e)
+        if (import.meta.env.DEV) console.error('[productionPlans.update] stock-in hook failed', e)
       }
     }
     return result
@@ -1006,7 +1010,7 @@ export const notifications = {
       }
       if (!userId) {
         // eslint-disable-next-line no-console
-        console.warn('[notifications.emit] skipped — no authenticated user')
+        if (import.meta.env.DEV) console.warn('[notifications.emit] skipped — no authenticated user')
         return { data: null, error: new Error('no authenticated user') }
       }
       const row = {
@@ -1019,19 +1023,16 @@ export const notifications = {
         staff_id: n.staff_id || null,
       }
       const { data, error } = await supabase.from('notifications').insert([row]).select().single()
-      if (error) {
-        // eslint-disable-next-line no-console
+      if (error && import.meta.env.DEV) {
         console.error('[notifications.emit] insert failed', error)
       }
       // Fire WhatsApp webhook in the background — do not await the result.
       fireWebhook(row).catch(err => {
-        // eslint-disable-next-line no-console
-        console.error('[notifications.emit] webhook failed', err)
+        if (import.meta.env.DEV) console.error('[notifications.emit] webhook failed', err)
       })
       return { data, error }
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('[notifications.emit] unexpected', err)
+      if (import.meta.env.DEV) console.error('[notifications.emit] unexpected', err)
       return { data: null, error: err }
     }
   },
@@ -1102,6 +1103,7 @@ export const attachments = {
       .eq('entity_type', entityType)
       .eq('entity_id', entityId)
       .order('created_at', { ascending: false })
+      .limit(100)
   ),
 
   upload: async (entityType, entityId, file, uploadedBy) => {
@@ -1211,6 +1213,7 @@ export const payments = {
       .select('*')
       .eq('order_id', orderId)
       .order('payment_date', { ascending: false })
+      .limit(200)
   ),
 
   getOrderBalance: async (orderId) => {
@@ -1271,6 +1274,7 @@ export const jobworkJobs = {
       .from('jobwork_jobs')
       .select('id, job_number, direction, status, start_date, due_date, rate_per_unit, rate_unit, customer_id, supplier_id, order_id, created_at, customers(firm_name), suppliers(name, firm)')
       .order('start_date', { ascending: false })
+      .limit(1000)
   ),
 
   createWithItems: async ({ direction, customer_id, supplier_id, order_id, start_date, due_date, rate_per_unit, rate_unit, notes, items }) => {
@@ -1338,7 +1342,7 @@ export const jobworkJobs = {
             }
           } catch (sErr) {
             // eslint-disable-next-line no-console
-            console.error('[jobworkJobs.createWithItems] stock hook failed', sErr)
+            if (import.meta.env.DEV) console.error('[jobworkJobs.createWithItems] stock hook failed', sErr)
           }
         }
       }
@@ -1382,7 +1386,7 @@ export const jobworkJobs = {
         }])
       } catch (sErr) {
         // eslint-disable-next-line no-console
-        console.error('[jobworkJobs.addItem] stock hook failed', sErr)
+        if (import.meta.env.DEV) console.error('[jobworkJobs.addItem] stock hook failed', sErr)
       }
 
       return { data, error: null }
@@ -1415,6 +1419,7 @@ export const qualityInspections = {
       .from('quality_inspections')
       .select('id, qi_number, source_type, source_id, inspector, sample_size, overall_status, inspected_at, created_at')
       .order('inspected_at', { ascending: false })
+      .limit(1000)
   ),
 
   createInspection: async ({ source_type, source_id, inspector, sample_size, notes }) => {
@@ -1486,7 +1491,7 @@ export const qualityInspections = {
         }
       } catch (gErr) {
         // eslint-disable-next-line no-console
-        console.error('[qualityInspections.submitResults] GRN gating failed', gErr)
+        if (import.meta.env.DEV) console.error('[qualityInspections.submitResults] GRN gating failed', gErr)
       }
 
       return { data, error: null }

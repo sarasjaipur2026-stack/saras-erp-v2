@@ -94,7 +94,7 @@ export default function SettingsPage() {
       }
     } catch (err) {
       toast.error('Failed to load settings')
-      console.error(err)
+      if (import.meta.env.DEV) console.error(err)
     }
     setIsLoading(false)
   }
@@ -114,7 +114,7 @@ export default function SettingsPage() {
       toast.success('Logo uploaded')
     } catch (err) {
       toast.error('Failed to upload logo')
-      console.error(err)
+      if (import.meta.env.DEV) console.error(err)
     }
     setIsUploadingLogo(false)
   }
@@ -153,7 +153,7 @@ export default function SettingsPage() {
       toast.success('Settings saved')
     } catch (err) {
       toast.error('Failed to save settings')
-      console.error(err)
+      if (import.meta.env.DEV) console.error(err)
     }
     setIsSaving(false)
   }
