@@ -132,7 +132,8 @@ async function fireWebhook(notification) {
         sent_at: new Date().toISOString(),
       }),
     })
-  } catch {
-    // Silent — webhook failures should never break business flows.
+  } catch (err) {
+    // Webhook failures must never break business flows, but log for debugging
+    console.warn('[fireWebhook] failed silently:', err?.message || err)
   }
 }

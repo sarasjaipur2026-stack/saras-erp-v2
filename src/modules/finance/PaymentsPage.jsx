@@ -43,15 +43,24 @@ export default function PaymentsPage() {
   useEffect(() => { load() }, [])
 
   const openCreate = async () => {
-    const { data } = await ordersApi.getAll()
-    setOrderOptions((data || []).filter(o => (o.balance_due || 0) > 0))
-    setForm(f => ({ ...f, order_id: '', amount: 0, reference_number: '', notes: '' }))
-    setShowCreate(true)
+    try {
+      const { data, error } = await ordersApi.getAll()
+      if (error) { toast.error('Failed to load orders'); return }
+      setOrderOptions((data || []).filter(o => (o.balance_due || 0) > 0))
+      setForm(f => ({ ...f, order_id: '', amount: 0, reference_number: '', notes: '' }))
+      setShowCreate(true)
+    } catch {
+      toast.error('Failed to load orders — check connection')
+    }
   }
+
+  const [saving, setSaving] = useState(false)
 
   const record = async () => {
     if (!form.order_id) { toast.error('Select an order'); return }
     if (!form.amount || form.amount <= 0) { toast.error('Enter a valid amount'); return }
+    if (saving) return
+    setSaving(true)
     try {
       const { error } = await payments.record(form)
       if (error) { toast.error(error.message || 'Save failed'); return }
@@ -60,6 +69,8 @@ export default function PaymentsPage() {
       load()
     } catch (err) {
       toast.error('Payment failed — check connection')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -91,6 +102,13 @@ export default function PaymentsPage() {
         </div>
         <Button onClick={openCreate}><Plus size={15} /> Record Payment</Button>
       </div>
+
+      {loadError && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-sm text-red-700">
+          <strong>Failed to load:</strong> {loadError}
+          <button onClick={load} className="ml-auto text-red-600 hover:text-red-800 font-semibold text-[12px]">Retry</button>
+        </div>
+      )}
 
       <Input icon={Search} placeholder="Search order / customer / reference…" value={search} onChange={e => setSearch(e.target.value)} className="mb-4" />
 
@@ -126,7 +144,7 @@ export default function PaymentsPage() {
       <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="Record Payment" size="lg"
         footer={<>
           <Button variant="secondary" size="sm" onClick={() => setShowCreate(false)}>Cancel</Button>
-          <Button size="sm" onClick={record}>Record</Button>
+          <Button size="sm" onClick={record} disabled={saving}>{saving ? 'Recording…' : 'Record'}</Button>
         </>}
       >
         <div className="space-y-3">

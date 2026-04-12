@@ -55,29 +55,41 @@ export const payments = {
 
   record: async ({ order_id, amount, payment_mode, payment_date, reference_number, bank_id, notes }) => {
     try {
+      // Validate amount
+      const numAmount = Number(amount)
+      if (!numAmount || numAmount <= 0) return { data: null, error: new Error('Amount must be greater than zero') }
+
+      // Re-read order state immediately before inserting to minimise race window
       const { data: order, error: oErr } = await supabase
         .from('orders')
-        .select('grand_total, advance_paid, balance_due')
+        .select('grand_total, advance_paid, balance_due, status')
         .eq('id', order_id)
         .single()
       if (oErr) return { data: null, error: oErr }
 
+      // Guard: prevent overpayment
+      if (numAmount > Number(order.balance_due || 0) + 0.01) {
+        return { data: null, error: new Error(`Amount ₹${numAmount} exceeds balance due ₹${order.balance_due}`) }
+      }
+
       const { data: inserted, error: pErr } = await supabase.from('payments').insert([{
-        order_id, amount, payment_mode, payment_date, reference_number, bank_id, notes,
+        order_id, amount: numAmount, payment_mode, payment_date, reference_number, bank_id, notes,
       }]).select().single()
       if (pErr) return { data: null, error: pErr }
 
+      // Recalculate from ALL payments (source-of-truth) to stay consistent even under concurrency
       const { data: allPayments } = await supabase.from('payments').select('amount').eq('order_id', order_id).limit(500)
       const totalPaid = (allPayments || []).reduce((s, p) => s + Number(p.amount || 0), 0)
-      const newBalance = Number(order.grand_total || 0) - totalPaid
+      const newBalance = Math.max(0, Number(order.grand_total || 0) - totalPaid)
       const newStatus = newBalance <= 0 ? 'completed' : undefined
       const updates = { advance_paid: totalPaid, balance_due: newBalance }
       if (newStatus) updates.status = newStatus
-      await supabase.from('orders').update(updates).eq('id', order_id)
+      const { error: orderUpdateErr } = await supabase.from('orders').update(updates).eq('id', order_id)
+      if (orderUpdateErr && import.meta.env.DEV) console.error('[payments.record] order update failed', orderUpdateErr)
 
       const { data: inv } = await supabase.from('invoices').select('id, grand_total').eq('order_id', order_id).maybeSingle()
       if (inv) {
-        const invBalance = Number(inv.grand_total || 0) - totalPaid
+        const invBalance = Math.max(0, Number(inv.grand_total || 0) - totalPaid)
         const invStatus = invBalance <= 0 ? 'paid' : totalPaid > 0 ? 'partially_paid' : 'issued'
         await supabase.from('invoices').update({
           amount_paid: totalPaid,
@@ -94,13 +106,13 @@ export const payments = {
           .single()
         notifications.emit({
           type: 'payment_received',
-          title: `Payment received · ₹${Number(amount).toLocaleString('en-IN')}`,
+          title: `Payment received · ₹${numAmount.toLocaleString('en-IN')}`,
           message: `${orderRow?.customers?.firm_name || 'Customer'} · ${orderRow?.order_number || ''} · balance ₹${newBalance.toLocaleString('en-IN')}`,
           entity_type: 'order',
           entity_id: order_id,
         }).catch(() => {})
       } catch {
-        // ignore
+        // Notification failures must never break the payment flow
       }
 
       return { data: inserted, error: null }

@@ -146,6 +146,10 @@ export const orders = {
     }
   },
 
+  checkLinked: async (orderId, table) => safe(() =>
+    supabase.from(table).select('id').eq('order_id', orderId).limit(10)
+  ),
+
   convertSampleToFull: async (id) => {
     try {
       const { data: sampleOrder, error: getErr } = await orders.get(id)

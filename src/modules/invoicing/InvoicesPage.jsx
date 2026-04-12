@@ -41,10 +41,15 @@ export default function InvoicesPage() {
   useEffect(() => { load() }, [])
 
   const openCreate = async () => {
-    const { data } = await ordersApi.getAll()
-    setAvailableOrders((data || []).filter(o => ['dispatch', 'completed', 'approved', 'production'].includes(o.status)))
-    setPicked('')
-    setShowCreate(true)
+    try {
+      const { data, error } = await ordersApi.getAll()
+      if (error) { toast.error('Failed to load orders'); return }
+      setAvailableOrders((data || []).filter(o => ['dispatch', 'completed', 'approved', 'production'].includes(o.status)))
+      setPicked('')
+      setShowCreate(true)
+    } catch {
+      toast.error('Failed to load orders')
+    }
   }
 
   const create = async () => {
@@ -106,6 +111,13 @@ export default function InvoicesPage() {
           <div className="text-xl font-mono font-bold text-amber-700 mt-1">{fmtMoney(totals.outstanding)}</div>
         </div>
       </div>
+
+      {loadError && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-sm text-red-700">
+          <strong>Failed to load:</strong> {loadError}
+          <button onClick={load} className="ml-auto text-red-600 hover:text-red-800 font-semibold text-[12px]">Retry</button>
+        </div>
+      )}
 
       <Input icon={Search} placeholder="Search invoice / order / customer…" value={search} onChange={e => setSearch(e.target.value)} className="mb-4" />
 

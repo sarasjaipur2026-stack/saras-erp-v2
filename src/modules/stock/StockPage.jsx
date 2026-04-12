@@ -124,6 +124,13 @@ export default function StockPage() {
         </div>
       </div>
 
+      {loadError && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-sm text-red-700">
+          <strong>Failed to load:</strong> {loadError}
+          <button onClick={load} className="ml-auto text-red-600 hover:text-red-800 font-semibold text-[12px]">Retry</button>
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-3 mb-5">
         <div className="bg-white rounded-xl border border-slate-200/80 p-4">
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1"><TrendingUp size={11} className="text-emerald-500" /> Total In</div>

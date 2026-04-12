@@ -13,6 +13,7 @@ export default function DispatchPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [availableOrders, setAvailableOrders] = useState([])
   const [form, setForm] = useState({ order_id: '', vehicle_number: '', driver_name: '', delivery_note: '' })
+  const [saving, setSaving] = useState(false)
   const [loadError, setLoadError] = useState(null)
 
   const load = async () => {
@@ -31,19 +32,32 @@ export default function DispatchPage() {
   useEffect(() => { load() }, [])
 
   const openCreate = async () => {
-    const { data } = await ordersApi.getAll()
-    setAvailableOrders((data || []).filter(o => ['approved', 'production', 'qc', 'booking'].includes(o.status)))
-    setForm({ order_id: '', vehicle_number: '', driver_name: '', delivery_note: '' })
-    setShowCreate(true)
+    try {
+      const { data, error } = await ordersApi.getAll()
+      if (error) { toast.error('Failed to load orders'); return }
+      setAvailableOrders((data || []).filter(o => ['approved', 'production', 'qc', 'booking'].includes(o.status)))
+      setForm({ order_id: '', vehicle_number: '', driver_name: '', delivery_note: '' })
+      setShowCreate(true)
+    } catch {
+      toast.error('Failed to load orders')
+    }
   }
 
   const create = async () => {
     if (!form.order_id) { toast.error('Select an order'); return }
-    const { data, error } = await deliveries.createFromOrder(form)
-    if (error) { toast.error(error.message || 'Dispatch failed'); return }
-    toast.success(`Dispatched — challan ${data.challan_number}`)
-    setShowCreate(false)
-    load()
+    if (saving) return
+    setSaving(true)
+    try {
+      const { data, error } = await deliveries.createFromOrder(form)
+      if (error) { toast.error(error.message || 'Dispatch failed'); return }
+      toast.success(`Dispatched — challan ${data.challan_number}`)
+      setShowCreate(false)
+      load()
+    } catch {
+      toast.error('Dispatch failed — check connection')
+    } finally {
+      setSaving(false)
+    }
   }
 
   // Group rows by challan_number for readability
@@ -69,6 +83,13 @@ export default function DispatchPage() {
         </div>
         <Button onClick={openCreate}><Plus size={15} /> New Dispatch</Button>
       </div>
+
+      {loadError && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-sm text-red-700">
+          <strong>Failed to load:</strong> {loadError}
+          <button onClick={load} className="ml-auto text-red-600 hover:text-red-800 font-semibold text-[12px]">Retry</button>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden">
         <table className="w-full text-sm">
@@ -110,7 +131,7 @@ export default function DispatchPage() {
         size="lg"
         footer={<>
           <Button variant="secondary" size="sm" onClick={() => setShowCreate(false)}>Cancel</Button>
-          <Button size="sm" onClick={create} disabled={!form.order_id}>Create Challan</Button>
+          <Button size="sm" onClick={create} disabled={!form.order_id || saving}>{saving ? 'Creating…' : 'Create Challan'}</Button>
         </>}
       >
         <div className="space-y-4">

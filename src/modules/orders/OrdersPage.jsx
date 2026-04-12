@@ -188,22 +188,30 @@ const OrdersPage = () => {
   }, [ordersList]);
 
   // Handle bulk actions
-  const handleBulkStatusChange = async () => {
-    if (!bulkNewStatus || selectedOrders.size === 0) return;
+  const [bulkUpdating, setBulkUpdating] = useState(false);
 
+  const handleBulkStatusChange = async () => {
+    if (!bulkNewStatus || selectedOrders.size === 0 || bulkUpdating) return;
+
+    setBulkUpdating(true);
     try {
-      // Call API to update multiple orders
       const orderIds = Array.from(selectedOrders);
-      await Promise.all(orderIds.map(id => ordersDb.updateStatus(id, bulkNewStatus)));
-      toast.success(`Updated ${orderIds.length} orders`);
+      const results = await Promise.allSettled(orderIds.map(id => ordersDb.updateStatus(id, bulkNewStatus)));
+      const failed = results.filter(r => r.status === 'rejected' || r.value?.error);
+      if (failed.length > 0) {
+        toast.error(`${failed.length} of ${orderIds.length} updates failed`);
+      } else {
+        toast.success(`Updated ${orderIds.length} orders to ${bulkNewStatus}`);
+      }
       setSelectedOrders(new Set());
       setBulkStatusModal(false);
-      // Reload orders
       const { data } = await ordersDb.list(user.id);
       setOrdersList(data || []);
     } catch (error) {
       toast.error('Failed to update orders');
       if (import.meta.env.DEV) console.error('Error:', error);
+    } finally {
+      setBulkUpdating(false);
     }
   };
 
@@ -227,19 +235,49 @@ const OrdersPage = () => {
     toast.success('Export started');
   };
 
-  const handleDeleteOrder = async () => {
-    if (!deleteTarget) return;
+  const [deleting, setDeleting] = useState(false);
+  const [deleteWarnings, setDeleteWarnings] = useState([]);
 
+  const confirmDelete = async (orderId) => {
+    setDeleteTarget(orderId);
+    setDeleteWarnings([]);
+    setShowDeleteModal(true);
+    // Check for linked records
     try {
-      await ordersDb.delete(deleteTarget);
+      const warnings = [];
+      const { data: prods } = await ordersDb.checkLinked?.(orderId, 'production_plans') ?? {};
+      if (prods?.length) warnings.push(`${prods.length} production job(s)`);
+      const { data: delivs } = await ordersDb.checkLinked?.(orderId, 'deliveries') ?? {};
+      if (delivs?.length) warnings.push(`${delivs.length} dispatch(es)`);
+      const { data: invs } = await ordersDb.checkLinked?.(orderId, 'invoices') ?? {};
+      if (invs?.length) warnings.push(`${invs.length} invoice(s)`);
+      const { data: pmts } = await ordersDb.checkLinked?.(orderId, 'payments') ?? {};
+      if (pmts?.length) warnings.push(`${pmts.length} payment(s)`);
+      setDeleteWarnings(warnings);
+    } catch {
+      // If check fails, still allow delete but with generic warning
+      setDeleteWarnings(['Could not verify linked records — proceed with caution']);
+    }
+  };
+
+  const handleDeleteOrder = async () => {
+    if (!deleteTarget || deleting) return;
+
+    setDeleting(true);
+    try {
+      const { error } = await ordersDb.delete(deleteTarget);
+      if (error) throw error;
       toast.success('Order deleted');
       setShowDeleteModal(false);
       setDeleteTarget(null);
+      setDeleteWarnings([]);
       const { data } = await ordersDb.list(user.id);
       setOrdersList(data || []);
     } catch (error) {
-      toast.error('Failed to delete order');
+      toast.error(error?.message || 'Failed to delete order');
       if (import.meta.env.DEV) console.error('Error:', error);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -455,8 +493,7 @@ const OrdersPage = () => {
               </button>
               <button
                 onClick={() => {
-                  setDeleteTarget(row.id)
-                  setShowDeleteModal(true)
+                  confirmDelete(row.id)
                   setOpenMenuId(null)
                 }}
                 className="w-full text-left px-3 py-2 hover:bg-red-50 text-red-600 flex items-center gap-2 text-[13px] border-t border-slate-100"
@@ -631,8 +668,8 @@ const OrdersPage = () => {
             <Button variant="secondary" size="sm" onClick={() => setShowDeleteModal(false)}>
               Cancel
             </Button>
-            <Button variant="danger" size="sm" onClick={handleDeleteOrder}>
-              Delete
+            <Button variant="danger" size="sm" onClick={handleDeleteOrder} disabled={deleting}>
+              {deleting ? 'Deleting…' : 'Delete'}
             </Button>
           </>
         }
@@ -640,6 +677,15 @@ const OrdersPage = () => {
         <p className="text-sm text-slate-600">
           Are you sure you want to delete this order? This action cannot be undone.
         </p>
+        {deleteWarnings.length > 0 && (
+          <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+            <p className="text-sm font-semibold text-amber-800 mb-1">Warning — linked records found:</p>
+            <ul className="text-sm text-amber-700 space-y-0.5">
+              {deleteWarnings.map((w, i) => <li key={i}>• {w}</li>)}
+            </ul>
+            <p className="text-xs text-amber-600 mt-2">Deleting may cause orphaned data. Consider cancelling the order instead.</p>
+          </div>
+        )}
       </Modal>
 
       {/* Bulk Status Change Modal */}

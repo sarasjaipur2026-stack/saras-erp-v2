@@ -48,10 +48,15 @@ export default function ProductionPage() {
   useEffect(() => { loadData() }, [])
 
   const openCreate = async () => {
-    const { data } = await ordersApi.getAll()
-    setAvailableOrders((data || []).filter(o => ['approved', 'booking'].includes(o.status)))
-    setPickedOrder('')
-    setShowCreate(true)
+    try {
+      const { data, error } = await ordersApi.getAll()
+      if (error) { toast.error('Failed to load orders'); return }
+      setAvailableOrders((data || []).filter(o => ['approved', 'booking'].includes(o.status)))
+      setPickedOrder('')
+      setShowCreate(true)
+    } catch {
+      toast.error('Failed to load orders')
+    }
   }
 
   const createFromOrder = async () => {
@@ -130,6 +135,14 @@ export default function ProductionPage() {
           </button>
         ))}
       </div>
+
+      {/* Error banner */}
+      {loadError && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-sm text-red-700">
+          <span className="font-semibold">Failed to load:</span> {loadError}
+          <button onClick={loadData} className="ml-auto text-red-600 hover:text-red-800 font-semibold text-[12px]">Retry</button>
+        </div>
+      )}
 
       {/* Search */}
       <div className="mb-4">
@@ -244,7 +257,7 @@ export default function ProductionPage() {
           const { error } = await productionPlans.update(detailJob.id, p)
           if (error) return toast.error('Save failed')
           toast.success('Saved')
-          setDetailJob({ ...detailJob, ...p })
+          setDetailJob(prev => prev ? { ...prev, ...p } : null)
           loadData()
         }} />}
       </Modal>
@@ -255,6 +268,10 @@ export default function ProductionPage() {
 function ProductionDetailBody({ job, onPatch }) {
   const [completed, setCompleted] = useState(job.completed_qty || 0)
   const [notes, setNotes] = useState(job.notes || '')
+
+  // Sync state when job prop changes (e.g. after status update or re-open)
+  useEffect(() => { setCompleted(job.completed_qty || 0) }, [job.completed_qty])
+  useEffect(() => { setNotes(job.notes || '') }, [job.notes])
   const pct = job.planned_qty > 0 ? Math.min(100, (completed / job.planned_qty) * 100) : 0
 
   return (

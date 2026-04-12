@@ -9,7 +9,12 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   const fetchProfile = useCallback(async (userId) => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single()
+    if (error) {
+      console.warn('[AuthContext] fetchProfile failed:', error.message)
+      setProfile(null)
+      return null
+    }
     setProfile(data)
     return data
   }, [])

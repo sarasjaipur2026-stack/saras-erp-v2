@@ -350,12 +350,19 @@ export default function OrderForm() {
         toast.success('Order created');
       }
 
+      // Insert line items and charges. If either fails, revert order to draft
+      // so partial data is obvious and recoverable.
       const linesToCreate = (formData.line_items || []).filter((item) => item.id?.toString().startsWith('temp_'));
       if (linesToCreate.length > 0) {
         const { error } = await lineItems.createMany(
           linesToCreate.map((item) => ({ order_id: finalOrderId, ...item, id: undefined }))
         );
-        if (error) throw error;
+        if (error) {
+          await orders.update(finalOrderId, { status: 'draft' });
+          toast.error('Order saved but line items failed — saved as draft. Please edit and retry.');
+          navigate(`/orders/${finalOrderId}/edit`);
+          return;
+        }
       }
 
       const chargesToCreate = (formData.charges || []).filter((charge) => charge.id?.toString().startsWith('temp_'));
@@ -363,7 +370,9 @@ export default function OrderForm() {
         const { error } = await orderCharges.createMany(
           chargesToCreate.map((charge) => ({ order_id: finalOrderId, ...charge, id: undefined }))
         );
-        if (error) throw error;
+        if (error) {
+          toast.error('Order & items saved but charges failed — please re-add charges');
+        }
       }
 
       navigate('/orders');
