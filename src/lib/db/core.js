@@ -1,19 +1,19 @@
-import { supabase, withRetry } from '../supabase'
+import { supabase } from '../supabase'
 
 // ─── GENERIC CRUD FACTORY ──────────────────────────────────
 // Creates list/get/create/update/delete for ANY Supabase table.
 // Usage: const customers = createTable('customers', { orderBy: 'created_at' })
 
-const REQUEST_TIMEOUT_MS = 15000
+const REQUEST_TIMEOUT_MS = 30000
 
 export const safe = async (fn) => {
   let timeoutId
   try {
     const result = await Promise.race([
-      withRetry(fn),
+      fn(),
       new Promise((_, reject) => {
         timeoutId = setTimeout(
-          () => reject(new Error('Request timed out after 15s — check your connection or Supabase project status')),
+          () => reject(new Error('Request timed out after 30s — check your connection or Supabase project status')),
           REQUEST_TIMEOUT_MS,
         )
       }),
