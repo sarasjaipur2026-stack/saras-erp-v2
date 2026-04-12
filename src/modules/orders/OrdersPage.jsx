@@ -126,7 +126,7 @@ const OrdersPage = () => {
     if (user?.id) {
       loadOrders();
     }
-  }, [user?.id, toast]);
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Derived: filtered orders (computed, not stored in state)
   const filteredOrders = useMemo(() => {
