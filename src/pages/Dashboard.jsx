@@ -8,11 +8,30 @@ import {
   Clock, Plus, ArrowRight, TrendingUp
 } from 'lucide-react'
 
+// ─── Stale-while-revalidate for dashboard stats ──────────
+const DASH_CACHE_KEY = 'saras_dash_v1'
+const DASH_CACHE_TTL = 3 * 60 * 1000 // 3 min
+
+function readDashCache() {
+  try {
+    const raw = sessionStorage.getItem(DASH_CACHE_KEY)
+    if (!raw) return null
+    const { ts, data } = JSON.parse(raw)
+    if (Date.now() - ts > DASH_CACHE_TTL) return null
+    return data
+  } catch { return null }
+}
+
+function writeDashCache(data) {
+  try { sessionStorage.setItem(DASH_CACHE_KEY, JSON.stringify({ ts: Date.now(), data })) } catch {}
+}
+
 export default function Dashboard() {
   const { profile } = useAuth()
   const navigate = useNavigate()
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const cached = readDashCache()
+  const [data, setData] = useState(cached)
+  const [loading, setLoading] = useState(!cached)
   const [loadError, setLoadError] = useState(null)
 
   const loadDashboard = useCallback(async (showSpinner = true) => {
@@ -21,6 +40,7 @@ export default function Dashboard() {
       setLoadError(null)
       const d = await stats.getDashboard()
       setData(d)
+      writeDashCache(d)
     } catch (err) {
       setLoadError(err?.message || 'Failed to load dashboard')
     } finally {
@@ -28,7 +48,14 @@ export default function Dashboard() {
     }
   }, [])
 
-  useEffect(() => { loadDashboard() }, [loadDashboard])
+  useEffect(() => {
+    if (cached) {
+      // Show cached data instantly, revalidate in background
+      loadDashboard(false)
+    } else {
+      loadDashboard()
+    }
+  }, [loadDashboard]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Re-fetch silently when tab regains focus after 5+ min idle
   useEffect(() => {

@@ -9,6 +9,8 @@ export default defineConfig({
   },
   build: {
     sourcemap: false,
+    target: 'es2022',
+    cssMinify: 'lightningcss',
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -16,8 +18,13 @@ export default defineConfig({
           if (id.includes('node_modules/react-router')) return 'vendor-router'
           if (id.includes('node_modules/@supabase')) return 'vendor-supabase'
           if (id.includes('node_modules/lucide-react')) return 'vendor-icons'
+          if (id.includes('node_modules/xlsx')) return 'xlsx'
         },
       },
     },
+  },
+  // Faster dev server startup — exclude heavy deps from pre-bundling scan
+  optimizeDeps: {
+    exclude: ['xlsx'],
   },
 })

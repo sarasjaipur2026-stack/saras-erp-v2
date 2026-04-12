@@ -9,73 +9,98 @@ const whenIdle = (fn, timeout = 100) =>
     ? requestIdleCallback(fn, { timeout })
     : setTimeout(fn, timeout)
 
+// ─── sessionStorage cache for master data ─────────────────
+const CACHE_KEY = 'saras_masters_v2'
+const CACHE_TTL = 10 * 60 * 1000 // 10 minutes
+
+function readCache() {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY)
+    if (!raw) return null
+    const { ts, data } = JSON.parse(raw)
+    if (Date.now() - ts > CACHE_TTL) {
+      sessionStorage.removeItem(CACHE_KEY)
+      return null
+    }
+    return data
+  } catch {
+    return null
+  }
+}
+
+function writeCache(data) {
+  try {
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data }))
+  } catch {
+    // sessionStorage full or unavailable — ignore
+  }
+}
+
+// ─── Master data keys & db mappings ───────────────────────
+const CRITICAL_KEYS = [
+  'products', 'materials', 'machines', 'colors',
+  'orderTypes', 'paymentTerms', 'chargeTypes', 'customers',
+  'brokers', 'currencies',
+]
+const CRITICAL_FNS = [
+  db.products, db.materials, db.machines, db.colors,
+  db.orderTypes, db.paymentTerms, db.chargeTypes, db.customers,
+  db.brokers, db.currencies,
+]
+
+const DEFERRED_KEYS = [
+  'suppliers', 'warehouses', 'banks', 'staff',
+  'hsnCodes', 'units', 'machineTypes', 'productTypes',
+  'yarnTypes', 'chaalTypes', 'processTypes',
+  'operators', 'packagingTypes', 'transports', 'qualityParameters',
+]
+const DEFERRED_FNS = [
+  db.suppliers, db.warehouses, db.banks, db.staff,
+  db.hsnCodes, db.units, db.machineTypes, db.productTypes,
+  db.yarnTypes, db.chaalTypes, db.processTypes,
+  db.operators, db.packagingTypes, db.transports, db.qualityParameters,
+]
+
+const EMPTY_MASTERS = Object.fromEntries(
+  [...CRITICAL_KEYS, ...DEFERRED_KEYS].map(k => [k, []])
+)
+
 export function AppProvider({ children }) {
   // Single state object for all masters — one setState call = one re-render
-  const [masters, setMasters] = useState({
-    products: [], materials: [], machines: [], colors: [],
-    suppliers: [], brokers: [], chargeTypes: [], orderTypes: [],
-    paymentTerms: [], warehouses: [], banks: [], staff: [], currencies: [],
-    customers: [], hsnCodes: [], units: [], machineTypes: [], productTypes: [],
-    yarnTypes: [], chaalTypes: [], processTypes: [], operators: [],
-    packagingTypes: [], transports: [], qualityParameters: [],
+  const [masters, setMasters] = useState(() => {
+    // Hydrate from cache on first render — zero network wait
+    const cached = readCache()
+    return cached || { ...EMPTY_MASTERS }
   })
-  const [loading, setLoading] = useState(false)
-  const loaded = useRef(false)
+  const [loading, setLoading] = useState(() => !readCache())
+  const loaded = useRef(!!readCache())
 
   // Phase 1: Core masters needed by order forms and most pages
   const loadCritical = useCallback(async () => {
-    const results = await Promise.all([
-      db.products.getAll(),
-      db.materials.getAll(),
-      db.machines.getAll(),
-      db.colors.getAll(),
-      db.orderTypes.getAll(),
-      db.paymentTerms.getAll(),
-      db.chargeTypes.getAll(),
-      db.customers.getAll(),
-      db.brokers.getAll(),
-      db.currencies.getAll(),
-    ])
-    const keys = [
-      'products', 'materials', 'machines', 'colors',
-      'orderTypes', 'paymentTerms', 'chargeTypes', 'customers',
-      'brokers', 'currencies',
-    ]
+    const results = await Promise.allSettled(
+      CRITICAL_FNS.map(fn => fn.getAll())
+    )
     setMasters(prev => {
       const next = { ...prev }
-      results.forEach((r, i) => { if (r?.data) next[keys[i]] = r.data })
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled' && r.value?.data) next[CRITICAL_KEYS[i]] = r.value.data
+      })
+      writeCache(next)
       return next
     })
   }, [])
 
   // Phase 2: Secondary masters — loaded in background after first paint
   const loadDeferred = useCallback(async () => {
-    const results = await Promise.all([
-      db.suppliers.getAll(),
-      db.warehouses.getAll(),
-      db.banks.getAll(),
-      db.staff.getAll(),
-      db.hsnCodes.getAll(),
-      db.units.getAll(),
-      db.machineTypes.getAll(),
-      db.productTypes.getAll(),
-      db.yarnTypes.getAll(),
-      db.chaalTypes.getAll(),
-      db.processTypes.getAll(),
-      db.operators.getAll(),
-      db.packagingTypes.getAll(),
-      db.transports.getAll(),
-      db.qualityParameters.getAll(),
-    ])
-    const keys = [
-      'suppliers', 'warehouses', 'banks', 'staff',
-      'hsnCodes', 'units', 'machineTypes', 'productTypes',
-      'yarnTypes', 'chaalTypes', 'processTypes',
-      'operators', 'packagingTypes', 'transports', 'qualityParameters',
-    ]
+    const results = await Promise.allSettled(
+      DEFERRED_FNS.map(fn => fn.getAll())
+    )
     setMasters(prev => {
       const next = { ...prev }
-      results.forEach((r, i) => { if (r?.data) next[keys[i]] = r.data })
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled' && r.value?.data) next[DEFERRED_KEYS[i]] = r.value.data
+      })
+      writeCache(next)
       return next
     })
   }, [])
@@ -88,9 +113,21 @@ export function AppProvider({ children }) {
     loaded.current = true
   }, [loadCritical, loadDeferred])
 
-  // On mount: defer ALL master loading so Dashboard/Login paint instantly
+  // On mount: if cache hit, skip loading spinner entirely; else defer load
   useEffect(() => {
     let cancelled = false
+
+    if (loaded.current) {
+      // Cache hit — still refresh in background silently
+      whenIdle(() => {
+        if (!cancelled) loadCritical().then(() => {
+          if (!cancelled) loadDeferred()
+        })
+      }, 500)
+      return () => { cancelled = true }
+    }
+
+    // No cache — load critical first, then deferred
     whenIdle(async () => {
       if (cancelled) return
       setLoading(true)
@@ -105,7 +142,6 @@ export function AppProvider({ children }) {
   }, [loadCritical, loadDeferred])
 
   // Re-fetch critical masters when tab regains focus after being idle
-  // This prevents stale data / "failed to load" after long idle periods
   useEffect(() => {
     let lastHidden = 0
     const STALE_THRESHOLD = 5 * 60 * 1000 // 5 minutes
@@ -116,7 +152,6 @@ export function AppProvider({ children }) {
       } else if (document.visibilityState === 'visible' && loaded.current) {
         const idleTime = Date.now() - lastHidden
         if (lastHidden > 0 && idleTime > STALE_THRESHOLD) {
-          // Silently re-fetch critical masters — no loading spinner
           loadCritical().catch(() => {})
         }
       }

@@ -3,10 +3,28 @@ import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
 
+// Attempt synchronous session read from localStorage — avoids the loading flash
+function peekSession() {
+  try {
+    const raw = localStorage.getItem('sb-kcnujpvzewtuttfcrtyz-auth-token')
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    // Supabase stores { currentSession: { user, ... }, expiresAt: ... }
+    const session = parsed?.currentSession || parsed
+    const expiresAt = parsed?.expiresAt || session?.expires_at
+    if (expiresAt && expiresAt * 1000 < Date.now()) return null
+    return session?.user || null
+  } catch {
+    return null
+  }
+}
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
+  const peeked = peekSession()
+  const [user, setUser] = useState(peeked)
   const [profile, setProfile] = useState(null)
-  const [loading, setLoading] = useState(true)
+  // If we peeked a valid user, skip the loading state entirely
+  const [loading, setLoading] = useState(!peeked)
 
   const fetchProfile = useCallback(async (userId) => {
     const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single()
