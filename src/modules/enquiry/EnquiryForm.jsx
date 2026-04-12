@@ -21,14 +21,16 @@ export default function EnquiryForm() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (id) {
-      enquiries.get(id).then(({ data, error }) => {
-        if (error) { toast.error('Failed to load enquiry'); navigate('/enquiries') }
-        else setForm(data)
-        setIsLoading(false)
-      })
-    }
-  }, [id])
+    if (!id) return
+    let cancelled = false
+    enquiries.get(id).then(({ data, error }) => {
+      if (cancelled) return
+      if (error) { toast.error('Failed to load enquiry'); navigate('/enquiries') }
+      else setForm(data)
+      setIsLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSave = async () => {
     if (!form.customer_id) { toast.error('Please select a customer'); return }

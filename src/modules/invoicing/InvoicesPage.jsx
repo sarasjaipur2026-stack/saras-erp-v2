@@ -49,11 +49,15 @@ export default function InvoicesPage() {
 
   const create = async () => {
     if (!picked) return
-    const { data, error } = await invoices.createFromOrder(picked)
-    if (error) { toast.error(error.message || 'Invoice creation failed'); return }
-    toast.success(`Invoice ${data.invoice_number} created`)
-    setShowCreate(false)
-    load()
+    try {
+      const { data, error } = await invoices.createFromOrder(picked)
+      if (error) { toast.error(error.message || 'Invoice creation failed'); return }
+      toast.success(`Invoice ${data.invoice_number} created`)
+      setShowCreate(false)
+      load()
+    } catch (err) {
+      toast.error('Invoice creation failed — check connection')
+    }
   }
 
   const filtered = useMemo(() => {

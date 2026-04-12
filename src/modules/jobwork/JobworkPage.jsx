@@ -125,23 +125,27 @@ export default function JobworkPage() {
       toast.error('Select a jobworker (supplier)')
       return
     }
-    const { data, error } = await jobworkJobs.createWithItems({
-      direction: form.direction,
-      customer_id: form.customer_id || null,
-      supplier_id: form.supplier_id || null,
-      start_date: form.start_date,
-      due_date: form.due_date || null,
-      rate_per_unit: Number(form.rate_per_unit) || null,
-      notes: form.notes,
-      items: form.items,
-    })
-    if (error) {
-      toast.error(error.message || 'Failed to create jobwork')
-      return
+    try {
+      const { data, error } = await jobworkJobs.createWithItems({
+        direction: form.direction,
+        customer_id: form.customer_id || null,
+        supplier_id: form.supplier_id || null,
+        start_date: form.start_date,
+        due_date: form.due_date || null,
+        rate_per_unit: Number(form.rate_per_unit) || null,
+        notes: form.notes,
+        items: form.items,
+      })
+      if (error) {
+        toast.error(error.message || 'Failed to create jobwork')
+        return
+      }
+      toast.success(`Jobwork ${data.job_number} created`)
+      setShowCreate(false)
+      load()
+    } catch (err) {
+      toast.error('Jobwork creation failed — check connection')
     }
-    toast.success(`Jobwork ${data.job_number} created`)
-    setShowCreate(false)
-    load()
   }
 
   // ─── ADD ITEM TO EXISTING JOB ─────────────────────────────
@@ -167,25 +171,32 @@ export default function JobworkPage() {
     if (!(Number(payload.quantity) > 0)) {
       toast.error('Enter quantity'); return
     }
-    const { error } = await jobworkJobs.addItem(payload)
-    if (error) { toast.error(error.message || 'Failed to add item'); return }
-    toast.success('Item added')
-    setAddItemKind(null)
-    // Refresh detail + list
-    const res = await jobworkJobs.get(detail.id)
-    if (res?.data) setDetail(res.data)
-    load()
+    try {
+      const { error } = await jobworkJobs.addItem(payload)
+      if (error) { toast.error(error.message || 'Failed to add item'); return }
+      toast.success('Item added')
+      setAddItemKind(null)
+      const res = await jobworkJobs.get(detail.id)
+      if (res?.data) setDetail(res.data)
+      load()
+    } catch (err) {
+      toast.error('Add item failed — check connection')
+    }
   }
 
   const markCompleted = async (job) => {
-    const { error } = await jobworkJobs.markCompleted(job.id)
-    if (error) { toast.error(error.message || 'Failed'); return }
-    toast.success('Marked completed')
-    if (detail?.id === job.id) {
-      const res = await jobworkJobs.get(job.id)
-      if (res?.data) setDetail(res.data)
+    try {
+      const { error } = await jobworkJobs.markCompleted(job.id)
+      if (error) { toast.error(error.message || 'Failed'); return }
+      toast.success('Marked completed')
+      if (detail?.id === job.id) {
+        const res = await jobworkJobs.get(job.id)
+        if (res?.data) setDetail(res.data)
+      }
+      load()
+    } catch (err) {
+      toast.error('Mark completed failed — check connection')
     }
-    load()
   }
 
   return (

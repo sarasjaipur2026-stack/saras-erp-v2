@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -48,11 +48,7 @@ export default function OrderDetail() {
   const [commentText, setCommentText] = useState('');
   const [cancelReason, setCancelReason] = useState('');
 
-  useEffect(() => {
-    loadOrderData();
-  }, [orderId]);
-
-  const loadOrderData = async () => {
+  const loadOrderData = useCallback(async () => {
     try {
       setLoading(true);
       const [orderRes, deliveryRes, timelineRes, attachmentRes] = await Promise.all([
@@ -61,22 +57,22 @@ export default function OrderDetail() {
         activityLog.listByEntity('order', orderId),
         attachments.listByEntity('order', orderId),
       ]);
-      const { data: orderData } = orderRes;
-      const { data: deliveryData } = deliveryRes;
-      const { data: timelineData } = timelineRes;
-      const { data: attachmentData } = attachmentRes;
 
-      setOrder(orderData);
-      setOrderDeliveries(deliveryData || []);
-      setTimeline((timelineData || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
-      setOrderAttachments(attachmentData || []);
+      setOrder(orderRes.data);
+      setOrderDeliveries(deliveryRes.data || []);
+      setTimeline((timelineRes.data || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+      setOrderAttachments(attachmentRes.data || []);
     } catch (error) {
       toast.error('Failed to load order details');
       if (import.meta.env.DEV) console.error(error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [orderId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    loadOrderData();
+  }, [loadOrderData]);
 
   const getStatusProgression = () => {
     const states = ['draft', 'booking', 'approved', 'production', 'qc', 'dispatch', 'completed'];

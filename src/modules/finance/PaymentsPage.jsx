@@ -52,11 +52,15 @@ export default function PaymentsPage() {
   const record = async () => {
     if (!form.order_id) { toast.error('Select an order'); return }
     if (!form.amount || form.amount <= 0) { toast.error('Enter a valid amount'); return }
-    const { error } = await payments.record(form)
-    if (error) { toast.error(error.message || 'Save failed'); return }
-    toast.success(`Payment of ${fmtMoney(form.amount)} recorded`)
-    setShowCreate(false)
-    load()
+    try {
+      const { error } = await payments.record(form)
+      if (error) { toast.error(error.message || 'Save failed'); return }
+      toast.success(`Payment of ${fmtMoney(form.amount)} recorded`)
+      setShowCreate(false)
+      load()
+    } catch (err) {
+      toast.error('Payment failed — check connection')
+    }
   }
 
   const filtered = useMemo(() => {

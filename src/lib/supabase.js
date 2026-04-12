@@ -48,17 +48,29 @@ export const queueOfflineWrite = (fn) => {
   processQueue()
 }
 
+const MAX_QUEUE_RETRIES = 5
+
 const processQueue = async () => {
   if (isProcessing || pendingQueue.length === 0) return
   isProcessing = true
   while (pendingQueue.length > 0) {
     const fn = pendingQueue[0]
-    try {
-      await fn()
-      pendingQueue.shift()
-    } catch {
-      // Still offline, wait and retry
-      await new Promise(r => setTimeout(r, 3000))
+    let attempts = 0
+    let success = false
+    while (attempts < MAX_QUEUE_RETRIES) {
+      try {
+        await fn()
+        success = true
+        break
+      } catch {
+        attempts++
+        if (attempts >= MAX_QUEUE_RETRIES) break
+        await new Promise(r => setTimeout(r, 3000 * attempts))
+      }
+    }
+    pendingQueue.shift()
+    if (!success && import.meta.env.DEV) {
+      console.error('[saras-erp] Queued write dropped after', MAX_QUEUE_RETRIES, 'retries')
     }
   }
   isProcessing = false
