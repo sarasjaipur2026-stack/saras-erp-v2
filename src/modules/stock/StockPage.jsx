@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { stockMovements } from '../../lib/db'
 import { useApp } from '../../contexts/AppContext'
 import { useToast } from '../../contexts/ToastContext'
-import { Button, Input, Modal, Badge } from '../../components/ui'
+import { usePagination } from '../../hooks/usePagination'
+import { Button, Input, Modal, Badge, PaginationBar } from '../../components/ui'
 import { Package, Search, TrendingUp, TrendingDown, RotateCw, SlidersHorizontal, Plus, Minus } from 'lucide-react'
 import { fmt, fmtDate } from '../../lib/format'
 
@@ -57,6 +58,9 @@ export default function StockPage() {
       (b.warehouse_name || '').toLowerCase().includes(q)
     )
   }, [balances, search])
+
+  const balPag = usePagination(filteredBalances)
+  const movPag = usePagination(movements)
 
   const totalIn = movements.filter(m => m.kind === 'in').reduce((s, m) => s + Number(m.quantity || 0), 0)
   const totalOut = movements.filter(m => m.kind === 'out').reduce((s, m) => s + Number(m.quantity || 0), 0)
@@ -164,7 +168,7 @@ export default function StockPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredBalances.map(b => (
+              {balPag.pageData.map(b => (
                 <tr key={b.key} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
                   <td className="px-4 py-3 font-medium text-slate-700">{b.product_name || b.material_name || '—'}</td>
                   <td className="px-4 py-3">
@@ -191,7 +195,7 @@ export default function StockPage() {
               </tr>
             </thead>
             <tbody>
-              {movements.map(m => (
+              {movPag.pageData.map(m => (
                 <tr key={m.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
                   <td className="px-4 py-3 text-[12px] text-slate-500 font-mono">{fmtDate(m.created_at)}</td>
                   <td className="px-4 py-3 font-medium text-slate-700">{m.products?.name || m.product_types?.name || m.yarn_types?.name || m.materials?.name || '—'}</td>
@@ -212,6 +216,10 @@ export default function StockPage() {
           </table>
         )}
       </div>
+      {view === 'balances'
+        ? balPag.needsPagination && <PaginationBar currentPage={balPag.currentPage} totalPages={balPag.totalPages} rangeLabel={balPag.rangeLabel} onPageChange={balPag.setCurrentPage} />
+        : movPag.needsPagination && <PaginationBar currentPage={movPag.currentPage} totalPages={movPag.totalPages} rangeLabel={movPag.rangeLabel} onPageChange={movPag.setCurrentPage} />
+      }
 
       {/* MANUAL ADJUSTMENT MODAL */}
       <Modal

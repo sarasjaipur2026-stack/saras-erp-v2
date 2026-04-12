@@ -104,12 +104,17 @@ export const reports = {
 export const stats = {
   getDashboard: async () => {
     try {
-      const [ordersRes, enquiriesRes, customersRes, paymentsRes] = await Promise.all([
+      // Race against a 8s timeout so the dashboard never shows an infinite spinner
+      const queries = Promise.all([
         supabase.from('orders').select('id, status, grand_total, balance_due', { count: 'exact' }).limit(5000),
         supabase.from('enquiries').select('id, status', { count: 'exact' }).eq('status', 'new').limit(1000),
         supabase.from('customers').select('id', { count: 'exact' }).limit(1),
         supabase.from('payments').select('amount').limit(5000),
       ])
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Dashboard query timeout')), 8000)
+      )
+      const [ordersRes, enquiriesRes, customersRes, paymentsRes] = await Promise.race([queries, timeout])
 
       const orderData = ordersRes.data || []
       const paymentsData = paymentsRes.data || []
@@ -133,9 +138,15 @@ export const stats = {
         o => o.balance_due > 0 && !['completed', 'cancelled'].includes(o.status)
       ).length
 
+      const pendingOrders = orderData.filter(
+        o => !['completed', 'cancelled', 'draft'].includes(o.status)
+      ).length
+
       return {
         totalOrders: ordersRes.count || orderData.length,
         newEnquiries: enquiriesRes.count || (enquiriesRes.data || []).length,
+        pendingOrders,
+        urgentOrders: overdueCount,
         totalCustomers: customersRes.count || (customersRes.data || []).length,
         statusCounts,
         financialTotals: {

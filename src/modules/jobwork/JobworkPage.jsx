@@ -2,12 +2,13 @@ import { useState, useEffect, useMemo } from 'react'
 import { jobworkJobs } from '../../lib/db'
 import { useApp } from '../../contexts/AppContext'
 import { useToast } from '../../contexts/ToastContext'
-import { Button, Modal, Input, Badge } from '../../components/ui'
+import { Button, Modal, Input, Badge, PaginationBar } from '../../components/ui'
 import {
   Briefcase, Plus, Search, Package, ArrowDownLeft, ArrowUpRight, X, CheckCircle2,
 } from 'lucide-react'
 
 import { fmt, fmtMoney, fmtDate } from '../../lib/format'
+import { usePagination } from '../../hooks/usePagination'
 
 const STATUS = {
   pending: { variant: 'default', label: 'Pending' },
@@ -76,6 +77,8 @@ export default function JobworkPage() {
     }
     return rows
   }, [list, direction, search])
+
+  const { pageData, currentPage, totalPages, needsPagination, rangeLabel, setCurrentPage } = usePagination(filtered)
 
   const counts = useMemo(() => ({
     total: list.length,
@@ -252,7 +255,7 @@ export default function JobworkPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(job => {
+            {pageData.map(job => {
               const S = STATUS[job.status] || STATUS.pending
               const partyName = direction === 'inward'
                 ? (job.customers?.firm_name || '—')
@@ -287,6 +290,7 @@ export default function JobworkPage() {
             )}
           </tbody>
         </table>
+        {needsPagination && <PaginationBar currentPage={currentPage} totalPages={totalPages} rangeLabel={rangeLabel} onPageChange={setCurrentPage} />}
       </div>
 
       {/* CREATE MODAL */}

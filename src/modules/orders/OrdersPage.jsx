@@ -41,15 +41,15 @@ const OrdersPage = () => {
   const [ordersList, setOrdersList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrders, setSelectedOrders] = useState(new Set());
-  const [activeTab, setActiveTab] = useState('All');
-  const [dateRange, setDateRange] = useState('thisMonth');
+  const [activeTab, setActiveTab] = useState('all');
+  const [dateRange, setDateRange] = useState('allTime');
   const [customerFilter, setCustomerFilter] = useState('');
   const [viewMode, setViewMode] = useState('allInfo');
   const [openMenuId, setOpenMenuId] = useState(null);
   const statusPipeline = useMemo(() => {
     const pipeline = {};
     ordersList.forEach((order) => {
-      const status = order.status || 'Draft';
+      const status = (order.status || 'draft').toLowerCase();
       pipeline[status] = (pipeline[status] || 0) + 1;
     });
     return pipeline;
@@ -61,15 +61,18 @@ const OrdersPage = () => {
   const [bulkNewStatus, setBulkNewStatus] = useState('');
 
   const statuses = [
-    'Draft',
-    'Booking',
-    'Approved',
-    'Production',
-    'QC',
-    'Dispatch',
-    'Completed',
-    'Cancelled',
+    'draft',
+    'booking',
+    'approved',
+    'production',
+    'qc',
+    'dispatch',
+    'completed',
+    'cancelled',
   ];
+
+  // Display-friendly status label
+  const statusLabel = (s) => s === 'qc' ? 'QC' : s.charAt(0).toUpperCase() + s.slice(1);
 
   const viewModes = [
     { id: 'allInfo', label: 'All Info' },
@@ -129,8 +132,8 @@ const OrdersPage = () => {
   const filteredOrders = useMemo(() => {
     let filtered = ordersList;
 
-    if (activeTab !== 'All') {
-      filtered = filtered.filter((order) => order.status === activeTab);
+    if (activeTab !== 'all') {
+      filtered = filtered.filter((order) => (order.status || 'draft').toLowerCase() === activeTab);
     }
     if (selectedStatus) {
       filtered = filtered.filter((order) => order.status === selectedStatus);
@@ -158,14 +161,15 @@ const OrdersPage = () => {
   // Derived: statistics (computed from ordersList)
   const stats = useMemo(() => {
     const now = new Date();
-    const activeStatuses = new Set(['Production', 'QC', 'Dispatch']);
+    const activeStatuses = new Set(['production', 'qc', 'dispatch']);
     let activeOrders = 0, totalRevenue = 0, outstandingBalance = 0, overdue = 0;
 
     for (const o of ordersList) {
-      if (activeStatuses.has(o.status)) activeOrders++;
+      const status = (o.status || 'draft').toLowerCase();
+      if (activeStatuses.has(status)) activeOrders++;
       totalRevenue += o.grand_total || 0;
       outstandingBalance += o.balance_due || 0;
-      if (o.delivery_date_1 && new Date(o.delivery_date_1) < now && o.status !== 'Completed') overdue++;
+      if (o.delivery_date_1 && new Date(o.delivery_date_1) < now && status !== 'completed') overdue++;
     }
     return { totalOrders: ordersList.length, activeOrders, totalRevenue, outstandingBalance, overdue };
   }, [ordersList]);
@@ -515,7 +519,7 @@ const OrdersPage = () => {
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              {status} ({statusPipeline[status] || 0})
+              {statusLabel(status)} ({statusPipeline[status] || 0})
             </button>
           ))}
         </div>
@@ -524,7 +528,7 @@ const OrdersPage = () => {
       {/* Tab Bar */}
       <div className="border-b border-gray-200">
         <div className="flex gap-6">
-          {['All', ...statuses].map((tab) => (
+          {['all', ...statuses].map((tab) => (
             <button
               key={tab}
               onClick={() => {
@@ -537,7 +541,7 @@ const OrdersPage = () => {
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
-              {tab}
+              {tab === 'all' ? 'All' : statusLabel(tab)}
             </button>
           ))}
         </div>
@@ -550,6 +554,7 @@ const OrdersPage = () => {
           value={dateRange}
           onChange={(e) => setDateRange(e.target.value)}
           options={[
+            { value: 'allTime', label: 'All Time' },
             { value: 'today', label: 'Today' },
             { value: 'thisWeek', label: 'This Week' },
             { value: 'thisMonth', label: 'This Month' },

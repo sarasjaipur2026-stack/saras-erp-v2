@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { payments, orders as ordersApi } from '../../lib/db'
 import { useApp } from '../../contexts/AppContext'
 import { useToast } from '../../contexts/ToastContext'
-import { Button, Modal, Badge, Input } from '../../components/ui'
+import { usePagination } from '../../hooks/usePagination'
+import { Button, Modal, Badge, Input, PaginationBar } from '../../components/ui'
 import { CreditCard, Plus, Search } from 'lucide-react'
 import { fmtMoney, fmtDate } from '../../lib/format'
 
@@ -68,6 +69,8 @@ export default function PaymentsPage() {
     )
   }, [list, search])
 
+  const { pageData, currentPage, totalPages, needsPagination, rangeLabel, setCurrentPage } = usePagination(filtered)
+
   const total = list.reduce((s, p) => s + Number(p.amount || 0), 0)
   const selectedOrder = orderOptions.find(o => o.id === form.order_id)
 
@@ -97,7 +100,7 @@ export default function PaymentsPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(p => (
+            {pageData.map(p => (
               <tr key={p.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
                 <td className="px-4 py-3 text-[12px] text-slate-500 font-mono">{fmtDate(p.payment_date)}</td>
                 <td className="px-4 py-3 font-mono text-[13px] text-indigo-700">{p.orders?.order_number || '—'}</td>
@@ -114,6 +117,7 @@ export default function PaymentsPage() {
           </tbody>
         </table>
       </div>
+      {needsPagination && <PaginationBar currentPage={currentPage} totalPages={totalPages} rangeLabel={rangeLabel} onPageChange={setCurrentPage} />}
 
       <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="Record Payment" size="lg"
         footer={<>

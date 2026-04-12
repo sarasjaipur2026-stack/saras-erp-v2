@@ -2,12 +2,13 @@ import { useState, useEffect, useMemo } from 'react'
 import { purchaseOrders, goodsReceipts } from '../../lib/db'
 import { useApp } from '../../contexts/AppContext'
 import { useToast } from '../../contexts/ToastContext'
-import { Button, Modal, Input, Badge } from '../../components/ui'
+import { Button, Modal, Input, Badge, PaginationBar } from '../../components/ui'
 import {
   ShoppingBag, Plus, FileText, Search, Truck, X,
 } from 'lucide-react'
 
 import { fmt, fmtMoney, fmtDate } from '../../lib/format'
+import { usePagination } from '../../hooks/usePagination'
 
 const PO_STATUS = {
   draft: { variant: 'default', label: 'Draft' },
@@ -203,6 +204,9 @@ export default function PurchasePage() {
     )
   }, [grnList, search])
 
+  const { pageData: poPageData, currentPage: poCurrentPage, totalPages: poTotalPages, needsPagination: poNeedsPagination, rangeLabel: poRangeLabel, setCurrentPage: setPoCurrentPage } = usePagination(filteredPos)
+  const { pageData: grnPageData, currentPage: grnCurrentPage, totalPages: grnTotalPages, needsPagination: grnNeedsPagination, rangeLabel: grnRangeLabel, setCurrentPage: setGrnCurrentPage } = usePagination(filteredGrns)
+
   const totals = useMemo(() => ({
     poTotal: poList.reduce((s, p) => s + Number(p.grand_total || 0), 0),
     openPos: poList.filter(p => ['issued', 'partially_received'].includes(p.status)).length,
@@ -277,6 +281,7 @@ export default function PurchasePage() {
 
       <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden">
         {view === 'pos' ? (
+          <>
           <table className="w-full text-sm">
             <thead className="bg-slate-50/60 border-b border-slate-100">
               <tr>
@@ -286,7 +291,7 @@ export default function PurchasePage() {
               </tr>
             </thead>
             <tbody>
-              {filteredPos.map(po => {
+              {poPageData.map(po => {
                 const S = PO_STATUS[po.status] || PO_STATUS.draft
                 const itemCount = (po.purchase_order_items || []).length
                 const canReceive = ['issued', 'partially_received'].includes(po.status)
@@ -316,7 +321,10 @@ export default function PurchasePage() {
               )}
             </tbody>
           </table>
+          {poNeedsPagination && <PaginationBar currentPage={poCurrentPage} totalPages={poTotalPages} rangeLabel={poRangeLabel} onPageChange={setPoCurrentPage} />}
+          </>
         ) : (
+          <>
           <table className="w-full text-sm">
             <thead className="bg-slate-50/60 border-b border-slate-100">
               <tr>
@@ -326,7 +334,7 @@ export default function PurchasePage() {
               </tr>
             </thead>
             <tbody>
-              {filteredGrns.map(g => (
+              {grnPageData.map(g => (
                 <tr key={g.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
                   <td className="px-4 py-3 font-mono text-[13px] font-semibold text-indigo-700 flex items-center gap-2">
                     <FileText size={13} /> {g.grn_number}
@@ -343,6 +351,8 @@ export default function PurchasePage() {
               )}
             </tbody>
           </table>
+          {grnNeedsPagination && <PaginationBar currentPage={grnCurrentPage} totalPages={grnTotalPages} rangeLabel={grnRangeLabel} onPageChange={setGrnCurrentPage} />}
+          </>
         )}
       </div>
 

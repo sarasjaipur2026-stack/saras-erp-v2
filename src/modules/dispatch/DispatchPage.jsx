@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { deliveries, orders as ordersApi } from '../../lib/db'
 import { useToast } from '../../contexts/ToastContext'
-import { Button, Modal, Input, Badge } from '../../components/ui'
+import { usePagination } from '../../hooks/usePagination'
+import { Button, Modal, Input, Badge, PaginationBar } from '../../components/ui'
 import { Truck, Plus, FileText } from 'lucide-react'
 import { fmt, fmtDate } from '../../lib/format'
 
@@ -53,6 +54,7 @@ export default function DispatchPage() {
     return acc
   }, {})
   const grouped = Object.values(groups).sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+  const { pageData, currentPage, totalPages, needsPagination, rangeLabel, setCurrentPage } = usePagination(grouped)
 
   return (
     <div className="fade-in max-w-7xl mx-auto">
@@ -78,7 +80,7 @@ export default function DispatchPage() {
             </tr>
           </thead>
           <tbody>
-            {grouped.map(g => (
+            {pageData.map(g => (
               <tr key={g.challan_number} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
                 <td className="px-4 py-3 font-mono text-[13px] font-semibold text-indigo-700 flex items-center gap-2">
                   <FileText size={13} /> {g.challan_number || '—'}
@@ -99,6 +101,7 @@ export default function DispatchPage() {
           </tbody>
         </table>
       </div>
+      {needsPagination && <PaginationBar currentPage={currentPage} totalPages={totalPages} rangeLabel={rangeLabel} onPageChange={setCurrentPage} />}
 
       <Modal
         isOpen={showCreate}

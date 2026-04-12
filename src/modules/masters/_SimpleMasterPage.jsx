@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
-import { Button, Input, Modal } from '../../components/ui'
+import { Button, Input, Modal, PaginationBar } from '../../components/ui'
+import { usePagination } from '../../hooks/usePagination'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 
 /**
@@ -25,6 +26,8 @@ export default function SimpleMasterPage({ title, subtitle, api, fields, default
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
+
+  const { pageData, currentPage, totalPages, needsPagination, rangeLabel, setCurrentPage } = usePagination(list)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -110,7 +113,7 @@ export default function SimpleMasterPage({ title, subtitle, api, fields, default
             </tr>
           </thead>
           <tbody>
-            {list.map(row => (
+            {pageData.map(row => (
               <tr key={row.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
                 {listFields.map(f => (
                   <td key={f.key} className="px-4 py-3 text-slate-700">
@@ -130,6 +133,7 @@ export default function SimpleMasterPage({ title, subtitle, api, fields, default
             )}
           </tbody>
         </table>
+        {needsPagination && <PaginationBar currentPage={currentPage} totalPages={totalPages} rangeLabel={rangeLabel} onPageChange={setCurrentPage} />}
       </div>
 
       {/* Delete confirmation */}

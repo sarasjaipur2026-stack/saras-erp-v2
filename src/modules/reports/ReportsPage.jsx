@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { reports } from '../../lib/db'
-import { Button, Input, Badge } from '../../components/ui'
+import { Button, Input, Badge, PaginationBar } from '../../components/ui'
 import {
   BarChart3, Calendar, Download, RefreshCw, FileText,
   TrendingUp, Receipt, Users, Package, ShoppingBag,
@@ -8,6 +8,7 @@ import {
 
 // ─── HELPERS ─────────────────────────────────────────────────
 import { fmt, fmtMoney, fmtDate } from '../../lib/format'
+import { usePagination } from '../../hooks/usePagination'
 const fmtMonth = (m) => {
   if (!m) return '—'
   const [y, mm] = m.split('-')
@@ -250,6 +251,7 @@ export default function ReportsPage() {
 
 // ─── SALES REGISTER ──────────────────────────────────────────
 function SalesRegister({ rows }) {
+  const { pageData: salesPageData, currentPage: salesPage, totalPages: salesTotalPages, needsPagination: salesNeedsPagination, rangeLabel: salesRangeLabel, setCurrentPage: setSalesPage } = usePagination(rows)
   const totals = useMemo(() => ({
     count: rows.length,
     taxable: rows.reduce((s, o) => s + Number(o.taxable_amount || o.subtotal || 0), 0),
@@ -305,7 +307,7 @@ function SalesRegister({ rows }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map(o => (
+              {salesPageData.map(o => (
                 <tr key={o.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
                   <td className="px-4 py-3 font-mono text-[13px] font-semibold text-indigo-700">{o.order_number || '—'}</td>
                   <td className="px-4 py-3 text-[12px] text-slate-500 font-mono">{fmtDate(o.created_at)}</td>
@@ -323,6 +325,7 @@ function SalesRegister({ rows }) {
             </tbody>
           </table>
         </div>
+        {salesNeedsPagination && <PaginationBar currentPage={salesPage} totalPages={salesTotalPages} rangeLabel={salesRangeLabel} onPageChange={setSalesPage} />}
       </div>
     </div>
   )
@@ -340,6 +343,7 @@ function GstSummary({ payload }) {
     )
   }
   const { summary, monthly } = payload
+  const { pageData: gstPageData, currentPage: gstPage, totalPages: gstTotalPages, needsPagination: gstNeedsPagination, rangeLabel: gstRangeLabel, setCurrentPage: setGstPage } = usePagination(monthly)
 
   const exportCsv = () => {
     const csv = toCsv(monthly, [
@@ -385,7 +389,7 @@ function GstSummary({ payload }) {
             </tr>
           </thead>
           <tbody>
-            {monthly.map(m => (
+            {gstPageData.map(m => (
               <tr key={m.month} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
                 <td className="px-4 py-3 font-mono text-[13px] font-semibold text-slate-700">{fmtMonth(m.month)}</td>
                 <td className="px-4 py-3 font-mono">{m.count}</td>
@@ -401,6 +405,7 @@ function GstSummary({ payload }) {
             )}
           </tbody>
         </table>
+        {gstNeedsPagination && <PaginationBar currentPage={gstPage} totalPages={gstTotalPages} rangeLabel={gstRangeLabel} onPageChange={setGstPage} />}
       </div>
     </div>
   )
@@ -408,6 +413,7 @@ function GstSummary({ payload }) {
 
 // ─── CUSTOMER OUTSTANDING ────────────────────────────────────
 function CustomerOutstanding({ rows }) {
+  const { pageData: outPageData, currentPage: outPage, totalPages: outTotalPages, needsPagination: outNeedsPagination, rangeLabel: outRangeLabel, setCurrentPage: setOutPage } = usePagination(rows)
   const totals = useMemo(() => ({
     customers: rows.length,
     totalBilled: rows.reduce((s, r) => s + r.total_billed, 0),
@@ -454,7 +460,7 @@ function CustomerOutstanding({ rows }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map(r => {
+            {outPageData.map(r => {
               const days = r.oldest_open ? daysAgo(r.oldest_open) : 0
               const ageVariant = days > 90 ? 'danger' : days > 60 ? 'warning' : days > 30 ? 'info' : 'default'
               return (
@@ -476,6 +482,7 @@ function CustomerOutstanding({ rows }) {
             )}
           </tbody>
         </table>
+        {outNeedsPagination && <PaginationBar currentPage={outPage} totalPages={outTotalPages} rangeLabel={outRangeLabel} onPageChange={setOutPage} />}
       </div>
     </div>
   )
@@ -483,6 +490,7 @@ function CustomerOutstanding({ rows }) {
 
 // ─── STOCK REGISTER ──────────────────────────────────────────
 function StockRegister({ rows }) {
+  const { pageData: stockPageData, currentPage: stockPage, totalPages: stockTotalPages, needsPagination: stockNeedsPagination, rangeLabel: stockRangeLabel, setCurrentPage: setStockPage } = usePagination(rows)
   const totals = useMemo(() => ({
     items: rows.length,
     raw: rows.filter(r => !r.is_finished_good).length,
@@ -525,7 +533,7 @@ function StockRegister({ rows }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map(b => (
+            {stockPageData.map(b => (
               <tr key={b.key} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
                 <td className="px-4 py-3 font-medium text-slate-700">{b.product_name || b.material_name || '—'}</td>
                 <td className="px-4 py-3">
@@ -542,6 +550,7 @@ function StockRegister({ rows }) {
             )}
           </tbody>
         </table>
+        {stockNeedsPagination && <PaginationBar currentPage={stockPage} totalPages={stockTotalPages} rangeLabel={stockRangeLabel} onPageChange={setStockPage} />}
       </div>
     </div>
   )
@@ -549,6 +558,7 @@ function StockRegister({ rows }) {
 
 // ─── PURCHASE REGISTER ───────────────────────────────────────
 function PurchaseRegister({ rows }) {
+  const { pageData: prPageData, currentPage: prPage, totalPages: prTotalPages, needsPagination: prNeedsPagination, rangeLabel: prRangeLabel, setCurrentPage: setPrPage } = usePagination(rows)
   const totals = useMemo(() => ({
     count: rows.length,
     grand: rows.reduce((s, r) => s + Number(r.grand_total || 0), 0),
@@ -597,7 +607,7 @@ function PurchaseRegister({ rows }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map(po => {
+            {prPageData.map(po => {
               const tax = Number(po.cgst_amount || 0) + Number(po.sgst_amount || 0) + Number(po.igst_amount || 0)
               return (
                 <tr key={po.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
@@ -616,6 +626,7 @@ function PurchaseRegister({ rows }) {
             )}
           </tbody>
         </table>
+        {prNeedsPagination && <PaginationBar currentPage={prPage} totalPages={prTotalPages} rangeLabel={prRangeLabel} onPageChange={setPrPage} />}
       </div>
     </div>
   )

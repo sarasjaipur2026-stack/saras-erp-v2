@@ -14,7 +14,7 @@ export const productionPlans = {
   getAll: async () => safe(() =>
     supabase
       .from('production_plans')
-      .select('id, status, planned_qty, completed_qty, start_date, end_date, machine_id, material_id, order_id, created_at, orders(id, order_number, customers(firm_name)), machines(id, name, code), materials(id, name)')
+      .select('id, status, planned_qty, completed_qty, planned_start, planned_end, machine_id, material_id, order_id, created_at, orders(id, order_number, customers(firm_name)), machines(id, name, code), materials(id, name)')
       .order('created_at', { ascending: false })
       .limit(1000)
   ),

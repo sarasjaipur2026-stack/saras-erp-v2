@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { productionPlans, orders as ordersApi } from '../../lib/db'
 import { useApp } from '../../contexts/AppContext'
 import { useToast } from '../../contexts/ToastContext'
-import { Button, Modal, Badge, Input } from '../../components/ui'
+import { Button, Modal, Badge, Input, PaginationBar } from '../../components/ui'
+import { usePagination } from '../../hooks/usePagination'
 import {
   Factory, Plus, Play, CheckCircle2, Pause, RotateCw, Search, TrendingUp
 } from 'lucide-react'
@@ -86,6 +87,8 @@ export default function ProductionPage() {
     return rows
   }, [list, filter, search])
 
+  const { pageData, currentPage, totalPages, needsPagination, rangeLabel, setCurrentPage } = usePagination(filtered)
+
   const counts = useMemo(() => {
     const c = { all: list.length, planned: 0, in_progress: 0, completed: 0, on_hold: 0 }
     list.forEach(r => { c[r.status] = (c[r.status] || 0) + 1 })
@@ -144,7 +147,7 @@ export default function ProductionPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(job => {
+            {pageData.map(job => {
               const S = STATUS[job.status] || STATUS.planned
               const Icon = S.icon
               const pct = job.planned_qty > 0 ? Math.min(100, Math.round((job.completed_qty || 0) / job.planned_qty * 100)) : 0
@@ -179,6 +182,7 @@ export default function ProductionPage() {
             )}
           </tbody>
         </table>
+        {needsPagination && <PaginationBar currentPage={currentPage} totalPages={totalPages} rangeLabel={rangeLabel} onPageChange={setCurrentPage} />}
       </div>
 
       {/* Create Modal */}

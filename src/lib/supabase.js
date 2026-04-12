@@ -13,12 +13,13 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+    detectSessionInUrl: false, // password-only auth — skip PKCE/implicit URL detection
     storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     storageKey: 'sb-kcnujpvzewtuttfcrtyz-auth-token',
     // Disable the navigator.locks-based lock — it can hang in some browser
     // contexts and there is no benefit for a single-tab SPA. Without this,
     // every supabase call waits for a lock that never resolves.
-    lock: async (name, acquireTimeout, fn) => fn(),
+    lock: async (_name, _acquireTimeout, fn) => fn(),
   },
   global: {
     headers: { 'X-Client-Info': 'saras-erp' },

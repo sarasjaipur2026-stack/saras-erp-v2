@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { invoices, orders as ordersApi } from '../../lib/db'
 import { useToast } from '../../contexts/ToastContext'
-import { Button, Modal, Badge, Input } from '../../components/ui'
+import { usePagination } from '../../hooks/usePagination'
+import { Button, Modal, Badge, Input, PaginationBar } from '../../components/ui'
 import { FileText, Plus, Search } from 'lucide-react'
 import { fmtMoney, fmtDate } from '../../lib/format'
 
@@ -65,6 +66,8 @@ export default function InvoicesPage() {
     )
   }, [list, search])
 
+  const { pageData, currentPage, totalPages, needsPagination, rangeLabel, setCurrentPage } = usePagination(filtered)
+
   const totals = useMemo(() => ({
     invoiced: list.reduce((s, i) => s + Number(i.grand_total || 0), 0),
     collected: list.reduce((s, i) => s + Number(i.amount_paid || 0), 0),
@@ -112,7 +115,7 @@ export default function InvoicesPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map(inv => {
+            {pageData.map(inv => {
               const S = STATUS[inv.status] || STATUS.draft
               return (
                 <tr key={inv.id} onClick={() => setDetail(inv)} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50 cursor-pointer">
@@ -133,6 +136,7 @@ export default function InvoicesPage() {
           </tbody>
         </table>
       </div>
+      {needsPagination && <PaginationBar currentPage={currentPage} totalPages={totalPages} rangeLabel={rangeLabel} onPageChange={setCurrentPage} />}
 
       {/* Create modal */}
       <Modal isOpen={showCreate} onClose={() => setShowCreate(false)} title="Create Invoice from Order"

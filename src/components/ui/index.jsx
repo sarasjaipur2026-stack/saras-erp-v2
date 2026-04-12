@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { ChevronDown, X, Upload, Loader2, Search } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, X, Upload, Loader2, Search } from 'lucide-react'
 
 // ─── BUTTON ────────────────────────────────────────────────
 export const Button = ({
@@ -382,9 +382,15 @@ export const StatCard = ({ icon: Icon, label, value, trend, color = 'indigo' }) 
 export const DataTable = ({
   columns, data, onRowClick, isLoading, loading,
   emptyMessage = 'No data available', emptyTitle,
+  pageSize = 50,
 }) => {
   const isLoadingFinal = isLoading ?? loading ?? false
   const emptyText = emptyTitle || emptyMessage
+  const [currentPage, setCurrentPage] = useState(0)
+
+  // Reset to page 0 when data changes (e.g. filter/search)
+  const dataLen = data?.length || 0
+  useEffect(() => { setCurrentPage(0) }, [dataLen])
 
   if (isLoadingFinal) {
     return (
@@ -403,6 +409,12 @@ export const DataTable = ({
     )
   }
 
+  const totalPages = Math.ceil(data.length / pageSize)
+  const needsPagination = data.length > pageSize
+  const pageData = needsPagination
+    ? data.slice(currentPage * pageSize, (currentPage + 1) * pageSize)
+    : data
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm shadow-slate-100">
       <div className="overflow-x-auto">
@@ -417,7 +429,7 @@ export const DataTable = ({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {data.map((row, idx) => (
+            {pageData.map((row, idx) => (
               <tr
                 key={row.id || idx}
                 onClick={() => onRowClick?.(row)}
@@ -426,7 +438,6 @@ export const DataTable = ({
                 } : undefined}
                 tabIndex={onRowClick ? 0 : undefined}
                 role={onRowClick ? 'button' : undefined}
-                style={data.length > 50 ? { contentVisibility: 'auto', containIntrinsicSize: '0 42px' } : undefined}
                 className={`table-row-hover ${onRowClick ? 'cursor-pointer focus:outline-none focus:bg-indigo-50/40' : ''} transition-colors`}
               >
                 {columns.map(col => (
@@ -439,9 +450,63 @@ export const DataTable = ({
           </tbody>
         </table>
       </div>
+      {needsPagination && (
+        <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50/50">
+          <span className="text-[12px] text-slate-400">
+            {currentPage * pageSize + 1}–{Math.min((currentPage + 1) * pageSize, data.length)} of {data.length}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+              disabled={currentPage === 0}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span className="text-[12px] font-medium text-slate-500 px-2">
+              {currentPage + 1} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={currentPage >= totalPages - 1}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+
+// ─── PAGINATION BAR (for custom tables) ───────────────────
+export const PaginationBar = ({ currentPage, totalPages, rangeLabel, onPageChange }) => (
+  <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50/50 rounded-b-2xl">
+    <span className="text-[12px] text-slate-400">{rangeLabel}</span>
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => onPageChange(Math.max(0, currentPage - 1))}
+        disabled={currentPage === 0}
+        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        <ChevronLeft size={16} />
+      </button>
+      <span className="text-[12px] font-medium text-slate-500 px-2">{currentPage + 1} / {totalPages}</span>
+      <button
+        type="button"
+        onClick={() => onPageChange(Math.min(totalPages - 1, currentPage + 1))}
+        disabled={currentPage >= totalPages - 1}
+        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        <ChevronRight size={16} />
+      </button>
+    </div>
+  </div>
+)
 
 // ─── TABS ──────────────────────────────────────────────────
 export const Tabs = ({ tabs, defaultTab = 0, onChange }) => {

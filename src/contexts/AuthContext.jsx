@@ -17,26 +17,27 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let mounted = true
 
-    // Safety timeout - never hang forever
-    const timeout = setTimeout(() => {
-      if (mounted && loading) {
-        if (import.meta.env.DEV) console.warn('Auth loading timeout - forcing ready state')
-        setLoading(false)
-      }
-    }, 5000)
+    // Race getSession against a timeout so the app never hangs on a stuck lock
+    const sessionWithTimeout = (ms = 4000) => {
+      const timer = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('getSession timeout')), ms)
+      )
+      return Promise.race([supabase.auth.getSession(), timer])
+    }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    sessionWithTimeout().then(({ data: { session } }) => {
       if (!mounted) return
       if (session?.user) {
         setUser(session.user)
-        fetchProfile(session.user.id).catch(e => { if (import.meta.env.DEV) console.error(e) }).finally(() => {
-          if (mounted) setLoading(false)
-        })
+        fetchProfile(session.user.id)
+          .catch(() => {})
+          .finally(() => { if (mounted) setLoading(false) })
       } else {
         setLoading(false)
       }
     }).catch((err) => {
-      if (import.meta.env.DEV) console.error('Auth getSession error:', err)
+      // eslint-disable-next-line no-console -- visible in production for debugging auth issues
+      console.warn('Auth init failed, falling back to unauthenticated:', err?.message)
       if (mounted) setLoading(false)
     })
 
@@ -44,7 +45,7 @@ export function AuthProvider({ children }) {
       if (!mounted) return
       if (event === 'SIGNED_IN' && session?.user) {
         setUser(session.user)
-        await fetchProfile(session.user.id).catch(e => { if (import.meta.env.DEV) console.error(e) })
+        await fetchProfile(session.user.id).catch(() => {})
       } else if (event === 'SIGNED_OUT') {
         setUser(null)
         setProfile(null)
@@ -53,7 +54,6 @@ export function AuthProvider({ children }) {
 
     return () => {
       mounted = false
-      clearTimeout(timeout)
       subscription.unsubscribe()
     }
   }, [fetchProfile])
