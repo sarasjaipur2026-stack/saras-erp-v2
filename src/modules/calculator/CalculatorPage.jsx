@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useApp } from '../../contexts/AppContext'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
@@ -194,19 +194,64 @@ const NumInput = ({ label, value, onChange, suffix, step = '0.01', className = '
   </div>
 )
 
-const SelectInput = ({ label, value, onChange, options, placeholder = '— select —', className = '' }) => (
-  <div className={`flex flex-col gap-1 ${className}`}>
-    {label && <label className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">{label}</label>}
-    <select
-      value={value || ''}
-      onChange={e => onChange(e.target.value)}
-      className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none"
-    >
-      <option value="">{placeholder}</option>
-      {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-    </select>
-  </div>
-)
+const SelectInput = ({ label, value, onChange, options, placeholder = '— select —', className = '' }) => {
+  const [search, setSearch] = useState('')
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const filtered = useMemo(() => {
+    if (!search) return options.slice(0, 50)
+    const term = search.toLowerCase()
+    return options.filter(o => o.label.toLowerCase().includes(term)).slice(0, 50)
+  }, [options, search])
+
+  const selected = value ? options.find(o => o.value === value) : null
+
+  return (
+    <div className={`flex flex-col gap-1 ${className}`} ref={ref}>
+      {label && <label className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">{label}</label>}
+      <div className="relative">
+        <input
+          type="text"
+          value={open ? search : (selected?.label || '')}
+          onChange={e => { setSearch(e.target.value); if (!open) setOpen(true) }}
+          onFocus={() => { setOpen(true); setSearch('') }}
+          placeholder={placeholder}
+          className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none"
+        />
+        {value && !open && (
+          <button onClick={() => { onChange(''); setSearch('') }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500">
+            <X size={12} />
+          </button>
+        )}
+        {open && (
+          <div className="absolute top-full mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-30 max-h-48 overflow-auto">
+            <div
+              className="px-3 py-1.5 text-sm text-slate-400 cursor-pointer hover:bg-slate-50"
+              onClick={() => { onChange(''); setOpen(false); setSearch('') }}
+            >{placeholder}</div>
+            {filtered.map(o => (
+              <div
+                key={o.value}
+                className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-indigo-50 ${o.value === value ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-slate-700'}`}
+                onClick={() => { onChange(o.value); setOpen(false); setSearch('') }}
+              >{o.label}</div>
+            ))}
+            {!filtered.length && <div className="px-3 py-2 text-sm text-slate-400 italic">No matches</div>}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 // ─── OUTPUT ROW ──────────────────────────────────────────────
 const OutRow = ({ label, value, sub, big, accent }) => (
@@ -238,20 +283,29 @@ export default function CalculatorPage() {
   // Load orders + profiles
   useEffect(() => {
     let cancelled = false
-    ordersApi.getAll().then(r => { if (!cancelled) setOrderList((r?.data || []).filter(o => ['booking', 'approved', 'draft'].includes(o.status))) })
+    ordersApi.list().then(r => { if (!cancelled) setOrderList((r?.data || []).filter(o => ['booking', 'approved', 'draft'].includes(o.status))) })
     calculatorProfiles.getAll().then(r => { if (!cancelled) setProfileList(r?.data || []) })
     return () => { cancelled = true }
   }, [])
 
-  // Seed processes from masters once loaded
+  // Seed default process steps (4 core: Cone Winding, Bobbin Winding, Braiding, Tipping)
+  // We pick one representative per sequence_order to avoid seeding hundreds of rows
   useEffect(() => {
     if (!processTypes?.length) return
     setState(s => {
       if (s.processes.length) return s // already seeded — no-op
-      return {
-        ...s,
-        processes: processTypes.filter(p => p && !p.is_optional).map(p => emptyProcessRow(p))
-      }
+      const seen = new Set()
+      const defaults = processTypes
+        .filter(p => p && !p.is_optional)
+        .sort((a, b) => (a.sequence_order || 0) - (b.sequence_order || 0))
+        .filter(p => {
+          const seq = p.sequence_order ?? p.name
+          if (seen.has(seq)) return false
+          seen.add(seq)
+          return true
+        })
+        .slice(0, 4) // max 4 default steps
+      return { ...s, processes: defaults.map(p => emptyProcessRow(p)) }
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- functional setState reads current state
   }, [processTypes])
@@ -271,7 +325,12 @@ export default function CalculatorPage() {
 
   // ─── HANDLERS ──────────────────────────────────────────────
   const patch = useCallback((partial) => setState(s => ({ ...s, ...partial })), [])
-  const patchSample = useCallback((k, v) => setState(s => ({ ...s, sample: { ...s.sample, [k]: num(v) } })), [])
+  const patchSample = useCallback((k, v) => setState(s => {
+    const cur = s.sample[k]
+    const next = num(v)
+    if (cur === next) return s // no change — skip re-render
+    return { ...s, sample: { ...s.sample, [k]: next } }
+  }), [])
 
   // Auto-fill missing sample weight from the other two (handy UX)
   useEffect(() => {
