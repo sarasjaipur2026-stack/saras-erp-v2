@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   ShoppingCart,
   TrendingUp,
@@ -106,27 +106,40 @@ const OrdersPage = () => {
     }
   };
 
-  // Load orders on mount
-  useEffect(() => {
-    const loadOrders = async () => {
-      try {
-        setLoading(true);
-        const { data, error } = await ordersDb.list(user.id);
-        if (error) throw error;
-
-        setOrdersList(data || []);
-      } catch (error) {
-        toast.error('Failed to load orders');
-        if (import.meta.env.DEV) console.error('Error loading orders:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (user?.id) {
-      loadOrders();
+  // Load orders
+  const loadOrders = useCallback(async (showSpinner = true) => {
+    if (!user?.id) return;
+    try {
+      if (showSpinner) setLoading(true);
+      const { data, error } = await ordersDb.list(user.id);
+      if (error) throw error;
+      setOrdersList(data || []);
+    } catch (error) {
+      toast.error('Failed to load orders');
+      if (import.meta.env.DEV) console.error('Error loading orders:', error);
+    } finally {
+      setLoading(false);
     }
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load on mount
+  useEffect(() => { loadOrders(); }, [loadOrders]);
+
+  // Re-fetch silently when tab regains focus after 5+ min idle
+  useEffect(() => {
+    let lastHidden = 0;
+    const handler = () => {
+      if (document.visibilityState === 'hidden') {
+        lastHidden = Date.now();
+      } else if (document.visibilityState === 'visible' && lastHidden > 0) {
+        if (Date.now() - lastHidden > 5 * 60 * 1000) {
+          loadOrders(false);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, [loadOrders]);
 
   // Derived: filtered orders (computed, not stored in state)
   const filteredOrders = useMemo(() => {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { enquiries } from '../../lib/db'
 import { useAuth } from '../../contexts/AuthContext'
@@ -14,15 +14,32 @@ export default function EnquiriesPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
 
-  useEffect(() => { if (user?.id) fetchData() }, [user?.id])
-
-  const fetchData = async () => {
-    setIsLoading(true)
+  const fetchData = useCallback(async (showSpinner = true) => {
+    if (!user?.id) return
+    if (showSpinner) setIsLoading(true)
     const { data, error } = await enquiries.list(user.id)
     if (error) toast.error('Failed to load enquiries')
     else setList(data || [])
     setIsLoading(false)
-  }
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { fetchData() }, [fetchData])
+
+  // Re-fetch silently when tab regains focus after 5+ min idle
+  useEffect(() => {
+    let lastHidden = 0
+    const handler = () => {
+      if (document.visibilityState === 'hidden') {
+        lastHidden = Date.now()
+      } else if (document.visibilityState === 'visible' && lastHidden > 0) {
+        if (Date.now() - lastHidden > 5 * 60 * 1000) {
+          fetchData(false)
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', handler)
+    return () => document.removeEventListener('visibilitychange', handler)
+  }, [fetchData])
 
   const handleConvert = async (e, row) => {
     e.stopPropagation()

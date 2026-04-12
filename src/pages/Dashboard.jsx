@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { stats } from '../lib/db'
@@ -15,13 +15,36 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
 
-  useEffect(() => {
-    let cancelled = false
-    stats.getDashboard()
-      .then(d => { if (!cancelled) { setData(d); setLoading(false) } })
-      .catch(err => { if (!cancelled) { setLoadError(err?.message || 'Failed to load dashboard'); setLoading(false) } })
-    return () => { cancelled = true }
+  const loadDashboard = useCallback(async (showSpinner = true) => {
+    try {
+      if (showSpinner) setLoading(true)
+      setLoadError(null)
+      const d = await stats.getDashboard()
+      setData(d)
+    } catch (err) {
+      setLoadError(err?.message || 'Failed to load dashboard')
+    } finally {
+      setLoading(false)
+    }
   }, [])
+
+  useEffect(() => { loadDashboard() }, [loadDashboard])
+
+  // Re-fetch silently when tab regains focus after 5+ min idle
+  useEffect(() => {
+    let lastHidden = 0
+    const handler = () => {
+      if (document.visibilityState === 'hidden') {
+        lastHidden = Date.now()
+      } else if (document.visibilityState === 'visible' && lastHidden > 0) {
+        if (Date.now() - lastHidden > 5 * 60 * 1000) {
+          loadDashboard(false)
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', handler)
+    return () => document.removeEventListener('visibilitychange', handler)
+  }, [loadDashboard])
 
   const firstName = profile?.full_name?.split(' ')[0] || 'User'
 

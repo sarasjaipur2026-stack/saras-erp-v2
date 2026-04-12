@@ -104,6 +104,27 @@ export function AppProvider({ children }) {
     return () => { cancelled = true }
   }, [loadCritical, loadDeferred])
 
+  // Re-fetch critical masters when tab regains focus after being idle
+  // This prevents stale data / "failed to load" after long idle periods
+  useEffect(() => {
+    let lastHidden = 0
+    const STALE_THRESHOLD = 5 * 60 * 1000 // 5 minutes
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        lastHidden = Date.now()
+      } else if (document.visibilityState === 'visible' && loaded.current) {
+        const idleTime = Date.now() - lastHidden
+        if (lastHidden > 0 && idleTime > STALE_THRESHOLD) {
+          // Silently re-fetch critical masters — no loading spinner
+          loadCritical().catch(() => {})
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [loadCritical])
+
   // O(1) lookup maps — rebuilt only when underlying arrays change
   const machinesByCode = useMemo(() => new Map(masters.machines.map(m => [m.code, m])), [masters.machines])
   const customersById = useMemo(() => new Map(masters.customers.map(c => [c.id, c])), [masters.customers])

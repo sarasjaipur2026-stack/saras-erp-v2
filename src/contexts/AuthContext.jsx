@@ -43,18 +43,40 @@ export function AuthProvider({ children }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return
-      if (event === 'SIGNED_IN' && session?.user) {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
         setUser(session.user)
-        await fetchProfile(session.user.id).catch(() => {})
+        // Only re-fetch profile on sign-in, not every token refresh
+        if (event === 'SIGNED_IN') {
+          await fetchProfile(session.user.id).catch(() => {})
+        }
       } else if (event === 'SIGNED_OUT') {
         setUser(null)
         setProfile(null)
       }
     })
 
+    // When the tab regains focus after being idle, prod Supabase to
+    // verify the session is still valid and refresh it if needed.
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (!mounted) return
+          if (session?.user) {
+            setUser(session.user)
+          } else {
+            // Session expired and couldn't refresh — force re-login
+            setUser(null)
+            setProfile(null)
+          }
+        }).catch(() => {})
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
     return () => {
       mounted = false
       subscription.unsubscribe()
+      document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [fetchProfile])
 
