@@ -28,9 +28,36 @@ function readCache() {
   }
 }
 
+// Trim each master to only cache essential dropdown fields (id, name, code, etc.)
+// This keeps cache under ~500KB instead of ~4MB
+const CACHE_FIELDS = new Set([
+  'id', 'name', 'code', 'firm_name', 'contact_name', 'city', 'phone',
+  'prefix', 'symbol', 'hex_code', 'hindi_name', 'category', 'days',
+  'description', 'charge_mode', 'default_value', 'applies_to', 'is_taxable',
+  'commission_pct', 'order_mode', 'unit_type', 'active', 'state_code',
+  'exchange_rate', 'products', 'count_or_denier', 'sequence_order',
+  'cgst_pct', 'sgst_pct', 'igst_pct', 'vehicle_number', 'vehicle_type',
+  'gstin', 'credit_limit', 'broker_id', 'payment_term_id',
+])
+
+function trimForCache(data) {
+  const trimmed = {}
+  for (const [key, arr] of Object.entries(data)) {
+    if (!Array.isArray(arr) || arr.length === 0) { trimmed[key] = arr; continue }
+    trimmed[key] = arr.map(row => {
+      const slim = {}
+      for (const [k, v] of Object.entries(row)) {
+        if (CACHE_FIELDS.has(k)) slim[k] = v
+      }
+      return slim
+    })
+  }
+  return trimmed
+}
+
 function writeCache(data) {
   try {
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data }))
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: trimForCache(data) }))
   } catch {
     // sessionStorage full or unavailable — ignore
   }
