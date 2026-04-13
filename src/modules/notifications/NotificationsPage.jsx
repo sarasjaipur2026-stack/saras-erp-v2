@@ -88,7 +88,7 @@ export default function NotificationsPage() {
       const { error } = await notifications.emit({
         type: 'general',
         title: 'Test notification',
-        message: 'This is a test from SARAS ERP · if you see this in WhatsApp, the webhook is live.',
+        message: 'This is a test from sarasERP · if you see this in WhatsApp, the webhook is live.',
         entity_type: null,
         entity_id: null,
       })

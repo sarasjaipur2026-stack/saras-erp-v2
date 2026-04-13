@@ -46,7 +46,7 @@ export default function LoginPage() {
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold mx-auto mb-4 shadow-xl shadow-indigo-500/20">
             S
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">SARAS ERP</h1>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">sarasERP</h1>
           <p className="text-sm text-slate-400 mt-1">Sign in to your account</p>
         </div>
 

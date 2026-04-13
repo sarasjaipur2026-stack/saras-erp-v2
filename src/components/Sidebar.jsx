@@ -101,7 +101,7 @@ export default function Sidebar({ isOpen, onClose }) {
             S
           </div>
           <div>
-            <div className="font-bold text-slate-900 text-sm leading-tight tracking-tight">SARAS ERP</div>
+            <div className="font-bold text-slate-900 text-sm leading-tight tracking-tight">sarasERP</div>
             <div className="text-[10px] text-slate-400 leading-tight font-medium">Jaipur</div>
           </div>
         </div>
@@ -183,7 +183,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
       {/* Footer */}
       <div className="p-4 border-t border-slate-100">
-        <div className="text-[10px] text-slate-300 text-center font-medium tracking-wide">SARAS ERP v2.0</div>
+        <div className="text-[10px] text-slate-300 text-center font-medium tracking-wide">sarasERP v2.0</div>
       </div>
     </aside>
   )

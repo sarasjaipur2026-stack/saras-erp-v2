@@ -5,7 +5,7 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseKey) {
   // Surfacing this loudly so a misconfigured Vercel build is obvious in the console
-  console.error('[saras-erp] Supabase env vars missing at build time', { hasUrl: !!supabaseUrl, hasKey: !!supabaseKey })
+  console.error('[sarasERP] Supabase env vars missing at build time', { hasUrl: !!supabaseUrl, hasKey: !!supabaseKey })
 }
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
@@ -21,7 +21,7 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     lock: async (_name, _acquireTimeout, fn) => fn(),
   },
   global: {
-    headers: { 'X-Client-Info': 'saras-erp' },
+    headers: { 'X-Client-Info': 'sarasERP' },
   },
 })
 
@@ -69,7 +69,7 @@ const processQueue = async () => {
     }
     pendingQueue.shift()
     if (!success && import.meta.env.DEV) {
-      console.error('[saras-erp] Queued write dropped after', MAX_QUEUE_RETRIES, 'retries')
+      console.error('[sarasERP] Queued write dropped after', MAX_QUEUE_RETRIES, 'retries')
     }
   }
   isProcessing = false
