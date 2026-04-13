@@ -1,0 +1,262 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #4f46e5;
+  --color-primary-light: #6366f1;
+  --color-primary-dark: #4338ca;
+  --color-danger: #ef4444;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-info: #3b82f6;
+}
+
+/* Font loaded via <link rel="preload"> in index.html for non-blocking load */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: light;
+  /* Reserve space for scrollbar so content doesn't shift when it appears. */
+  scrollbar-gutter: stable;
+  /* Support for dynamic viewport on mobile browsers (address-bar aware). */
+  --vh: 1vh;
+}
+
+/* Utility: dynamic viewport height that respects mobile browser chrome. */
+@supports (height: 100dvh) {
+  .min-h-screen-dvh { min-height: 100dvh; }
+}
+
+/* Disable hover-state stickiness on touch-only devices. */
+@media (hover: none) {
+  .card-hover:hover { transform: none; box-shadow: none; }
+}
+
+/* Print stylesheet for invoices, reports, challans. */
+@media print {
+  html, body { background: #fff !important; }
+  aside, nav, .no-print, [role="dialog"] { display: none !important; }
+  main { margin: 0 !important; padding: 0 !important; }
+  *, *::before, *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    color: #000 !important;
+    background: transparent !important;
+  }
+  a { text-decoration: underline; }
+  table { page-break-inside: avoid; }
+  tr, td, th { page-break-inside: avoid; }
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #f8fafc;
+  color: #1e293b;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* 2026 optical refinements for Inter: stylistic alt 'a', rounded 'l',
+     tabular numerics, proper kerning, contextual alternates. */
+  font-feature-settings: 'cv11', 'ss01', 'ss03', 'cv02', 'calt', 'kern';
+  font-optical-sizing: auto;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* Numeric-heavy surfaces: tables, stat cards, mono columns. */
+table, .tabular-nums, [class*="font-mono"] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 2026 text flow: balanced headings, pretty orphan-free paragraphs.
+   Gracefully ignored by browsers that don't support it. */
+h1, h2, h3, h4 {
+  text-wrap: balance;
+}
+p {
+  text-wrap: pretty;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Selection */
+::selection {
+  background: rgba(99, 102, 241, 0.15);
+  color: #312e81;
+}
+
+/* Custom scrollbar — firefox + webkit */
+* { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 99px;
+  transition: background 0.2s;
+}
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* Sidebar scrollbar - thinner */
+.sidebar-scroll::-webkit-scrollbar { width: 3px; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: transparent; }
+.sidebar-scroll:hover::-webkit-scrollbar-thumb { background: #e2e8f0; }
+
+/* Toast animation */
+@keyframes slideIn {
+  from { transform: translateX(100%) translateY(-4px); opacity: 0; }
+  to { transform: translateX(0) translateY(0); opacity: 1; }
+}
+.toast-enter { animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Page fade in */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Modal backdrop animation */
+@keyframes backdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.backdrop-in { animation: backdropIn 0.2s ease-out; }
+
+/* Modal scale in */
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.97) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.scale-in { animation: scaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Dropdown slide */
+@keyframes dropdownIn {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.dropdown-in { animation: dropdownIn 0.18s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Pulse glow for stat cards */
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+  50% { box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.08); }
+}
+
+/* Spinner */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glass effect */
+.glass {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+}
+
+/* Focus ring utility — 2026 refined: white offset + soft brand halo */
+.focus-ring {
+  outline: none;
+}
+.focus-ring:focus-visible {
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 4px #6366f1,
+    0 0 0 6px rgba(99, 102, 241, 0.18);
+}
+
+/* Layered soft shadow system — replaces flat shadows where used */
+.shadow-soft {
+  box-shadow:
+    0 1px 2px -1px rgba(15, 23, 42, 0.04),
+    0 2px 6px -2px rgba(15, 23, 42, 0.05),
+    0 8px 24px -8px rgba(15, 23, 42, 0.06);
+}
+.shadow-soft-lg {
+  box-shadow:
+    0 1px 2px -1px rgba(15, 23, 42, 0.05),
+    0 4px 12px -4px rgba(15, 23, 42, 0.06),
+    0 16px 48px -16px rgba(15, 23, 42, 0.10);
+}
+
+/* Shimmer skeleton for loading states */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(226, 232, 240, 0.55) 0%,
+    rgba(241, 245, 249, 0.9) 50%,
+    rgba(226, 232, 240, 0.55) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  border-radius: 8px;
+}
+
+/* Table row hover */
+.table-row-hover {
+  transition: background-color 0.15s ease;
+}
+.table-row-hover:hover {
+  background-color: #f8fafc;
+}
+
+/* Smooth transitions for interactive elements */
+button, a, input, select, textarea {
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Active press effect for buttons */
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Subtle card lift on hover */
+.card-hover {
+  transition: box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.2s ease;
+}
+.card-hover:hover {
+  box-shadow:
+    0 1px 2px -1px rgba(15, 23, 42, 0.04),
+    0 6px 16px -4px rgba(15, 23, 42, 0.08),
+    0 12px 32px -12px rgba(15, 23, 42, 0.10);
+  transform: translateY(-1px);
+}
+
+/* Respect user motion preferences — 2026 a11y requirement.
+   Kills non-essential animation, keeps opacity fades. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  button:active:not(:disabled) { transform: none; }
+  .card-hover:hover { transform: none; }
+}
