@@ -89,15 +89,15 @@ export default function Sidebar({ isOpen, onClose }) {
 
   return (
     <aside className={`
-      fixed top-0 left-0 z-40 h-full w-64 bg-white border-r border-slate-200/70
+      fixed top-0 left-0 z-40 h-full w-64 bg-white border-r border-slate-200/80
       flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]
       lg:translate-x-0
       ${isOpen ? 'translate-x-0' : '-translate-x-full'}
     `}>
       {/* Logo */}
-      <div className="h-16 flex items-center px-5 border-b border-slate-100">
+      <div className="h-16 flex items-center px-5 border-b border-slate-200/60">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-md shadow-indigo-500/20">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-lg shadow-indigo-500/25 ring-1 ring-indigo-500/10">
             S
           </div>
           <div>
@@ -108,7 +108,7 @@ export default function Sidebar({ isOpen, onClose }) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-3 px-3 sidebar-scroll">
+      <nav className="flex-1 overflow-y-auto py-3 pl-0 pr-3 sidebar-scroll">
         {CATEGORIES.map(cat => {
           const items = allItems.filter(i => i.category === cat.key)
           if (!items.length) return null
@@ -116,14 +116,14 @@ export default function Sidebar({ isOpen, onClose }) {
           const isCollapsed = cat.collapsible && !expandedCategories[cat.key]
 
           return (
-            <div key={cat.key} className="mb-0.5">
+            <div key={cat.key}>
               {cat.label && (
                 <div
                   onClick={() => cat.collapsible && toggleCategory(cat.key)}
                   className={`
-                    text-[10px] font-semibold text-slate-400/80 uppercase tracking-[0.08em] px-3 pt-5 pb-2
-                    flex items-center justify-between
-                    ${cat.collapsible ? 'cursor-pointer hover:text-slate-600' : ''}
+                    text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mt-6 mb-2
+                    flex items-center justify-between select-none
+                    ${cat.collapsible ? 'cursor-pointer hover:text-slate-600 transition-colors duration-150' : ''}
                   `}
                 >
                   <span>{cat.label}</span>
@@ -149,21 +149,26 @@ export default function Sidebar({ isOpen, onClose }) {
                       else onClose?.()
                     }}
                     className={`
-                      group relative flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] mb-0.5
-                      transition-all duration-200
+                      group relative flex items-center gap-3 py-2.5 px-3 ml-0 rounded-r-lg text-[13px] mb-0.5 cursor-pointer
+                      transition-colors duration-150
                       ${item.coming
                         ? 'text-slate-300 cursor-not-allowed'
                         : isActive
-                          ? 'bg-indigo-50/80 text-indigo-700 font-semibold'
-                          : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                          ? 'bg-indigo-50 text-indigo-700 font-semibold border-l-[3px] border-indigo-600'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border-l-[3px] border-transparent'
                       }
                     `}
                   >
-                    {/* Active indicator bar */}
-                    {isActive && !item.coming && (
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-indigo-500 rounded-r-full" />
-                    )}
-                    <Icon size={18} strokeWidth={isActive ? 2 : 1.5} className={`shrink-0 transition-colors duration-200 ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
+                    <Icon
+                      className={`w-5 h-5 shrink-0 transition-colors duration-150 ${
+                        isActive
+                          ? 'text-indigo-600'
+                          : item.coming
+                            ? 'text-slate-300'
+                            : 'text-slate-400 group-hover:text-slate-600'
+                      }`}
+                      strokeWidth={isActive ? 2 : 1.5}
+                    />
                     <span className="flex-1">{item.label}</span>
                     {item.coming && (
                       <span className="text-[9px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded-md font-medium">
@@ -171,7 +176,10 @@ export default function Sidebar({ isOpen, onClose }) {
                       </span>
                     )}
                     {item.badge && (
-                      <span className="w-2 h-2 bg-indigo-500 rounded-full" />
+                      <span className="relative flex h-2 w-2">
+                        <span className="absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75 animate-ping" />
+                        <span className="relative inline-flex h-2 w-2 rounded-full bg-indigo-500" />
+                      </span>
                     )}
                   </NavLink>
                 )
@@ -182,7 +190,7 @@ export default function Sidebar({ isOpen, onClose }) {
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-slate-100">
+      <div className="px-4 py-3 border-t border-slate-100">
         <div className="text-[10px] text-slate-300 text-center font-medium tracking-wide">sarasERP v2.0</div>
       </div>
     </aside>

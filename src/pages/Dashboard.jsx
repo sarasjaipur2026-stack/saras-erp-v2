@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { stats } from '../lib/db'
-import { StatCard, Spinner } from '../components/ui'
+import { Spinner } from '../components/ui'
 import {
   ShoppingCart, MessageSquare, Users, AlertTriangle,
   Clock, Plus, ArrowRight, TrendingUp
@@ -75,6 +75,9 @@ export default function Dashboard() {
 
   const firstName = profile?.full_name?.split(' ')[0] || 'User'
 
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-32">
@@ -96,12 +99,19 @@ export default function Dashboard() {
     )
   }
 
+  const statCards = [
+    { label: 'Total Orders', value: data?.totalOrders || 0, icon: ShoppingCart, border: 'border-l-indigo-500', iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600' },
+    { label: 'New Enquiries', value: data?.newEnquiries || 0, icon: MessageSquare, border: 'border-l-amber-500', iconBg: 'bg-amber-50', iconColor: 'text-amber-600' },
+    { label: 'Pending Orders', value: data?.pendingOrders || 0, icon: Clock, border: 'border-l-orange-500', iconBg: 'bg-orange-50', iconColor: 'text-orange-600' },
+    { label: 'Total Customers', value: data?.totalCustomers || 0, icon: Users, border: 'border-l-emerald-500', iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600' },
+  ]
+
   return (
     <div className="fade-in max-w-6xl mx-auto">
       {/* Welcome */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-          Welcome back, {firstName}
+          {greeting}, {firstName}
         </h1>
         <p className="text-sm text-slate-400 mt-1">
           Here's what's happening at SARAS today
@@ -109,17 +119,30 @@ export default function Dashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-        <StatCard label="Total Orders" value={data?.totalOrders || 0} icon={ShoppingCart} color="indigo" />
-        <StatCard label="New Enquiries" value={data?.newEnquiries || 0} icon={MessageSquare} color="amber" />
-        <StatCard label="Pending Orders" value={data?.pendingOrders || 0} icon={Clock} color="blue" />
-        <StatCard label="Total Customers" value={data?.totalCustomers || 0} icon={Users} color="green" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {statCards.map(card => {
+          const Icon = card.icon
+          return (
+            <div
+              key={card.label}
+              className={`bg-white rounded-2xl border border-slate-200/80 border-l-4 ${card.border} p-5 hover:shadow-md transition-shadow duration-200`}
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div className={`w-10 h-10 rounded-xl ${card.iconBg} flex items-center justify-center`}>
+                  <Icon size={19} className={card.iconColor} />
+                </div>
+              </div>
+              <p className="text-3xl font-bold text-slate-900 tracking-tight">{card.value}</p>
+              <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold mt-1">{card.label}</p>
+            </div>
+          )
+        })}
       </div>
 
       {/* Urgent Orders Alert */}
       {data?.urgentOrders > 0 && (
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/80 rounded-2xl p-4 flex items-center gap-4 mb-8">
-          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+        <div className="bg-white border border-slate-200/80 border-l-4 border-l-amber-400 rounded-2xl p-4 flex items-center gap-4 mb-8">
+          <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
             <AlertTriangle size={19} className="text-amber-600" />
           </div>
           <div className="flex-1 min-w-0">
@@ -139,7 +162,7 @@ export default function Dashboard() {
       {/* Quick Actions */}
       <div className="mb-8">
         <h2 className="text-sm font-semibold text-slate-800 mb-3">Quick Actions</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
           {[
             { label: 'New Order', icon: Plus, path: '/orders/new', gradient: 'from-indigo-500 to-indigo-600' },
             { label: 'New Enquiry', icon: Plus, path: '/enquiries/new', gradient: 'from-amber-500 to-orange-500' },
@@ -149,10 +172,10 @@ export default function Dashboard() {
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
-              className="flex items-center gap-3 bg-white border border-slate-200/80 rounded-2xl p-4 hover:border-slate-300 hover:shadow-md hover:shadow-slate-100 transition-all duration-200 text-left group"
+              className="flex items-center gap-3 bg-white border border-slate-200/80 rounded-2xl p-4 cursor-pointer hover:border-slate-300 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 text-left group"
             >
-              <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${item.gradient} flex items-center justify-center text-white shadow-sm group-hover:shadow-md transition-shadow duration-200`}>
-                <item.icon size={17} />
+              <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${item.gradient} flex items-center justify-center text-white shadow-sm group-hover:shadow-md transition-shadow duration-200`}>
+                <item.icon size={18} />
               </div>
               <span className="text-[13px] font-medium text-slate-600 group-hover:text-slate-900 transition-colors">{item.label}</span>
             </button>
