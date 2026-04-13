@@ -32,7 +32,7 @@ import {
   Modal,
 } from '../../components/ui';
 
-const ORDERS_CACHE_TTL = 2 * 60 * 1000
+const ORDERS_CACHE_TTL = 10 * 60 * 1000
 
 function getOrdersCacheKey(userId) {
   return userId ? `saras_orders_v1_${userId}` : null
@@ -159,21 +159,16 @@ const OrdersPage = () => {
     else loadOrders()
   }, [cachedOrders, loadOrders]);
 
-  // Re-fetch silently when tab regains focus after 5+ min idle
+  // Re-fetch silently when tab regains focus if cache is stale
   useEffect(() => {
-    let lastHidden = 0;
     const handler = () => {
-      if (document.visibilityState === 'hidden') {
-        lastHidden = Date.now();
-      } else if (document.visibilityState === 'visible' && lastHidden > 0) {
-        if (Date.now() - lastHidden > 5 * 60 * 1000) {
-          loadOrders(false);
-        }
+      if (document.visibilityState === 'visible' && !readOrdersCache(user?.id)) {
+        loadOrders(false);
       }
     };
     document.addEventListener('visibilitychange', handler);
     return () => document.removeEventListener('visibilitychange', handler);
-  }, [loadOrders]);
+  }, [loadOrders, user?.id]);
 
   // Derived: filtered orders (computed, not stored in state)
   const filteredOrders = useMemo(() => {
@@ -573,13 +568,13 @@ const OrdersPage = () => {
         />
         <StatCard
           label="Revenue"
-          value={<Currency amount={stats.totalRevenue} />}
+          value={<Currency amount={stats.totalRevenue} compact />}
           icon={ShoppingCart}
           color="green"
         />
         <StatCard
           label="Outstanding"
-          value={<Currency amount={stats.outstandingBalance} />}
+          value={<Currency amount={stats.outstandingBalance} compact />}
           icon={AlertCircle}
           color="amber"
         />

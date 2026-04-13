@@ -271,8 +271,10 @@ export default function CalculatorPage() {
   const toast = useToast()
   const masters = useApp()
   const {
-    machineTypes, productTypes, yarnTypes, chaalTypes, processTypes, operators
+    machineTypes, productTypes, yarnTypes, chaalTypes, processTypes, operators,
+    ensureDeferred,
   } = masters
+  useEffect(() => { ensureDeferred() }, [ensureDeferred])
 
   const [state, setState] = useState(defaultState)
   const [orderList, setOrderList] = useState([])

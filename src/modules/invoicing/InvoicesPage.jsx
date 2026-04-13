@@ -4,7 +4,7 @@ import { useToast } from '../../contexts/ToastContext'
 import { usePagination } from '../../hooks/usePagination'
 import { Button, Modal, Badge, Input, PaginationBar } from '../../components/ui'
 import { FileText, Plus, Search } from 'lucide-react'
-import { fmtMoney, fmtDate } from '../../lib/format'
+import { fmtMoney, fmtMoneyCompact, fmtDate } from '../../lib/format'
 
 const STATUS = {
   draft:          { variant: 'default', label: 'Draft' },
@@ -101,15 +101,15 @@ export default function InvoicesPage() {
       <div className="grid grid-cols-3 gap-3 mb-5">
         <div className="bg-white rounded-xl border border-slate-200/80 p-4">
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Invoiced</div>
-          <div className="text-xl font-mono font-bold text-slate-800 mt-1">{fmtMoney(totals.invoiced)}</div>
+          <div className="text-xl font-mono font-bold text-slate-800 mt-1">{fmtMoneyCompact(totals.invoiced)}</div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200/80 p-4">
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Collected</div>
-          <div className="text-xl font-mono font-bold text-emerald-700 mt-1">{fmtMoney(totals.collected)}</div>
+          <div className="text-xl font-mono font-bold text-emerald-700 mt-1">{fmtMoneyCompact(totals.collected)}</div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200/80 p-4">
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Outstanding</div>
-          <div className="text-xl font-mono font-bold text-amber-700 mt-1">{fmtMoney(totals.outstanding)}</div>
+          <div className="text-xl font-mono font-bold text-amber-700 mt-1">{fmtMoneyCompact(totals.outstanding)}</div>
         </div>
       </div>
 

@@ -33,7 +33,11 @@ export default function Topbar({ onMenuClick }) {
     }).catch(() => {})
   }, [user])
 
-  useEffect(() => { loadNotifs() }, [loadNotifs])
+  // Defer initial notification load by 2s to avoid competing with critical data
+  useEffect(() => {
+    const t = setTimeout(loadNotifs, 2000)
+    return () => clearTimeout(t)
+  }, [loadNotifs])
 
   // Poll every 60 seconds while the tab is open
   useEffect(() => {
@@ -80,7 +84,7 @@ export default function Topbar({ onMenuClick }) {
   const initials = (profile?.full_name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
 
   return (
-    <header className="h-16 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 flex items-center px-4 gap-3 sticky top-0 z-20">
+    <header className="h-16 bg-white/80 backdrop-blur-sm border-b border-slate-200/60 flex items-center px-6 py-3 gap-3 sticky top-0 z-20">
       <button
         type="button"
         onClick={onMenuClick}
@@ -97,7 +101,7 @@ export default function Topbar({ onMenuClick }) {
           <input
             type="text"
             placeholder="Search orders, customers..."
-            className="w-full pl-9 pr-4 py-2 text-sm bg-slate-50/80 border border-slate-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-300 focus:bg-white transition-all placeholder:text-slate-400"
+            className="w-full pl-9 pr-4 py-2 min-h-[42px] text-sm bg-slate-50/80 border border-slate-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-300 focus:bg-white transition-all duration-200 placeholder:text-slate-400"
           />
         </div>
       </div>

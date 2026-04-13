@@ -13,7 +13,8 @@ const MODES = ['cash', 'neft', 'rtgs', 'upi', 'cheque', 'card', 'other']
 
 export default function PaymentsPage() {
   const toast = useToast()
-  const { banks } = useApp()
+  const { banks, ensureDeferred } = useApp()
+  useEffect(() => { ensureDeferred() }, [ensureDeferred])
   const [list, setList] = useState([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
@@ -181,7 +182,7 @@ export default function PaymentsPage() {
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Amount" type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: parseFloat(e.target.value) || 0 }))} />
+            <Input label="Amount" type="number" min="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: parseFloat(e.target.value) || 0 }))} />
             <Input label="Date" type="date" value={form.payment_date} onChange={e => setForm(f => ({ ...f, payment_date: e.target.value }))} />
           </div>
 

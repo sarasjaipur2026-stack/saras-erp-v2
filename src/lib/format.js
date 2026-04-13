@@ -15,6 +15,17 @@ export const fmtMoney = (v) =>
     ? `₹${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
     : '—';
 
+/** Compact money: ₹12.85 Cr, ₹6.58 L, ₹45.2 K */
+export const fmtMoneyCompact = (v) => {
+  if (!Number.isFinite(+v)) return '—'
+  const n = Math.abs(Number(v))
+  const sign = Number(v) < 0 ? '-' : ''
+  if (n >= 1e7) return `${sign}₹${(n / 1e7).toFixed(2)} Cr`
+  if (n >= 1e5) return `${sign}₹${(n / 1e5).toFixed(2)} L`
+  if (n >= 1e3) return `${sign}₹${(n / 1e3).toFixed(1)} K`
+  return `${sign}₹${n.toFixed(0)}`
+}
+
 /** Format an integer with Indian locale grouping */
 export const fmtInt = (v) =>
   Number.isFinite(+v) ? Math.round(Number(v)).toLocaleString('en-IN') : '—';

@@ -101,66 +101,71 @@ export const reports = {
 }
 
 // ─── DASHBOARD STATS ───────────────────────────────────────
+// Helper: count orders by status using head:true (no row data transferred)
+const countByStatus = (status) =>
+  supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', status)
+
 export const stats = {
   getDashboard: async () => {
     try {
-      // Race against a 8s timeout so the dashboard never shows an infinite spinner
+      const statuses = ['draft', 'booking', 'approved', 'production', 'qc', 'dispatch', 'completed', 'cancelled']
+
       const queries = Promise.all([
-        supabase
-          .from('orders')
-          .select('id, status, grand_total, balance_due', { count: 'exact' })
-          .order('created_at', { ascending: false })
-          .limit(5000),
-        supabase
-          .from('enquiries')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'new'),
-        supabase
-          .from('customers')
-          .select('id', { count: 'exact', head: true }),
+        // Total order count
+        supabase.from('orders').select('id', { count: 'exact', head: true }),
+        // Per-status counts (lightweight head-only queries)
+        ...statuses.map(s => countByStatus(s)),
+        // Financial totals — only fetch the two numeric columns, no full rows
+        supabase.from('orders').select('grand_total, balance_due')
+          .not('status', 'in', '("cancelled")').limit(5000),
+        // Overdue: has balance and not completed/cancelled
+        supabase.from('orders').select('id', { count: 'exact', head: true })
+          .gt('balance_due', 0)
+          .not('status', 'in', '("completed","cancelled")'),
+        // New enquiries count
+        supabase.from('enquiries').select('id', { count: 'exact', head: true }).eq('status', 'new'),
+        // Customers count
+        supabase.from('customers').select('id', { count: 'exact', head: true }),
       ])
+
       const timeout = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Dashboard query timeout')), 8000)
       )
-      const [ordersRes, enquiriesRes, customersRes] = await Promise.race([queries, timeout])
+      const results = await Promise.race([queries, timeout])
 
-      const orderData = ordersRes.data || []
+      // Unpack results
+      const totalOrdersRes = results[0]
+      const statusResults = results.slice(1, 1 + statuses.length)
+      const financialsRes = results[1 + statuses.length]
+      const overdueRes = results[2 + statuses.length]
+      const enquiriesRes = results[3 + statuses.length]
+      const customersRes = results[4 + statuses.length]
 
-      const statusCounts = {
-        draft: orderData.filter(o => o.status === 'draft').length,
-        booking: orderData.filter(o => o.status === 'booking').length,
-        approved: orderData.filter(o => o.status === 'approved').length,
-        production: orderData.filter(o => o.status === 'production').length,
-        qc: orderData.filter(o => o.status === 'qc').length,
-        dispatch: orderData.filter(o => o.status === 'dispatch').length,
-        completed: orderData.filter(o => o.status === 'completed').length,
-        cancelled: orderData.filter(o => o.status === 'cancelled').length,
-      }
+      const statusCounts = {}
+      statuses.forEach((s, i) => { statusCounts[s] = statusResults[i].count || 0 })
 
-      const totalRevenue = orderData.reduce((sum, o) => sum + (o.grand_total || 0), 0)
-      const outstandingBalance = orderData.reduce((sum, o) => sum + (o.balance_due || 0), 0)
+      const finRows = financialsRes.data || []
+      const totalRevenue = finRows.reduce((sum, o) => sum + (o.grand_total || 0), 0)
+      const outstandingBalance = finRows.reduce((sum, o) => sum + (o.balance_due || 0), 0)
 
-      const overdueCount = orderData.filter(
-        o => o.balance_due > 0 && !['completed', 'cancelled'].includes(o.status)
-      ).length
-
-      const pendingOrders = orderData.filter(
-        o => !['completed', 'cancelled', 'draft'].includes(o.status)
-      ).length
+      const pendingOrders = (totalOrdersRes.count || 0)
+        - (statusCounts.completed || 0)
+        - (statusCounts.cancelled || 0)
+        - (statusCounts.draft || 0)
 
       return {
-        totalOrders: ordersRes.count || orderData.length,
-        newEnquiries: enquiriesRes.count || (enquiriesRes.data || []).length,
+        totalOrders: totalOrdersRes.count || 0,
+        newEnquiries: enquiriesRes.count || 0,
         pendingOrders,
-        urgentOrders: overdueCount,
-        totalCustomers: customersRes.count || (customersRes.data || []).length,
+        urgentOrders: overdueRes.count || 0,
+        totalCustomers: customersRes.count || 0,
         statusCounts,
         financialTotals: {
           totalRevenue,
           outstandingBalance,
           totalPayments: 0,
         },
-        overdueCount,
+        overdueCount: overdueRes.count || 0,
       }
     } catch (error) {
       return {

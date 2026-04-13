@@ -132,29 +132,38 @@ export function AppProvider({ children }) {
     })
   }, [])
 
+  // Track whether deferred masters have been loaded
+  const deferredLoaded = useRef(false)
+
+  // Load deferred masters on demand — only fetches once
+  const ensureDeferred = useCallback(async () => {
+    if (deferredLoaded.current) return
+    deferredLoaded.current = true
+    await loadDeferred()
+  }, [loadDeferred])
+
   const loadMasterData = useCallback(async () => {
     setLoading(true)
     await loadCritical()
     await loadDeferred()
+    deferredLoaded.current = true
     setLoading(false)
     loaded.current = true
   }, [loadCritical, loadDeferred])
 
-  // On mount: if cache hit, skip loading spinner entirely; else defer load
+  // On mount: load critical masters only — deferred masters load on demand
   useEffect(() => {
     let cancelled = false
 
     if (loaded.current) {
-      // Cache hit — still refresh in background silently
+      // Cache hit — still refresh critical in background silently
       whenIdle(() => {
-        if (!cancelled) loadCritical().then(() => {
-          if (!cancelled) loadDeferred()
-        })
+        if (!cancelled) loadCritical()
       }, 500)
       return () => { cancelled = true }
     }
 
-    // No cache — load critical first, then deferred
+    // No cache — load critical only
     whenIdle(async () => {
       if (cancelled) return
       setLoading(true)
@@ -162,25 +171,15 @@ export function AppProvider({ children }) {
       if (cancelled) return
       setLoading(false)
       loaded.current = true
-      // Phase 2 loads silently in background
-      whenIdle(() => { if (!cancelled) loadDeferred() }, 200)
     })
     return () => { cancelled = true }
-  }, [loadCritical, loadDeferred])
+  }, [loadCritical])
 
-  // Re-fetch critical masters when tab regains focus after being idle
+  // Re-fetch critical masters when tab regains focus if cache is stale
   useEffect(() => {
-    let lastHidden = 0
-    const STALE_THRESHOLD = 5 * 60 * 1000 // 5 minutes
-
     const handleVisibility = () => {
-      if (document.visibilityState === 'hidden') {
-        lastHidden = Date.now()
-      } else if (document.visibilityState === 'visible' && loaded.current) {
-        const idleTime = Date.now() - lastHidden
-        if (lastHidden > 0 && idleTime > STALE_THRESHOLD) {
-          loadCritical().catch(() => {})
-        }
+      if (document.visibilityState === 'visible' && loaded.current && !readCache()) {
+        loadCritical().catch(() => {})
       }
     }
     document.addEventListener('visibilitychange', handleVisibility)
@@ -224,9 +223,9 @@ export function AppProvider({ children }) {
   const value = useMemo(() => ({
     ...masters,
     loading,
-    loadMasterData, getProductsForMachine, getMachinesForProduct,
+    loadMasterData, ensureDeferred, getProductsForMachine, getMachinesForProduct,
     getChargeTypesByScope, getDefaultPaymentTerms, getExchangeRate,
-  }), [masters, loading, loadMasterData, getProductsForMachine, getMachinesForProduct, getChargeTypesByScope, getDefaultPaymentTerms, getExchangeRate])
+  }), [masters, loading, loadMasterData, ensureDeferred, getProductsForMachine, getMachinesForProduct, getChargeTypesByScope, getDefaultPaymentTerms, getExchangeRate])
 
   return (
     <AppContext.Provider value={value}>

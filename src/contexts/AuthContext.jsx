@@ -19,10 +19,31 @@ function peekSession() {
   }
 }
 
+// ─── Profile cache in sessionStorage ──────────────────────
+const PROFILE_CACHE_KEY = 'saras_profile_v1'
+const PROFILE_CACHE_TTL = 15 * 60 * 1000 // 15 min
+
+function readProfileCache(userId) {
+  try {
+    const raw = sessionStorage.getItem(PROFILE_CACHE_KEY)
+    if (!raw) return null
+    const { ts, uid, data } = JSON.parse(raw)
+    if (uid !== userId || Date.now() - ts > PROFILE_CACHE_TTL) return null
+    return data
+  } catch { return null }
+}
+
+function writeProfileCache(userId, data) {
+  try {
+    sessionStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify({ ts: Date.now(), uid: userId, data }))
+  } catch { /* full */ }
+}
+
 export function AuthProvider({ children }) {
   const peeked = peekSession()
   const [user, setUser] = useState(peeked)
-  const [profile, setProfile] = useState(null)
+  const cachedProfile = peeked ? readProfileCache(peeked.id) : null
+  const [profile, setProfile] = useState(cachedProfile)
   // If we peeked a valid user, skip the loading state entirely
   const [loading, setLoading] = useState(!peeked)
 
@@ -34,6 +55,7 @@ export function AuthProvider({ children }) {
       return null
     }
     setProfile(data)
+    writeProfileCache(userId, data)
     return data
   }, [])
 
@@ -77,21 +99,29 @@ export function AuthProvider({ children }) {
       }
     })
 
-    // When the tab regains focus after being idle, prod Supabase to
-    // verify the session is still valid and refresh it if needed.
+    // When the tab regains focus after significant idle (2+ min), verify
+    // the session is still valid and refresh if needed. Short idle periods
+    // are handled by Supabase's autoRefreshToken — no need to call
+    // getSession() on every single tab switch.
+    let hiddenAt = 0
+    const AUTH_IDLE_THRESHOLD = 2 * 60 * 1000 // 2 minutes
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-          if (!mounted) return
-          if (session?.user) {
-            setUser(session.user)
-          } else {
-            // Session expired and couldn't refresh — force re-login
-            setUser(null)
-            setProfile(null)
-          }
-        }).catch(() => {})
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now()
+        return
       }
+      if (document.visibilityState !== 'visible') return
+      if (hiddenAt > 0 && Date.now() - hiddenAt < AUTH_IDLE_THRESHOLD) return
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!mounted) return
+        if (session?.user) {
+          setUser(session.user)
+        } else {
+          // Session expired and couldn't refresh — force re-login
+          setUser(null)
+          setProfile(null)
+        }
+      }).catch(() => {})
     }
     document.addEventListener('visibilitychange', handleVisibility)
 
@@ -145,7 +175,7 @@ export function AuthProvider({ children }) {
     if (!action) {
       if (isViewer) return modPerms?.view !== false
       if (isStaff) {
-        if (!modPerms) return true
+        if (!modPerms) return false // deny by default — staff must have explicit permissions
         // Any truthy entry means they can see it
         return Object.values(modPerms).some(v => v === true)
       }
@@ -155,7 +185,7 @@ export function AuthProvider({ children }) {
     // Action-level check
     if (isViewer) return action === 'view' && modPerms?.view !== false
     if (isStaff) {
-      if (!modPerms) return true // permissive default for staff on unmapped modules
+      if (!modPerms) return false // deny by default — staff must have explicit permissions
       return modPerms[action] === true
     }
     return false

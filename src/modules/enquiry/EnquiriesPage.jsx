@@ -6,7 +6,7 @@ import { useToast } from '../../contexts/ToastContext'
 import { Button, DataTable, Tabs, StatusBadge } from '../../components/ui'
 import { Plus, CheckCircle, XCircle, MessageSquare } from 'lucide-react'
 
-const ENQUIRIES_CACHE_TTL = 2 * 60 * 1000
+const ENQUIRIES_CACHE_TTL = 10 * 60 * 1000
 
 function getEnquiriesCacheKey(userId) {
   return userId ? `saras_enquiries_v1_${userId}` : null
@@ -62,21 +62,16 @@ export default function EnquiriesPage() {
     else fetchData()
   }, [cachedList, fetchData])
 
-  // Re-fetch silently when tab regains focus after 5+ min idle
+  // Re-fetch silently when tab regains focus if cache is stale
   useEffect(() => {
-    let lastHidden = 0
     const handler = () => {
-      if (document.visibilityState === 'hidden') {
-        lastHidden = Date.now()
-      } else if (document.visibilityState === 'visible' && lastHidden > 0) {
-        if (Date.now() - lastHidden > 5 * 60 * 1000) {
-          fetchData(false)
-        }
+      if (document.visibilityState === 'visible' && !readEnquiriesCache(user?.id)) {
+        fetchData(false)
       }
     }
     document.addEventListener('visibilitychange', handler)
     return () => document.removeEventListener('visibilitychange', handler)
-  }, [fetchData])
+  }, [fetchData, user?.id])
 
   const handleConvert = async (e, row) => {
     e.stopPropagation()

@@ -307,6 +307,7 @@ function ProductionDetailBody({ job, onPatch }) {
         <div className="flex gap-2 mt-3">
           <Input
             type="number"
+            min="0"
             value={completed}
             onChange={e => setCompleted(parseFloat(e.target.value) || 0)}
             className="flex-1"

@@ -89,9 +89,10 @@ export const purchaseOrders = {
       .limit(1000)
   ),
 
-  // gstRate: total GST percentage (default 12). Callers should pass the rate
-  // from app_settings when available to stay consistent with SettingsPage config.
-  createWithItems: async ({ supplier_id, po_date, expected_date, notes, items, gstRate = 12 }) => {
+  // Accepts pre-computed tax amounts (cgst_amount, sgst_amount, igst_amount) from the UI,
+  // which are calculated per-item using HSN-based GST rates. Falls back to gstRate param
+  // if pre-computed amounts are not provided.
+  createWithItems: async ({ supplier_id, po_date, expected_date, notes, items, gstRate = 12, cgst_amount, sgst_amount, igst_amount }) => {
     try {
       const { data: poNum, error: numErr } = await supabase.rpc('next_po_number')
       if (numErr) return { data: null, error: numErr }
@@ -100,9 +101,11 @@ export const purchaseOrders = {
         (s, it) => s + Number(it.quantity || 0) * Number(it.rate_per_unit || 0),
         0,
       )
-      const cgst = +(subtotal * (gstRate / 2) / 100).toFixed(2)
-      const sgst = +(subtotal * (gstRate / 2) / 100).toFixed(2)
-      const grand = +(subtotal + cgst + sgst).toFixed(2)
+      // Use pre-computed HSN-based tax if provided, otherwise fall back to flat gstRate
+      const cgst = cgst_amount != null ? +Number(cgst_amount).toFixed(2) : +(subtotal * (gstRate / 2) / 100).toFixed(2)
+      const sgst = sgst_amount != null ? +Number(sgst_amount).toFixed(2) : +(subtotal * (gstRate / 2) / 100).toFixed(2)
+      const igst = igst_amount != null ? +Number(igst_amount).toFixed(2) : 0
+      const grand = +(subtotal + cgst + sgst + igst).toFixed(2)
 
       const { data: po, error: poErr } = await supabase
         .from('purchase_orders')
@@ -115,6 +118,7 @@ export const purchaseOrders = {
           subtotal,
           cgst_amount: cgst,
           sgst_amount: sgst,
+          igst_amount: igst,
           grand_total: grand,
           notes: notes || null,
         }])

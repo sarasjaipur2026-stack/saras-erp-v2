@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
+import { useApp } from '../../contexts/AppContext'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, Input, Modal, PaginationBar } from '../../components/ui'
 import { usePagination } from '../../hooks/usePagination'
@@ -18,7 +19,9 @@ import { Plus, Pencil, Trash2 } from 'lucide-react'
  */
 export default function SimpleMasterPage({ title, subtitle, api, fields, defaults = {}, onChanged }) {
   const { user } = useAuth()
+  const { ensureDeferred } = useApp()
   const toast = useToast()
+  useEffect(() => { ensureDeferred() }, [ensureDeferred])
   const [list, setList] = useState([])
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState(null)

@@ -43,6 +43,7 @@ export function StepPricingCharges({
                   <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
                   <Input
                     type="number"
+                    min="0"
                     value={charge.amount || 0}
                     onChange={(e) => {
                       onUpdateCharge(charge.id, { amount: parseFloat(e.target.value) });
@@ -109,6 +110,8 @@ export function StepPricingCharges({
             </label>
             <Input
               type="number"
+              min="0"
+              max={formData.order_discount_type === 'percent' ? "100" : undefined}
               value={formData.order_discount_value || 0}
               onChange={(e) => {
                 const val = parseFloat(e.target.value);
@@ -147,6 +150,7 @@ export function StepPricingCharges({
             <label className="block text-sm font-medium text-slate-700 mb-2">Advance Paid</label>
             <Input
               type="number"
+              min="0"
               value={formData.advance_paid || 0}
               onChange={(e) => {
                 const val = parseFloat(e.target.value);

@@ -65,7 +65,8 @@ export default function OrderForm() {
   const { id: orderId } = useParams();
   // eslint-disable-next-line no-unused-vars
   const { user } = useAuth();
-  const { products, materials, machines, colors, orderTypes, paymentTerms, chargeTypes, currencies, brokers } = useApp();
+  const { products, materials, machines, colors, orderTypes, paymentTerms, chargeTypes, currencies, brokers, hsnCodes, customers, ensureDeferred } = useApp();
+  useEffect(() => { ensureDeferred() }, [ensureDeferred]);
   const toast = useToast();
   const isEdit = !!orderId;
 
@@ -142,25 +143,19 @@ export default function OrderForm() {
   }, [formData.line_items]);
 
   const handleUpdateLineItem = (itemId, updates) => {
-    setFormData((prev) => ({
-      ...prev,
-      line_items: prev.line_items.map((item) =>
-        item.id === itemId ? { ...item, ...updates } : item
-      ),
-    }));
-    recalculatePricing();
+    const updatedItems = (formData.line_items || []).map((item) =>
+      item.id === itemId ? { ...item, ...updates } : item
+    );
+    recalculatePricing(updatedItems);
   };
 
   const handleRemoveLineItem = (itemId) => {
-    setFormData((prev) => ({
-      ...prev,
-      line_items: prev.line_items.filter((item) => item.id !== itemId),
-    }));
+    const updatedItems = (formData.line_items || []).filter((item) => item.id !== itemId);
     setExpandedItems((prev) => {
       const { [itemId]: _, ...rest } = prev;
       return rest;
     });
-    recalculatePricing();
+    recalculatePricing(updatedItems);
   };
 
   const handleReorderLineItems = (itemId, direction) => {
@@ -194,38 +189,52 @@ export default function OrderForm() {
   }, []);
 
   const handleUpdateCharge = (chargeId, updates) => {
-    setFormData((prev) => ({
-      ...prev,
-      charges: prev.charges.map((charge) =>
-        charge.id === chargeId ? { ...charge, ...updates } : charge
-      ),
-    }));
-    recalculatePricing();
+    const updatedCharges = (formData.charges || []).map((charge) =>
+      charge.id === chargeId ? { ...charge, ...updates } : charge
+    );
+    recalculatePricing(null, updatedCharges);
   };
 
   const handleRemoveCharge = (chargeId) => {
-    setFormData((prev) => ({
-      ...prev,
-      charges: prev.charges.filter((charge) => charge.id !== chargeId),
-    }));
-    recalculatePricing();
+    const updatedCharges = (formData.charges || []).filter((charge) => charge.id !== chargeId);
+    recalculatePricing(null, updatedCharges);
   };
 
-  const recalculatePricing = () => {
+  const recalculatePricing = useCallback((lineItemsOverride = null, chargesOverride = null) => {
     setFormData((prev) => {
+      const items = lineItemsOverride || prev.line_items || [];
+      const chargesList = chargesOverride || prev.charges || [];
+
       let subtotal = 0;
       let totalItemDiscount = 0;
       let totalTaxable = 0;
+      let totalTax = 0;
       let cgst = 0;
       let sgst = 0;
       let igst = 0;
 
-      (prev.line_items || []).forEach((item) => {
+      // Determine interstate vs intrastate from customer state
+      const customer = customers?.find((c) => c.id === prev.customer_id);
+      const customerState = customer?.state_code || customer?.gstin?.substring(0, 2);
+      const companyState = '08'; // Rajasthan — pull from app_settings later
+      const isInterstate = customerState && customerState !== companyState;
+
+      // Calculate tax per line item using HSN-based GST rates
+      items.forEach((item) => {
         subtotal += item.amount || 0;
         totalItemDiscount += item.item_discount_amount || 0;
+
+        // Look up GST rate: product -> hsn_code -> hsnCodes table -> gst_rate
+        const product = products?.find((p) => p.id === item.product_id);
+        const hsnCode = hsnCodes?.find((h) => h.code === product?.hsn_code);
+        const gstRate = hsnCode?.gst_rate ?? product?.gst_rate ?? 18; // default 18%
+
+        const itemTaxable = (item.amount || 0) - (item.item_discount_amount || 0);
+        const itemTax = itemTaxable * (gstRate / 100);
+        totalTax += itemTax;
       });
 
-      const totalCharges = (prev.charges || []).reduce((sum, charge) => sum + (charge.amount || 0), 0);
+      const totalCharges = chargesList.reduce((sum, charge) => sum + (charge.amount || 0), 0);
 
       let orderDiscountAmount = prev.order_discount_amount || 0;
       if (prev.order_discount_type === 'percent') {
@@ -234,18 +243,30 @@ export default function OrderForm() {
 
       totalTaxable = subtotal - totalItemDiscount - orderDiscountAmount + totalCharges;
 
-      const gstRate = prev.gst_type === 'intra_state' ? 9 : 0;
-      if (prev.gst_type === 'intra_state') {
-        cgst = (totalTaxable * gstRate) / 100;
-        sgst = (totalTaxable * gstRate) / 100;
+      // Tax on charges/order-level adjustments using weighted average rate
+      const itemSubtotalNet = subtotal - totalItemDiscount;
+      const avgGstRate = itemSubtotalNet > 0 ? (totalTax / itemSubtotalNet) : 0.18;
+      const adjustmentTaxable = totalCharges - orderDiscountAmount;
+      totalTax += adjustmentTaxable * avgGstRate;
+
+      // Split tax into CGST/SGST or IGST based on interstate determination
+      if (isInterstate) {
+        cgst = 0;
+        sgst = 0;
+        igst = totalTax;
       } else {
-        igst = (totalTaxable * 18) / 100;
+        cgst = totalTax / 2;
+        sgst = totalTax / 2;
+        igst = 0;
       }
 
       const grandTotal = totalTaxable + cgst + sgst + igst;
 
       return {
         ...prev,
+        line_items: items,
+        charges: chargesList,
+        gst_type: isInterstate ? 'inter_state' : 'intra_state',
         subtotal,
         total_item_discount: totalItemDiscount,
         total_charges: totalCharges,
@@ -258,7 +279,7 @@ export default function OrderForm() {
         balance_due: grandTotal - (prev.advance_paid || 0),
       };
     });
-  };
+  }, [customers, products, hsnCodes]);
 
   const validateStep = (step) => {
     const errors = {};
@@ -306,10 +327,11 @@ export default function OrderForm() {
       const { line_items: _li, charges: _ch, customer: _cust, ...orderFields } = formData;
       const draftData = { ...orderFields, status: 'draft' };
 
+      let finalOrderId;
       if (isEdit) {
         const { error } = await orders.update(orderId, draftData);
         if (error) throw error;
-        toast.success('Order updated as draft');
+        finalOrderId = orderId;
       } else {
         if (!draftData.customer_id) {
           toast.error('Please select a customer first');
@@ -318,7 +340,37 @@ export default function OrderForm() {
         }
         const { data: newOrder, error } = await orders.create(draftData);
         if (error) throw error;
-        navigate(`/orders/${newOrder.id}`);
+        finalOrderId = newOrder.id;
+      }
+
+      // Save line items
+      const linesToCreate = (formData.line_items || []).filter((item) => item.id?.toString().startsWith('temp_'));
+      if (linesToCreate.length > 0) {
+        const { error } = await lineItems.createMany(
+          linesToCreate.map((item) => ({ order_id: finalOrderId, ...item, id: undefined }))
+        );
+        if (error) {
+          toast.error('Draft saved but line items failed — please edit and retry.');
+          navigate(`/orders/${finalOrderId}/edit`);
+          return;
+        }
+      }
+
+      // Save charges
+      const chargesToCreate = (formData.charges || []).filter((charge) => charge.id?.toString().startsWith('temp_'));
+      if (chargesToCreate.length > 0) {
+        const { error } = await orderCharges.createMany(
+          chargesToCreate.map((charge) => ({ order_id: finalOrderId, ...charge, id: undefined }))
+        );
+        if (error) {
+          toast.error('Draft & items saved but charges failed — please re-add charges');
+        }
+      }
+
+      if (isEdit) {
+        toast.success('Order updated as draft');
+      } else {
+        navigate(`/orders/${finalOrderId}`);
         toast.success('Draft saved');
       }
     } catch (error) {

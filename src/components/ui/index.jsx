@@ -186,7 +186,7 @@ export const Badge = ({ children, variant = 'default', className = '' }) => {
     purple: 'bg-purple-50 text-purple-700',
   }
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold tracking-wide ${variants[variant] || variants.default} ${className}`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide ${variants[variant] || variants.default} ${className}`}>
       {children}
     </span>
   )
@@ -361,7 +361,7 @@ export const StatCard = ({ icon: Icon, label, value, trend, color = 'indigo' }) 
       <div className="flex items-start justify-between">
         <div>
           <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">{label}</p>
-          <p className="text-2xl font-bold text-slate-900 tracking-tight">{value}</p>
+          <p className="text-2xl font-bold text-slate-900 tracking-tight truncate">{value}</p>
           {trend !== undefined && trend !== null && (
             <p className={`text-[11px] mt-2 font-semibold ${trend > 0 ? 'text-emerald-600' : trend < 0 ? 'text-red-500' : 'text-slate-400'}`}>
               {trend > 0 ? '+' : ''}{trend}% from last month
@@ -398,10 +398,30 @@ export const DataTable = ({
 
   if (isLoadingFinal) {
     return (
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-12" role="status" aria-live="polite">
-        <div className="flex flex-col items-center justify-center">
-          <Spinner size="md" />
-          <p className="mt-3 text-sm text-slate-500">Loading...</p>
+      <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm shadow-slate-100" role="status" aria-live="polite">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-slate-100">
+                {columns.map(col => (
+                  <th key={col.key} className="px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/70">
+                    {col.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i} className="border-b border-slate-50">
+                  {columns.map(col => (
+                    <td key={col.key} className="px-5 py-3.5">
+                      <div className="h-4 bg-slate-100 rounded-md animate-pulse" style={{ width: `${55 + Math.random() * 30}%` }} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     )
@@ -442,7 +462,7 @@ export const DataTable = ({
                 } : undefined}
                 tabIndex={onRowClick ? 0 : undefined}
                 role={onRowClick ? 'button' : undefined}
-                className={`table-row-hover ${onRowClick ? 'cursor-pointer focus:outline-none focus:bg-indigo-50/40' : ''} transition-colors`}
+                className={`${onRowClick ? 'cursor-pointer hover:bg-indigo-50/40 focus:outline-none focus:bg-indigo-50/40' : 'hover:bg-slate-50/50'} transition-colors`}
               >
                 {columns.map(col => (
                   <td key={col.key} className="px-5 py-3 text-sm text-slate-600">
@@ -554,6 +574,19 @@ const getCurrencyFormatter = (currency) => {
   }
   return currencyFormatters.get(currency)
 }
-export const Currency = ({ amount, currency = 'INR' }) => {
+
+const formatCompactINR = (amount) => {
+  const v = Math.abs(amount || 0)
+  const sign = amount < 0 ? '-' : ''
+  if (v >= 1e7) return `${sign}₹${(v / 1e7).toFixed(2)} Cr`
+  if (v >= 1e5) return `${sign}₹${(v / 1e5).toFixed(2)} L`
+  if (v >= 1e3) return `${sign}₹${(v / 1e3).toFixed(1)} K`
+  return `${sign}₹${v.toFixed(0)}`
+}
+
+export const Currency = ({ amount, currency = 'INR', compact = false }) => {
+  if (compact && currency === 'INR') {
+    return <span className="tabular-nums">{formatCompactINR(amount)}</span>
+  }
   return <span className="tabular-nums">{getCurrencyFormatter(currency).format(amount || 0)}</span>
 }

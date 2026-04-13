@@ -293,9 +293,11 @@ export default function OrderDetail() {
               </div>
             </div>
 
-            <Button variant="secondary" size="sm" onClick={() => navigate(`/orders/${orderId}/edit`)}>
-              <Edit size={16} /> Edit
-            </Button>
+            {!['completed', 'cancelled', 'dispatch'].includes(order.status) && (
+              <Button variant="secondary" size="sm" onClick={() => navigate(`/orders/${orderId}/edit`)}>
+                <Edit size={16} /> Edit
+              </Button>
+            )}
 
             {progression && (
               <Button

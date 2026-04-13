@@ -9,7 +9,8 @@ import { fmt, fmtDate } from '../../lib/format'
 
 export default function StockPage() {
   const toast = useToast()
-  const { yarnTypes, productTypes, warehouses } = useApp()
+  const { yarnTypes, productTypes, warehouses, ensureDeferred } = useApp()
+  useEffect(() => { ensureDeferred() }, [ensureDeferred])
   const [balances, setBalances] = useState([])
   const [movements, setMovements] = useState([])
   const [search, setSearch] = useState('')
@@ -344,6 +345,7 @@ export default function StockPage() {
             <Input
               label="Quantity"
               type="number"
+              min="0"
               className="col-span-2"
               value={adjustForm.quantity}
               onChange={e => setAdjustForm(f => ({ ...f, quantity: parseFloat(e.target.value) || 0 }))}

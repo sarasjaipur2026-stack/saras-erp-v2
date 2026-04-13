@@ -7,7 +7,7 @@ import {
   ShoppingBag, Plus, FileText, Search, Truck, X,
 } from 'lucide-react'
 
-import { fmt, fmtMoney, fmtDate } from '../../lib/format'
+import { fmt, fmtMoney, fmtMoneyCompact, fmtDate } from '../../lib/format'
 import { usePagination } from '../../hooks/usePagination'
 
 const PO_STATUS = {
@@ -29,7 +29,8 @@ const emptyLine = () => ({
 
 export default function PurchasePage() {
   const toast = useToast()
-  const { suppliers, yarnTypes, warehouses } = useApp()
+  const { suppliers, yarnTypes, warehouses, hsnCodes, ensureDeferred } = useApp()
+  useEffect(() => { ensureDeferred() }, [ensureDeferred])
   const [view, setView] = useState('pos') // pos | grns
   const [poList, setPoList] = useState([])
   const [grnList, setGrnList] = useState([])
@@ -123,8 +124,22 @@ export default function PurchasePage() {
       ),
     [poForm.items],
   )
-  const poCgst = +(poSubtotal * 0.06).toFixed(2)
-  const poSgst = +(poSubtotal * 0.06).toFixed(2)
+
+  // Calculate GST per line item using HSN-based rates from yarn types
+  const poTaxInfo = useMemo(() => {
+    let totalTax = 0
+    poForm.items.forEach((it) => {
+      const lineAmt = Number(it.quantity || 0) * Number(it.rate_per_unit || 0)
+      const yt = yarnTypes?.find((y) => y.id === it.yarn_type_id)
+      const hsnCode = hsnCodes?.find((h) => h.code === yt?.hsn_code)
+      const gstRate = hsnCode?.gst_rate ?? yt?.gst_rate ?? 12 // default 12% for yarn
+      totalTax += lineAmt * (gstRate / 100)
+    })
+    return { totalTax }
+  }, [poForm.items, yarnTypes, hsnCodes])
+
+  const poCgst = +(poTaxInfo.totalTax / 2).toFixed(2)
+  const poSgst = +(poTaxInfo.totalTax / 2).toFixed(2)
   const poGrand = +(poSubtotal + poCgst + poSgst).toFixed(2)
 
   const submitPo = async () => {
@@ -143,6 +158,8 @@ export default function PurchasePage() {
       expected_date: poForm.expected_date || null,
       notes: poForm.notes,
       items: valid,
+      cgst_amount: poCgst,
+      sgst_amount: poSgst,
     })
     if (error) {
       toast.error(error.message || 'Failed to create PO')
@@ -239,7 +256,7 @@ export default function PurchasePage() {
       <div className="grid grid-cols-3 gap-3 mb-5">
         <div className="bg-white rounded-xl border border-slate-200/80 p-4">
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Ordered</div>
-          <div className="text-xl font-mono font-bold text-slate-800 mt-1">{fmtMoney(totals.poTotal)}</div>
+          <div className="text-xl font-mono font-bold text-slate-800 mt-1">{fmtMoneyCompact(totals.poTotal)}</div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200/80 p-4">
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Open POs</div>
@@ -418,6 +435,7 @@ export default function PurchasePage() {
                       <input
                         type="number"
                         step="0.001"
+                        min="0"
                         value={it.quantity}
                         onChange={e => updatePoLine(it.id, { quantity: parseFloat(e.target.value) || 0 })}
                         placeholder="Qty"
@@ -436,6 +454,7 @@ export default function PurchasePage() {
                       <input
                         type="number"
                         step="0.01"
+                        min="0"
                         value={it.rate_per_unit}
                         onChange={e => updatePoLine(it.id, { rate_per_unit: parseFloat(e.target.value) || 0 })}
                         placeholder="Rate"
@@ -460,14 +479,14 @@ export default function PurchasePage() {
           {/* Totals */}
           <div className="bg-indigo-50/50 rounded-xl p-4 space-y-1.5 font-mono text-[12px]">
             <div className="flex justify-between"><span className="text-slate-500">Subtotal</span><span>{fmtMoney(poSubtotal)}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">CGST (6%)</span><span>{fmtMoney(poCgst)}</span></div>
-            <div className="flex justify-between"><span className="text-slate-500">SGST (6%)</span><span>{fmtMoney(poSgst)}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">CGST</span><span>{fmtMoney(poCgst)}</span></div>
+            <div className="flex justify-between"><span className="text-slate-500">SGST</span><span>{fmtMoney(poSgst)}</span></div>
             <div className="border-t border-indigo-200/60 pt-1.5 flex justify-between text-sm font-bold">
               <span className="text-slate-700">Grand Total</span>
               <span className="text-indigo-700">{fmtMoney(poGrand)}</span>
             </div>
           </div>
-          <p className="text-[11px] text-slate-400">GST defaults to 12% (split 6/6) — matches standard yarn HSN codes. Adjust manually after creation if your supplier is interstate (IGST) or a different rate applies.</p>
+          <p className="text-[11px] text-slate-400">GST is calculated per line item using the HSN code rate from each yarn type. Defaults to 12% if no HSN rate is found. For interstate suppliers (IGST), adjust manually after creation.</p>
         </div>
       </Modal>
 

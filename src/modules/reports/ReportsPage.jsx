@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 
 // ─── HELPERS ─────────────────────────────────────────────────
-import { fmt, fmtMoney, fmtDate } from '../../lib/format'
+import { fmt, fmtMoney, fmtMoneyCompact, fmtDate } from '../../lib/format'
 import { usePagination } from '../../hooks/usePagination'
 const fmtMonth = (m) => {
   if (!m) return '—'
@@ -285,9 +285,9 @@ function SalesRegister({ rows }) {
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatTile label="Orders" value={fmt(totals.count)} />
-        <StatTile label="Taxable" value={fmtMoney(totals.taxable)} />
-        <StatTile label="Total Tax" value={fmtMoney(totals.cgst + totals.sgst + totals.igst)} />
-        <StatTile label="Grand Total" value={fmtMoney(totals.grand)} accent="indigo" />
+        <StatTile label="Taxable" value={fmtMoneyCompact(totals.taxable)} />
+        <StatTile label="Total Tax" value={fmtMoneyCompact(totals.cgst + totals.sgst + totals.igst)} />
+        <StatTile label="Grand Total" value={fmtMoneyCompact(totals.grand)} accent="indigo" />
       </div>
 
       <div className="flex justify-end">
@@ -362,10 +362,10 @@ function GstSummary({ payload }) {
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <StatTile label="Orders" value={fmt(summary.order_count)} />
-        <StatTile label="Taxable" value={fmtMoney(summary.total_taxable)} />
-        <StatTile label="CGST" value={fmtMoney(summary.total_cgst)} />
-        <StatTile label="SGST" value={fmtMoney(summary.total_sgst)} />
-        <StatTile label="IGST" value={fmtMoney(summary.total_igst)} />
+        <StatTile label="Taxable" value={fmtMoneyCompact(summary.total_taxable)} />
+        <StatTile label="CGST" value={fmtMoneyCompact(summary.total_cgst)} />
+        <StatTile label="SGST" value={fmtMoneyCompact(summary.total_sgst)} />
+        <StatTile label="IGST" value={fmtMoneyCompact(summary.total_igst)} />
       </div>
       <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-5 border border-indigo-100">
         <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-2">Total Tax Collected</div>
@@ -439,9 +439,9 @@ function CustomerOutstanding({ rows }) {
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatTile label="Customers" value={fmt(totals.customers)} />
-        <StatTile label="Total Billed" value={fmtMoney(totals.totalBilled)} />
-        <StatTile label="Collected" value={fmtMoney(totals.totalPaid)} />
-        <StatTile label="Outstanding" value={fmtMoney(totals.totalOutstanding)} accent="amber" />
+        <StatTile label="Total Billed" value={fmtMoneyCompact(totals.totalBilled)} />
+        <StatTile label="Collected" value={fmtMoneyCompact(totals.totalPaid)} />
+        <StatTile label="Outstanding" value={fmtMoneyCompact(totals.totalOutstanding)} accent="amber" />
       </div>
 
       <div className="flex justify-end">
@@ -587,8 +587,8 @@ function PurchaseRegister({ rows }) {
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
         <StatTile label="POs" value={fmt(totals.count)} />
-        <StatTile label="Total Tax" value={fmtMoney(totals.tax)} />
-        <StatTile label="Grand Total" value={fmtMoney(totals.grand)} accent="indigo" />
+        <StatTile label="Total Tax" value={fmtMoneyCompact(totals.tax)} />
+        <StatTile label="Grand Total" value={fmtMoneyCompact(totals.grand)} accent="indigo" />
       </div>
 
       <div className="flex justify-end">

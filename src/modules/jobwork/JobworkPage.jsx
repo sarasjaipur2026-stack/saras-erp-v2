@@ -36,7 +36,8 @@ const emptyLine = (defaultKind) => ({
 
 export default function JobworkPage() {
   const toast = useToast()
-  const { customers, suppliers, yarnTypes, productTypes } = useApp()
+  const { customers, suppliers, yarnTypes, productTypes, ensureDeferred } = useApp()
+  useEffect(() => { ensureDeferred() }, [ensureDeferred])
   const [direction, setDirection] = useState('inward')
   const [list, setList] = useState([])
   const [loading, setLoading] = useState(false)

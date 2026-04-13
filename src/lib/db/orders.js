@@ -3,6 +3,17 @@ import { safe, createTable } from './core'
 import { lineItems, orderCharges } from './masters'
 import { notifications } from './notifications'
 
+const ALLOWED_TRANSITIONS = {
+  draft: ['booking', 'cancelled'],
+  booking: ['approved', 'cancelled'],
+  approved: ['production', 'cancelled'],
+  production: ['qc', 'cancelled'],
+  qc: ['dispatch', 'cancelled'],
+  dispatch: ['completed'],
+  completed: [],
+  cancelled: [],
+}
+
 // ─── ORDERS (custom select with joins) ─────────────────────
 export const orders = {
   ...createTable('orders', {
@@ -47,6 +58,23 @@ export const orders = {
   ),
 
   updateStatus: async (id, status) => {
+    // Fetch current order to validate transition
+    const { data: current, error: fetchErr } = await safe(() =>
+      supabase.from('orders').select('status').eq('id', id).single()
+    )
+    if (fetchErr || !current) {
+      return { data: null, error: fetchErr || { message: 'Order not found' } }
+    }
+
+    const currentStatus = current.status
+    const allowed = ALLOWED_TRANSITIONS[currentStatus] || []
+    if (!allowed.includes(status)) {
+      return {
+        data: null,
+        error: { message: `Invalid status transition: ${currentStatus} → ${status}` },
+      }
+    }
+
     const result = await safe(() =>
       supabase.from('orders').update({ status }).eq('id', id).select('*, customers(firm_name)').single()
     )

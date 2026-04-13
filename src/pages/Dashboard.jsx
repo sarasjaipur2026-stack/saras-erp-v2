@@ -10,7 +10,7 @@ import {
 
 // ─── Stale-while-revalidate for dashboard stats ──────────
 const DASH_CACHE_KEY = 'saras_dash_v1'
-const DASH_CACHE_TTL = 3 * 60 * 1000 // 3 min
+const DASH_CACHE_TTL = 10 * 60 * 1000 // 10 min
 
 function readDashCache() {
   try {
@@ -57,16 +57,11 @@ export default function Dashboard() {
     }
   }, [loadDashboard]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Re-fetch silently when tab regains focus after 5+ min idle
+  // Re-fetch silently when tab regains focus if cache is stale
   useEffect(() => {
-    let lastHidden = 0
     const handler = () => {
-      if (document.visibilityState === 'hidden') {
-        lastHidden = Date.now()
-      } else if (document.visibilityState === 'visible' && lastHidden > 0) {
-        if (Date.now() - lastHidden > 5 * 60 * 1000) {
-          loadDashboard(false)
-        }
+      if (document.visibilityState === 'visible' && !readDashCache()) {
+        loadDashboard(false)
       }
     }
     document.addEventListener('visibilitychange', handler)

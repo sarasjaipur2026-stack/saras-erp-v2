@@ -23,7 +23,8 @@ const SOURCE_LABEL = {
 
 export default function QualityPage() {
   const toast = useToast()
-  const { qualityParameters } = useApp()
+  const { qualityParameters, ensureDeferred } = useApp()
+  useEffect(() => { ensureDeferred() }, [ensureDeferred])
   const [list, setList] = useState([])
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState(null)
