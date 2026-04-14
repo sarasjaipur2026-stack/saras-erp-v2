@@ -13,18 +13,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="preconnect" href="https://kcnujpvzewtuttfcrtyz.supabase.co" crossorigin />
     <link rel="dns-prefetch" href="https://kcnujpvzewtuttfcrtyz.supabase.co" />
-    <!-- Pre-warm Supabase: fire a tiny no-op fetch in parallel with JS bundle
-         download so the PostgREST connection pool is hot by the time the app
-         actually needs it. Eliminates the ~5s cold-start on first page load. -->
-    <script>
-      (function(){
-        try {
-          var u='https://kcnujpvzewtuttfcrtyz.supabase.co/rest/v1/customers?select=id&limit=1';
-          var k='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjbnVqcHZ6ZXd0dXR0ZmNydHl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzNDQ1NjcsImV4cCI6MjA4OTkyMDU2N30.T4VEtWqstian6k8kB2ACQeKxRaWPdYOTspMbzLfiBPo';
-          fetch(u,{headers:{apikey:k,Authorization:'Bearer '+k}}).catch(function(){});
-        } catch(_){ }
-      })();
-    </script>
     <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
     <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" /></noscript>
     <title>sarasERP</title>
