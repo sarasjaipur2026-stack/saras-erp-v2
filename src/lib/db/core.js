@@ -52,23 +52,40 @@ const withUid = async (data, shouldInject) => {
   return { user_id: uid, ...data }
 }
 
+// Page through all rows in chunks. PostgREST enforces a server-side
+// `db-max-rows` cap (default 1000 on Supabase) that silently truncates
+// any `.limit()` above it. We loop with `.range(from, to)` until we
+// see a short page or cross a hard safety cap, so masters pages
+// (which filter client-side) always get the full dataset.
+const PAGE_SIZE = 1000
+const HARD_CAP = 50000
+
+const fetchAll = async (buildQuery) => {
+  const all = []
+  for (let from = 0; from < HARD_CAP; from += PAGE_SIZE) {
+    const to = from + PAGE_SIZE - 1
+    const { data, error } = await buildQuery().range(from, to)
+    if (error) return { data: null, error }
+    if (!data || data.length === 0) break
+    all.push(...data)
+    if (data.length < PAGE_SIZE) break
+  }
+  return { data: all, error: null }
+}
+
 export function createTable(table, opts = {}) {
   const { orderBy = 'created_at', orderAsc = false, select = '*', ownerFilter = true } = opts
 
   return {
-    list: async (userId) => safe(() => {
+    list: async (userId) => safe(() => fetchAll(() => {
       let q = supabase.from(table).select(select)
       if (ownerFilter && userId) q = q.eq('user_id', userId)
-      // Raised from 1000 to 10000 to accommodate imported customer master
-      // (8,667 rows). Masters pages filter client-side, so all rows must
-      // be loaded. Re-visit if any table grows past ~10k rows — at that
-      // point move to server-side search + pagination.
-      return q.order(orderBy, { ascending: orderAsc }).limit(10000)
-    }),
+      return q.order(orderBy, { ascending: orderAsc })
+    })),
 
-    getAll: async () => safe(() =>
-      supabase.from(table).select(select).order(orderBy, { ascending: orderAsc }).limit(10000)
-    ),
+    getAll: async () => safe(() => fetchAll(() =>
+      supabase.from(table).select(select).order(orderBy, { ascending: orderAsc })
+    )),
 
     get: async (id) => safe(() =>
       supabase.from(table).select(select).eq('id', id).single()
