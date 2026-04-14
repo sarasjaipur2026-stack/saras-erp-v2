@@ -59,11 +59,15 @@ export function createTable(table, opts = {}) {
     list: async (userId) => safe(() => {
       let q = supabase.from(table).select(select)
       if (ownerFilter && userId) q = q.eq('user_id', userId)
-      return q.order(orderBy, { ascending: orderAsc }).limit(1000)
+      // Raised from 1000 to 10000 to accommodate imported customer master
+      // (8,667 rows). Masters pages filter client-side, so all rows must
+      // be loaded. Re-visit if any table grows past ~10k rows — at that
+      // point move to server-side search + pagination.
+      return q.order(orderBy, { ascending: orderAsc }).limit(10000)
     }),
 
     getAll: async () => safe(() =>
-      supabase.from(table).select(select).order(orderBy, { ascending: orderAsc }).limit(1000)
+      supabase.from(table).select(select).order(orderBy, { ascending: orderAsc }).limit(10000)
     ),
 
     get: async (id) => safe(() =>
