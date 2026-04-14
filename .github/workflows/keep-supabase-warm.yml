@@ -1,0 +1,41 @@
+name: Keep Supabase Warm
+
+# Pings the Supabase REST endpoint on a schedule so the project's PostgREST
+# connection pool stays warm. This eliminates the ~5s cold-start that users
+# were hitting on the first page load after idle periods.
+#
+# The anon key below is PUBLIC by design (it ships in the client JS bundle
+# and is gated by RLS policies in Postgres). If you'd rather not store it in
+# the repo, move both values to repo Secrets and reference via secrets.*.
+#
+# GitHub free-tier note: scheduled workflows can be delayed up to ~15 min
+# during peak hours, so '*/5' realistically fires every 5–15 minutes. That
+# is still frequent enough to keep Supabase warm.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Ping Supabase REST
+        env:
+          SUPABASE_URL: https://kcnujpvzewtuttfcrtyz.supabase.co
+          SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjbnVqcHZ6ZXd0dXR0ZmNydHl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzNDQ1NjcsImV4cCI6MjA4OTkyMDU2N30.T4VEtWqstian6k8kB2ACQeKxRaWPdYOTspMbzLfiBPo
+        run: |
+          status=$(curl -s -o /tmp/body -w "%{http_code}|%{time_total}" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/customers?select=id&limit=1")
+          code="${status%%|*}"
+          time="${status##*|}"
+          echo "HTTP $code in ${time}s"
+          if [ "$code" != "200" ] && [ "$code" != "206" ]; then
+            echo "::error::Unexpected status $code"
+            cat /tmp/body
+            exit 1
+          fi
