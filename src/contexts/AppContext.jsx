@@ -154,25 +154,34 @@ export function AppProvider({ children }) {
   // On mount: load critical masters only — deferred masters load on demand
   useEffect(() => {
     let cancelled = false
+    let timer
+
+    // On Dashboard landing (/), delay critical master load by 1.5s so
+    // Dashboard's stats queries can claim Supabase connections during
+    // the cold-start window. Dashboard does not need any critical masters.
+    const onDashboard = typeof window !== 'undefined' && window.location.pathname === '/'
+    const initialDelay = onDashboard ? 1500 : 0
 
     if (loaded.current) {
       // Cache hit — still refresh critical in background silently
-      whenIdle(() => {
-        if (!cancelled) loadCritical()
-      }, 500)
-      return () => { cancelled = true }
+      timer = setTimeout(() => {
+        whenIdle(() => { if (!cancelled) loadCritical() }, 500)
+      }, initialDelay)
+      return () => { cancelled = true; clearTimeout(timer) }
     }
 
-    // No cache — load critical only
-    whenIdle(async () => {
-      if (cancelled) return
-      setLoading(true)
-      await loadCritical()
-      if (cancelled) return
-      setLoading(false)
-      loaded.current = true
-    })
-    return () => { cancelled = true }
+    // No cache — load critical only (staggered behind Dashboard queries if on /)
+    timer = setTimeout(() => {
+      whenIdle(async () => {
+        if (cancelled) return
+        setLoading(true)
+        await loadCritical()
+        if (cancelled) return
+        setLoading(false)
+        loaded.current = true
+      })
+    }, initialDelay)
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [loadCritical])
 
   // Re-fetch critical masters when tab regains focus if cache is stale

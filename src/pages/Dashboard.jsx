@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { stats } from '../lib/db'
-import { Spinner } from '../components/ui'
 import {
   ShoppingCart, MessageSquare, Users, AlertTriangle,
   Clock, Plus, ArrowRight, TrendingUp
@@ -73,14 +72,6 @@ export default function Dashboard() {
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-32">
-        <Spinner size="lg" />
-      </div>
-    )
-  }
-
   if (loadError) {
     return (
       <div className="max-w-md mx-auto py-16 px-4 text-center">
@@ -94,11 +85,16 @@ export default function Dashboard() {
     )
   }
 
+  // Show skeleton placeholders while first load is pending so the user sees
+  // the dashboard shell instantly instead of a full-screen spinner.
+  const isInitialLoad = loading && !data
+  const cardValue = (v) => (isInitialLoad ? null : (v || 0))
+
   const statCards = [
-    { label: 'Total Orders', value: data?.totalOrders || 0, icon: ShoppingCart, border: 'border-l-indigo-500', iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600' },
-    { label: 'New Enquiries', value: data?.newEnquiries || 0, icon: MessageSquare, border: 'border-l-amber-500', iconBg: 'bg-amber-50', iconColor: 'text-amber-600' },
-    { label: 'Pending Orders', value: data?.pendingOrders || 0, icon: Clock, border: 'border-l-orange-500', iconBg: 'bg-orange-50', iconColor: 'text-orange-600' },
-    { label: 'Total Customers', value: data?.totalCustomers || 0, icon: Users, border: 'border-l-emerald-500', iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600' },
+    { label: 'Total Orders', value: cardValue(data?.totalOrders), icon: ShoppingCart, border: 'border-l-indigo-500', iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600' },
+    { label: 'New Enquiries', value: cardValue(data?.newEnquiries), icon: MessageSquare, border: 'border-l-amber-500', iconBg: 'bg-amber-50', iconColor: 'text-amber-600' },
+    { label: 'Pending Orders', value: cardValue(data?.pendingOrders), icon: Clock, border: 'border-l-orange-500', iconBg: 'bg-orange-50', iconColor: 'text-orange-600' },
+    { label: 'Total Customers', value: cardValue(data?.totalCustomers), icon: Users, border: 'border-l-emerald-500', iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600' },
   ]
 
   return (
@@ -127,7 +123,11 @@ export default function Dashboard() {
                   <Icon size={19} className={card.iconColor} />
                 </div>
               </div>
-              <p className="text-3xl font-bold text-slate-900 tracking-tight">{card.value}</p>
+              {card.value === null ? (
+                <div className="h-9 w-16 bg-slate-200/70 rounded-md animate-pulse" />
+              ) : (
+                <p className="text-3xl font-bold text-slate-900 tracking-tight">{card.value}</p>
+              )}
               <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold mt-1">{card.label}</p>
             </div>
           )
