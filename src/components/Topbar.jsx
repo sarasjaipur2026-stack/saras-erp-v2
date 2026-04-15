@@ -94,16 +94,24 @@ export default function Topbar({ onMenuClick }) {
         <Menu size={20} />
       </button>
 
-      {/* Search */}
+      {/* Global search trigger — opens Cmd+K palette */}
       <div className="flex-1 max-w-md">
-        <div className="relative group">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-indigo-500" />
-          <input
-            type="text"
-            placeholder="Search orders, customers..."
-            className="w-full pl-9 pr-4 py-2 min-h-[42px] text-sm bg-slate-50/80 border border-slate-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-300 focus:bg-white transition-all duration-200 placeholder:text-slate-400"
-          />
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            // Synthesize the same keyboard event the global listener intercepts,
+            // so a tap on mobile opens the palette just like Ctrl+K on desktop.
+            window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))
+          }}
+          aria-label="Search (press Ctrl+K)"
+          className="w-full flex items-center gap-2 pl-3 pr-2 py-2 min-h-[42px] text-sm bg-slate-50/80 border border-slate-200/80 rounded-xl hover:bg-white hover:border-indigo-300 hover:shadow-sm transition-all duration-200 text-left cursor-pointer group"
+        >
+          <Search size={15} className="text-slate-400 group-hover:text-indigo-500 transition-colors flex-shrink-0" />
+          <span className="flex-1 text-slate-400 truncate">Search anything — firm, GSTIN, order, invoice...</span>
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono bg-white border border-slate-200 rounded text-slate-500 flex-shrink-0">
+            Ctrl K
+          </kbd>
+        </button>
       </div>
 
       {/* Notifications */}

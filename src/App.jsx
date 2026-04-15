@@ -4,6 +4,7 @@ import { useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import { PageLoader } from './components/ui'
+import CommandPalette from './components/CommandPalette'
 
 // Prefetch top routes after first paint so navigation feels instant
 const prefetchRoutes = () => {
@@ -142,7 +143,10 @@ export default function App() {
   if (loading) return <PageLoader />
 
   return (
-    <Routes>
+    <>
+      {/* Global Cmd+K search palette — only mounted when authenticated */}
+      {user && <CommandPalette />}
+      <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
 
       {/* Dashboard */}
@@ -205,6 +209,7 @@ export default function App() {
 
       {/* Catch all */}
       <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      </Routes>
+    </>
   )
 }
