@@ -120,7 +120,13 @@ export const deliveries = {
         await supabase.from('stock_movements').insert(movements)
       }
 
-      await supabase.from('orders').update({ status: 'dispatch' }).eq('id', order_id)
+      // Only bump the order status if it is currently in 'qc' (the only state that
+       // legally transitions to 'dispatch' per ALLOWED_TRANSITIONS). For draft/booking/
+       // approved/production we leave status alone — dispatch alone should not skip
+       // workflow gates. If already 'dispatch' or 'completed', also leave alone.
+      if (order.status === 'qc') {
+        await supabase.from('orders').update({ status: 'dispatch' }).eq('id', order_id)
+      }
 
       try {
         const { data: orderRow } = await supabase

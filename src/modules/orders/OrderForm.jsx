@@ -389,7 +389,9 @@ export default function OrderForm() {
     setSaving(true);
     try {
       const { line_items: _li, charges: _ch, customer: _cust, ...orderFields } = formData;
-      const orderData = { ...orderFields, status: 'confirmed' };
+      // 'booking' is the first non-draft state per ALLOWED_TRANSITIONS in orders.js.
+      // Previously used 'confirmed' which isn't in the state machine and stranded orders.
+      const orderData = { ...orderFields, status: 'booking' };
 
       let finalOrderId;
       if (isEdit) {

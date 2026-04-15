@@ -115,14 +115,6 @@ const QualityParametersPage = lazy(() => import('./modules/masters/QualityParame
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const ImportPage = lazy(() => import('./pages/ImportPage'))
 
-// Placeholder components for pages that don't exist yet
-const PlaceholderPage = ({ name }) => (
-  <div style={{ padding: '2rem', textAlign: 'center' }}>
-    <h1>{name}</h1>
-    <p>This page is coming soon.</p>
-  </div>
-)
-
 // Access-denied fallback for permission-gated routes
 const AccessDenied = () => (
   <div className="fade-in max-w-md mx-auto py-16 px-4 text-center">

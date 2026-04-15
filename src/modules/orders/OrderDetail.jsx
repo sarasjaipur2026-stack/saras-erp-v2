@@ -23,8 +23,7 @@ import {
   AlertCircle,
   TrendingUp,
 } from 'lucide-react';
-// eslint-disable-next-line no-unused-vars
-import { orders, deliveries, activityLog, attachments, payments } from '../../lib/db';
+import { orders, deliveries, activityLog, attachments } from '../../lib/db';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { Button, Modal, Input, StatusBadge, Badge, Currency, Spinner } from '../../components/ui';
@@ -44,8 +43,6 @@ export default function OrderDetail() {
   const [showAddDelivery, setShowAddDelivery] = useState(false);
   const [showAddComment, setShowAddComment] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
-  // eslint-disable-next-line no-unused-vars
-  const [showSendUpdate, setShowSendUpdate] = useState(false);
   const [deliveryForm, setDeliveryForm] = useState({ lineId: '', date: '', qty: '', note: '', challan: '', vehicle: '' });
   const [commentText, setCommentText] = useState('');
   const [cancelReason, setCancelReason] = useState('');
@@ -176,7 +173,6 @@ export default function OrderDetail() {
     } else {
       toast.error('Contact information not available');
     }
-    setShowSendUpdate(false);
   };
 
   const getDeliveryProgress = (lineItem) => {

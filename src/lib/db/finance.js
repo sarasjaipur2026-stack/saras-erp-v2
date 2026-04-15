@@ -81,9 +81,14 @@ export const payments = {
       const { data: allPayments } = await supabase.from('payments').select('amount').eq('order_id', order_id).limit(500)
       const totalPaid = (allPayments || []).reduce((s, p) => s + Number(p.amount || 0), 0)
       const newBalance = Math.max(0, Number(order.grand_total || 0) - totalPaid)
-      const newStatus = newBalance <= 0 ? 'completed' : undefined
       const updates = { advance_paid: totalPaid, balance_due: newBalance }
-      if (newStatus) updates.status = newStatus
+      // Only auto-complete if the order is already in 'dispatch' — otherwise we would skip
+      // required workflow states (production → qc → dispatch → completed) and produce
+      // orders that show 'completed' while stock hasn't left the warehouse.
+      // Never modify status for cancelled orders.
+      if (newBalance <= 0 && order.status === 'dispatch') {
+        updates.status = 'completed'
+      }
       const { error: orderUpdateErr } = await supabase.from('orders').update(updates).eq('id', order_id)
       if (orderUpdateErr && import.meta.env.DEV) console.error('[payments.record] order update failed', orderUpdateErr)
 

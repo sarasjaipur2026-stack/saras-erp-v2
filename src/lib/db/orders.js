@@ -23,14 +23,27 @@ export const orders = {
 
   // userId accepted for call-site consistency but not used in the query —
   // row-level security (RLS) on the orders table handles per-user filtering.
+  // Paginated with `.range()` to bypass PostgREST's server-side 1000-row cap.
   // eslint-disable-next-line no-unused-vars
-  list: async (_userId) => safe(() =>
-    supabase
-      .from('orders')
-      .select('id, order_number, status, priority, grand_total, balance_due, advance_paid, delivery_date_1, created_at, nature, customers(firm_name, contact_name)')
-      .order('created_at', { ascending: false })
-      .limit(1000)
-  ),
+  list: async (_userId) => {
+    const PAGE = 1000
+    const HARD_CAP = 20000
+    const all = []
+    for (let from = 0; from < HARD_CAP; from += PAGE) {
+      const { data, error } = await safe(() =>
+        supabase
+          .from('orders')
+          .select('id, order_number, status, priority, grand_total, balance_due, advance_paid, delivery_date_1, created_at, nature, customers(firm_name, contact_name)')
+          .order('created_at', { ascending: false })
+          .range(from, from + PAGE - 1)
+      )
+      if (error) return { data: null, error }
+      if (!data || data.length === 0) break
+      all.push(...data)
+      if (data.length < PAGE) break
+    }
+    return { data: all, error: null }
+  },
 
   get: async (id) => safe(() =>
     supabase
@@ -212,14 +225,27 @@ export const enquiries = {
   ...createTable('enquiries', { select: '*, customers(*)', ownerFilter: false }),
 
   // userId accepted for call-site consistency; RLS handles per-user filtering.
+  // Paginated via `.range()` so we get the full dataset past the 1000-row cap.
   // eslint-disable-next-line no-unused-vars
-  list: async (_userId) => safe(() =>
-    supabase
-      .from('enquiries')
-      .select('id, enquiry_number, status, source, priority, expected_value, followup_date, created_at, customers(firm_name, contact_name)')
-      .order('created_at', { ascending: false })
-      .limit(1000)
-  ),
+  list: async (_userId) => {
+    const PAGE = 1000
+    const HARD_CAP = 20000
+    const all = []
+    for (let from = 0; from < HARD_CAP; from += PAGE) {
+      const { data, error } = await safe(() =>
+        supabase
+          .from('enquiries')
+          .select('id, enquiry_number, status, source, priority, expected_value, followup_date, created_at, customers(firm_name, contact_name)')
+          .order('created_at', { ascending: false })
+          .range(from, from + PAGE - 1)
+      )
+      if (error) return { data: null, error }
+      if (!data || data.length === 0) break
+      all.push(...data)
+      if (data.length < PAGE) break
+    }
+    return { data: all, error: null }
+  },
 
   create: async (data) => {
     try {
@@ -227,26 +253,12 @@ export const enquiries = {
       const userId = sess?.session?.user?.id
       if (!userId) return { data: null, error: new Error('Not authenticated') }
 
-      const now = new Date()
-      const month = now.getMonth() + 1
-      const yearStart = month >= 4 ? now.getFullYear() : now.getFullYear() - 1
-      const yearEnd = yearStart + 1
-      const fyPrefix = `${yearStart % 100}-${yearEnd % 100}`
-      const pattern = `ENQ/${fyPrefix}/%`
-
-      const { data: maxRow } = await supabase
-        .from('enquiries')
-        .select('enquiry_number')
-        .eq('user_id', userId)
-        .like('enquiry_number', pattern)
-        .order('enquiry_number', { ascending: false })
-        .limit(1)
-        .single()
-
-      const lastSeq = maxRow?.enquiry_number
-        ? parseInt(maxRow.enquiry_number.split('/')[2], 10) || 0
-        : 0
-      const enquiry_number = `ENQ/${fyPrefix}/${String(lastSeq + 1).padStart(4, '0')}`
+      // Serialised server-side sequence generation via advisory lock in RPC.
+      // Replaces the earlier client-side MAX+1 pattern which raced under concurrent inserts.
+      const { data: enquiry_number, error: seqErr } = await supabase.rpc('generate_enquiry_number', {
+        p_user_id: userId,
+      })
+      if (seqErr) return { data: null, error: seqErr }
 
       return await safe(() =>
         supabase.from('enquiries').insert([{ ...data, enquiry_number, user_id: userId }]).select('*, customers(*)').single()
