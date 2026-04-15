@@ -9,6 +9,7 @@ import {
 
 import { fmt, fmtMoney, fmtDate } from '../../lib/format'
 import { usePagination } from '../../hooks/usePagination'
+import { CustomerSearch } from '../orders/components/CustomerSearch'
 
 const STATUS = {
   pending: { variant: 'default', label: 'Pending' },
@@ -36,7 +37,9 @@ const emptyLine = (defaultKind) => ({
 
 export default function JobworkPage() {
   const toast = useToast()
-  const { customers, suppliers, yarnTypes, productTypes, ensureDeferred } = useApp()
+  // `customers` intentionally not pulled from context — it's no longer
+  // preloaded (3,400-row cost). The picker below uses CustomerSearch.
+  const { suppliers, yarnTypes, productTypes, ensureDeferred } = useApp()
   useEffect(() => { ensureDeferred() }, [ensureDeferred])
   const [direction, setDirection] = useState('inward')
   const [list, setList] = useState([])
@@ -325,16 +328,10 @@ export default function JobworkPage() {
               {form.direction === 'inward' ? (
                 <div className="col-span-3">
                   <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Customer (who sends material)</label>
-                  <select
+                  <CustomerSearch
                     value={form.customer_id}
-                    onChange={e => setForm(f => ({ ...f, customer_id: e.target.value }))}
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none"
-                  >
-                    <option value="">— select customer —</option>
-                    {(customers || []).map(c => (
-                      <option key={c.id} value={c.id}>{c.firm_name}</option>
-                    ))}
-                  </select>
+                    onChange={(cid) => setForm(f => ({ ...f, customer_id: cid }))}
+                  />
                 </div>
               ) : (
                 <div className="col-span-3">

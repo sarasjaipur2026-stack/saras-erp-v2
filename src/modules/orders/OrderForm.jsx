@@ -65,7 +65,7 @@ export default function OrderForm() {
   const { id: orderId } = useParams();
   // eslint-disable-next-line no-unused-vars
   const { user } = useAuth();
-  const { products, materials, machines, colors, orderTypes, paymentTerms, chargeTypes, currencies, brokers, hsnCodes, customers, ensureDeferred } = useApp();
+  const { products, materials, machines, colors, orderTypes, paymentTerms, chargeTypes, currencies, brokers, hsnCodes, ensureDeferred } = useApp();
   useEffect(() => { ensureDeferred() }, [ensureDeferred]);
   const toast = useToast();
   const isEdit = !!orderId;
@@ -213,9 +213,11 @@ export default function OrderForm() {
       let sgst = 0;
       let igst = 0;
 
-      // Determine interstate vs intrastate from customer state
-      const customer = customers?.find((c) => c.id === prev.customer_id);
-      const customerState = customer?.state_code || customer?.gstin?.substring(0, 2);
+      // Determine interstate vs intrastate from the locally-selected customer.
+      // (Previously this did customers.find(...) on a 3,400-row preloaded array,
+      //  which was the biggest page-load cost. Now selectedCustomer is populated
+      //  by CustomerSearch / order load and carries state_code + gstin directly.)
+      const customerState = selectedCustomer?.state_code || selectedCustomer?.gstin?.substring(0, 2);
       const companyState = '08'; // Rajasthan — pull from app_settings later
       const isInterstate = customerState && customerState !== companyState;
 
@@ -279,7 +281,7 @@ export default function OrderForm() {
         balance_due: grandTotal - (prev.advance_paid || 0),
       };
     });
-  }, [customers, products, hsnCodes]);
+  }, [selectedCustomer, products, hsnCodes]);
 
   const validateStep = (step) => {
     const errors = {};

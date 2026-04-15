@@ -101,63 +101,27 @@ export const reports = {
 }
 
 // ─── DASHBOARD STATS ───────────────────────────────────────
-// Uses 3 lightweight GET queries instead of 13 HEAD queries to avoid Supabase 503s
+// Single RPC round-trip. Postgres aggregates counts/sums server-side
+// instead of sending thousands of rows to the browser.
 export const stats = {
   getDashboard: async () => {
     try {
-      const [ordersRes, enquiriesRes, customersRes] = await Promise.all([
-        // Single query: fetch status + financials for all orders
-        supabase.from('orders')
-          .select('status, grand_total, balance_due')
-          .limit(5000),
-        // Count new enquiries
-        supabase.from('enquiries')
-          .select('id')
-          .eq('status', 'new')
-          .limit(1000),
-        // Count customers
-        supabase.from('customers')
-          .select('id')
-          .limit(1000),
-      ])
-
-      const orders = ordersRes.data || []
-
-      // Compute all stats from the single orders result set
-      const statusCounts = {}
-      let totalRevenue = 0
-      let outstandingBalance = 0
-      let overdueCount = 0
-
-      for (const o of orders) {
-        statusCounts[o.status] = (statusCounts[o.status] || 0) + 1
-        if (o.status !== 'cancelled') {
-          totalRevenue += Number(o.grand_total || 0)
-          outstandingBalance += Number(o.balance_due || 0)
-        }
-        if (Number(o.balance_due || 0) > 0 && o.status !== 'completed' && o.status !== 'cancelled') {
-          overdueCount++
-        }
-      }
-
-      const pendingOrders = orders.length
-        - (statusCounts.completed || 0)
-        - (statusCounts.cancelled || 0)
-        - (statusCounts.draft || 0)
-
+      const { data, error } = await supabase.rpc('dashboard_stats')
+      if (error) throw error
+      const d = data || {}
       return {
-        totalOrders: orders.length,
-        newEnquiries: (enquiriesRes.data || []).length,
-        pendingOrders,
-        urgentOrders: overdueCount,
-        totalCustomers: (customersRes.data || []).length,
-        statusCounts,
+        totalOrders: d.total_orders || 0,
+        newEnquiries: d.new_enquiries || 0,
+        pendingOrders: d.pending_orders || 0,
+        urgentOrders: d.urgent_orders || 0,
+        totalCustomers: d.total_customers || 0,
+        statusCounts: d.status_counts || {},
         financialTotals: {
-          totalRevenue,
-          outstandingBalance,
+          totalRevenue: Number(d.total_revenue || 0),
+          outstandingBalance: Number(d.outstanding_balance || 0),
           totalPayments: 0,
         },
-        overdueCount,
+        overdueCount: d.overdue_count || 0,
       }
     } catch (error) {
       return {

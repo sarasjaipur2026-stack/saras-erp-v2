@@ -64,14 +64,20 @@ function writeCache(data) {
 }
 
 // ─── Master data keys & db mappings ───────────────────────
+// NOTE: `customers` intentionally excluded — with 3,400+ rows it was the single
+// biggest page-load cost. Components that need a customer row fetch it by id
+// via db.customers.get(id) or use the search_entities RPC (CustomerSearch,
+// Cmd+K palette). The `masters.customers` array remains available as [] for
+// back-compat; legacy `.find(...)` calls return undefined (same behaviour as
+// before the preload kicked in).
 const CRITICAL_KEYS = [
   'products', 'materials', 'machines', 'colors',
-  'orderTypes', 'paymentTerms', 'chargeTypes', 'customers',
+  'orderTypes', 'paymentTerms', 'chargeTypes',
   'brokers', 'currencies',
 ]
 const CRITICAL_FNS = [
   db.products, db.materials, db.machines, db.colors,
-  db.orderTypes, db.paymentTerms, db.chargeTypes, db.customers,
+  db.orderTypes, db.paymentTerms, db.chargeTypes,
   db.brokers, db.currencies,
 ]
 
@@ -197,7 +203,11 @@ export function AppProvider({ children }) {
 
   // O(1) lookup maps — rebuilt only when underlying arrays change
   const machinesByCode = useMemo(() => new Map(masters.machines.map(m => [m.code, m])), [masters.machines])
-  const customersById = useMemo(() => new Map(masters.customers.map(c => [c.id, c])), [masters.customers])
+  // customersById used to be a preloaded Map over all 3,400+ customers which
+  // cost seconds on every cold boot. Now we fetch a single customer row on
+  // demand via db.customers.get(id) and cache inside AppContext so repeated
+  // lookups for the same id stay cheap.
+  const customerCache = useRef(new Map())
   const paymentTermsById = useMemo(() => new Map(masters.paymentTerms.map(pt => [pt.id, pt])), [masters.paymentTerms])
   const currenciesByCode = useMemo(() => new Map(masters.currencies.map(c => [c.code, c])), [masters.currencies])
 
@@ -217,11 +227,22 @@ export function AppProvider({ children }) {
     return masters.chargeTypes.filter(ct => ct.scope === scope)
   }, [masters.chargeTypes])
 
-  const getDefaultPaymentTerms = useCallback((customerId) => {
-    const customer = customersById.get(customerId)
+  // Fetch a single customer by id, with in-memory cache.
+  // Returns the customer row (or null if not found / error).
+  const getCustomerById = useCallback(async (customerId) => {
+    if (!customerId) return null
+    if (customerCache.current.has(customerId)) return customerCache.current.get(customerId)
+    const { data, error } = await db.customers.get(customerId)
+    if (error || !data) return null
+    customerCache.current.set(customerId, data)
+    return data
+  }, [])
+
+  const getDefaultPaymentTerms = useCallback(async (customerId) => {
+    const customer = await getCustomerById(customerId)
     if (!customer || !customer.payment_term_id) return null
     return paymentTermsById.get(customer.payment_term_id) || null
-  }, [customersById, paymentTermsById])
+  }, [getCustomerById, paymentTermsById])
 
   const getExchangeRate = useCallback((currencyCode) => {
     const currency = currenciesByCode.get(currencyCode)
@@ -233,8 +254,8 @@ export function AppProvider({ children }) {
     ...masters,
     loading,
     loadMasterData, ensureDeferred, getProductsForMachine, getMachinesForProduct,
-    getChargeTypesByScope, getDefaultPaymentTerms, getExchangeRate,
-  }), [masters, loading, loadMasterData, ensureDeferred, getProductsForMachine, getMachinesForProduct, getChargeTypesByScope, getDefaultPaymentTerms, getExchangeRate])
+    getChargeTypesByScope, getDefaultPaymentTerms, getExchangeRate, getCustomerById,
+  }), [masters, loading, loadMasterData, ensureDeferred, getProductsForMachine, getMachinesForProduct, getChargeTypesByScope, getDefaultPaymentTerms, getExchangeRate, getCustomerById])
 
   return (
     <AppContext.Provider value={value}>
