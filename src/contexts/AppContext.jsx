@@ -157,37 +157,47 @@ export function AppProvider({ children }) {
     loaded.current = true
   }, [loadCritical, loadDeferred])
 
-  // On mount: load critical masters only — deferred masters load on demand
+  // On mount: load critical masters only — deferred masters load on demand.
+  //
+  // Dashboard does not read any masters (it only uses stats.getDashboard()),
+  // so when the user lands on /, we SKIP loadCritical entirely. The first
+  // route that actually reads useApp() masters (OrderForm, EnquiryForm, etc.)
+  // triggers the load via a cache-hydrating effect there OR via the
+  // visibility / focus handler below if the cache has gone stale.
+  //
+  // Previously this effect had a 1.5s delay on Dashboard to dodge the free-
+  // tier cold-start window. On Pro (with our dashboard_stats RPC now taking
+  // ~50 ms server-side), that delay and the 10 follow-up master fetches
+  // added ~2 s of dead time to the first paint on / for no user-visible
+  // reason. Removed.
   useEffect(() => {
     let cancelled = false
-    let timer
 
-    // On Dashboard landing (/), delay critical master load by 1.5s so
-    // Dashboard's stats queries can claim Supabase connections during
-    // the cold-start window. Dashboard does not need any critical masters.
     const onDashboard = typeof window !== 'undefined' && window.location.pathname === '/'
-    const initialDelay = onDashboard ? 1500 : 0
 
     if (loaded.current) {
-      // Cache hit — still refresh critical in background silently
-      timer = setTimeout(() => {
-        whenIdle(() => { if (!cancelled) loadCritical() }, 500)
-      }, initialDelay)
-      return () => { cancelled = true; clearTimeout(timer) }
+      // Cache hit — lazily refresh in background, never block first paint.
+      whenIdle(() => { if (!cancelled) loadCritical() }, 2000)
+      return () => { cancelled = true }
     }
 
-    // No cache — load critical only (staggered behind Dashboard queries if on /)
-    timer = setTimeout(() => {
-      whenIdle(async () => {
-        if (cancelled) return
-        setLoading(true)
-        await loadCritical()
-        if (cancelled) return
-        setLoading(false)
-        loaded.current = true
-      })
-    }, initialDelay)
-    return () => { cancelled = true; clearTimeout(timer) }
+    // On Dashboard with no cache: skip the critical masters load entirely.
+    // The first master-consuming route will trigger its own hydration.
+    if (onDashboard) {
+      return () => { cancelled = true }
+    }
+
+    // Non-Dashboard first-visit: load critical masters during idle time so
+    // the page's own queries get first dibs on Supabase connections.
+    whenIdle(async () => {
+      if (cancelled) return
+      setLoading(true)
+      await loadCritical()
+      if (cancelled) return
+      setLoading(false)
+      loaded.current = true
+    })
+    return () => { cancelled = true }
   }, [loadCritical])
 
   // Re-fetch critical masters when tab regains focus if cache is stale
