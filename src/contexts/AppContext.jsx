@@ -10,19 +10,26 @@ const whenIdle = (fn, timeout = 100) =>
     : setTimeout(fn, timeout)
 
 // ─── sessionStorage cache for master data ─────────────────
+// Masters (products/materials/machines/etc.) change maybe once a week, so
+// there is no user-perceivable freshness issue. The previous 10-min TTL was
+// causing a post-idle lag because it returned null after 10 min of idle,
+// which made the visibility handler fire 10 parallel master fetches right
+// when the user clicked Orders/Enquiries. See production API logs for the
+// smoking gun: 10 GET /rest/v1/{table}?limit=1000 within an 18 ms window
+// on every visibility return.
+//
+// New behaviour: ALWAYS return cached masters synchronously regardless of
+// age. Background refresh is throttled and explicit (see refreshIfStale).
 const CACHE_KEY = 'saras_masters_v2'
-const CACHE_TTL = 10 * 60 * 1000 // 10 minutes
+const STALE_AFTER_MS = 30 * 60 * 1000  // refresh in background if >30min old
+const VIS_REFRESH_MIN_IDLE_MS = 10 * 60 * 1000  // only refresh on visibility after ≥10min idle
 
 function readCache() {
   try {
     const raw = sessionStorage.getItem(CACHE_KEY)
     if (!raw) return null
-    const { ts, data } = JSON.parse(raw)
-    if (Date.now() - ts > CACHE_TTL) {
-      sessionStorage.removeItem(CACHE_KEY)
-      return null
-    }
-    return data
+    const parsed = JSON.parse(raw)
+    return { data: parsed.data, ts: Number(parsed.ts) || 0 }
   } catch {
     return null
   }
@@ -101,41 +108,74 @@ const EMPTY_MASTERS = Object.fromEntries(
 export function AppProvider({ children }) {
   // Single state object for all masters — one setState call = one re-render
   const [masters, setMasters] = useState(() => {
-    // Hydrate from cache on first render — zero network wait
+    // Hydrate from cache on first render — zero network wait, ANY age OK.
     const cached = readCache()
-    return cached || { ...EMPTY_MASTERS }
+    return cached?.data || { ...EMPTY_MASTERS }
   })
-  const [loading, setLoading] = useState(() => !readCache())
-  const loaded = useRef(!!readCache())
+  const [loading, setLoading] = useState(() => !readCache()?.data)
+  const loaded = useRef(!!readCache()?.data)
+  const lastRefreshRef = useRef(readCache()?.ts || 0)
 
-  // Phase 1: Core masters needed by order forms and most pages
-  const loadCritical = useCallback(async () => {
-    const results = await Promise.allSettled(
-      CRITICAL_FNS.map(fn => fn.getAll())
-    )
-    setMasters(prev => {
-      const next = { ...prev }
-      results.forEach((r, i) => {
-        if (r.status === 'fulfilled' && r.value?.data) next[CRITICAL_KEYS[i]] = r.value.data
-      })
-      writeCache(next)
-      return next
-    })
+  // Coalesce concurrent loadCritical calls onto one in-flight promise
+  const criticalInFlightRef = useRef(null)
+
+  // Phase 1: Core masters — fetched SEQUENTIALLY in small batches (2 at a
+  // time) so they don't saturate HTTP/2 connection slots and delay the
+  // current page's own data query. With 9 tables, this takes ~5 rounds of
+  // ~100 ms each instead of one burst that competes with /rest/v1/orders.
+  const loadCritical = useCallback(() => {
+    if (criticalInFlightRef.current) return criticalInFlightRef.current
+    criticalInFlightRef.current = (async () => {
+      try {
+        const BATCH = 2
+        const collected = {}
+        for (let i = 0; i < CRITICAL_FNS.length; i += BATCH) {
+          const slice = CRITICAL_FNS.slice(i, i + BATCH)
+          const keys = CRITICAL_KEYS.slice(i, i + BATCH)
+          const results = await Promise.allSettled(slice.map(fn => fn.getAll()))
+          results.forEach((r, idx) => {
+            if (r.status === 'fulfilled' && r.value?.data) collected[keys[idx]] = r.value.data
+          })
+        }
+        setMasters(prev => {
+          const next = { ...prev, ...collected }
+          writeCache(next)
+          return next
+        })
+        lastRefreshRef.current = Date.now()
+      } finally {
+        criticalInFlightRef.current = null
+      }
+    })()
+    return criticalInFlightRef.current
   }, [])
 
-  // Phase 2: Secondary masters — loaded in background after first paint
-  const loadDeferred = useCallback(async () => {
-    const results = await Promise.allSettled(
-      DEFERRED_FNS.map(fn => fn.getAll())
-    )
-    setMasters(prev => {
-      const next = { ...prev }
-      results.forEach((r, i) => {
-        if (r.status === 'fulfilled' && r.value?.data) next[DEFERRED_KEYS[i]] = r.value.data
-      })
-      writeCache(next)
-      return next
-    })
+  // Phase 2: Secondary masters — same batched pattern
+  const deferredInFlightRef = useRef(null)
+  const loadDeferred = useCallback(() => {
+    if (deferredInFlightRef.current) return deferredInFlightRef.current
+    deferredInFlightRef.current = (async () => {
+      try {
+        const BATCH = 2
+        const collected = {}
+        for (let i = 0; i < DEFERRED_FNS.length; i += BATCH) {
+          const slice = DEFERRED_FNS.slice(i, i + BATCH)
+          const keys = DEFERRED_KEYS.slice(i, i + BATCH)
+          const results = await Promise.allSettled(slice.map(fn => fn.getAll()))
+          results.forEach((r, idx) => {
+            if (r.status === 'fulfilled' && r.value?.data) collected[keys[idx]] = r.value.data
+          })
+        }
+        setMasters(prev => {
+          const next = { ...prev, ...collected }
+          writeCache(next)
+          return next
+        })
+      } finally {
+        deferredInFlightRef.current = null
+      }
+    })()
+    return deferredInFlightRef.current
   }, [])
 
   // Track whether deferred masters have been loaded
@@ -202,12 +242,29 @@ export function AppProvider({ children }) {
     return () => { cancelled = true }
   }, [loadCritical])
 
-  // Re-fetch critical masters when tab regains focus if cache is stale
+  // Re-fetch critical masters when tab regains focus — but ONLY if:
+  //   a) cache is older than VIS_REFRESH_MIN_IDLE_MS (30+ min)
+  //   b) user was actually idle (hiddenAt tracked)
+  //   c) we defer via whenIdle so the user's first click after return gets
+  //      HTTP/2 priority instead of competing with 9 master fetches.
   useEffect(() => {
+    let hiddenAt = 0
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible' && loaded.current && !readCache()) {
-        loadCritical().catch(() => {})
-      }
+      if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return }
+      if (document.visibilityState !== 'visible') return
+      if (!loaded.current) return
+      const idleDuration = hiddenAt ? Date.now() - hiddenAt : 0
+      hiddenAt = 0
+      const cacheAge = Date.now() - (lastRefreshRef.current || 0)
+      // Only refresh if user was idle AND cache is actually stale
+      if (idleDuration < VIS_REFRESH_MIN_IDLE_MS) return
+      if (cacheAge < STALE_AFTER_MS) return
+      // Refresh during idle time — never on the click-path.
+      // Also wait 3 s after visibility so the user's first click (which
+      // usually comes within ~500 ms of tab return) completes uncontended.
+      setTimeout(() => {
+        whenIdle(() => { loadCritical().catch(() => {}) }, 3000)
+      }, 3000)
     }
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
