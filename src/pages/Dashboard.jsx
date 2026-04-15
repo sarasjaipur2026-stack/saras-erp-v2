@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { stats } from '../lib/db'
@@ -6,66 +6,31 @@ import {
   ShoppingCart, MessageSquare, Users, AlertTriangle,
   Clock, Plus, ArrowRight, TrendingUp
 } from 'lucide-react'
-
-// ─── Stale-while-revalidate for dashboard stats ──────────
-const DASH_CACHE_KEY = 'saras_dash_v1'
-const DASH_CACHE_TTL = 10 * 60 * 1000 // 10 min
-
-function readDashCache() {
-  try {
-    const raw = sessionStorage.getItem(DASH_CACHE_KEY)
-    if (!raw) return null
-    const { ts, data } = JSON.parse(raw)
-    if (Date.now() - ts > DASH_CACHE_TTL) return null
-    return data
-  } catch { return null }
-}
-
-function writeDashCache(data) {
-  try { sessionStorage.setItem(DASH_CACHE_KEY, JSON.stringify({ ts: Date.now(), data })) } catch { /* write error */ }
-}
+import { useSWRList } from '../hooks/useSWRList'
 
 export default function Dashboard() {
   const { profile } = useAuth()
   const navigate = useNavigate()
-  const cached = readDashCache()
-  const [data, setData] = useState(cached)
-  const [loading, setLoading] = useState(!cached)
   const [loadError, setLoadError] = useState(null)
 
-  const loadDashboard = useCallback(async (showSpinner = true) => {
+  // Stale-while-revalidate: cached dashboard data renders instantly on
+  // first paint, even after long idles. Revalidation happens silently.
+  const fetcher = useCallback(async () => {
     try {
-      if (showSpinner) setLoading(true)
       setLoadError(null)
       const d = await stats.getDashboard()
-      setData(d)
-      writeDashCache(d)
+      // getDashboard returns an object, not { data, error } — normalise it.
+      return { data: [d], error: null }
     } catch (err) {
       setLoadError(err?.message || 'Failed to load dashboard')
-    } finally {
-      setLoading(false)
+      return { data: null, error: err }
     }
   }, [])
-
-  useEffect(() => {
-    if (cached) {
-      // Show cached data instantly, revalidate in background
-      loadDashboard(false)
-    } else {
-      loadDashboard()
-    }
-  }, [loadDashboard]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Re-fetch silently when tab regains focus if cache is stale
-  useEffect(() => {
-    const handler = () => {
-      if (document.visibilityState === 'visible' && !readDashCache()) {
-        loadDashboard(false)
-      }
-    }
-    document.addEventListener('visibilitychange', handler)
-    return () => document.removeEventListener('visibilitychange', handler)
-  }, [loadDashboard])
+  const {
+    data: dataArray,
+    loading,
+  } = useSWRList('saras_dash_v1', fetcher, { staleAfterMs: 5 * 60 * 1000 })
+  const data = dataArray?.[0] || null
 
   const firstName = profile?.full_name?.split(' ')[0] || 'User'
 
@@ -78,7 +43,7 @@ export default function Dashboard() {
         <div className="bg-red-50 border border-red-200 rounded-2xl p-8">
           <h2 className="text-lg font-bold text-red-900 mb-2">Failed to load dashboard</h2>
           <p className="text-sm text-red-700 mb-4">{loadError}</p>
-          <button onClick={() => { setLoadError(null); setLoading(true); stats.getDashboard().then(d => { setData(d); setLoading(false) }).catch(err => { setLoadError(err?.message || 'Failed'); setLoading(false) }) }}
+          <button onClick={() => { setLoadError(null); window.location.reload() }}
             className="text-sm text-red-600 underline">Retry</button>
         </div>
       </div>

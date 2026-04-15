@@ -1,3 +1,4 @@
+/* global process */
 // Post-idle click lag regression test
 //
 // Runs headless against PROD_URL (defaults to live Vercel URL). Measures:

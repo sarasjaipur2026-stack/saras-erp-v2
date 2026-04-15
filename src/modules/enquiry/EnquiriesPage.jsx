@@ -1,30 +1,14 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { enquiries } from '../../lib/db'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, DataTable, Tabs, StatusBadge } from '../../components/ui'
 import { Plus, CheckCircle, XCircle } from 'lucide-react'
-import { STAGES, PRIORITIES, stageByValue, priorityByValue } from '../../lib/db/enquiryPipeline'
+import { stageByValue, priorityByValue } from '../../lib/db/enquiryPipeline'
 import LostReasonModal from './components/LostReasonModal'
 import { markEnquiryLost } from '../../lib/db/enquiryPipeline'
-
-const ENQUIRIES_CACHE_TTL = 10 * 60 * 1000
-const CACHE_KEY = (uid) => uid ? `saras_enquiries_v2_${uid}` : null
-
-const readCache = (uid) => {
-  const k = CACHE_KEY(uid); if (!k) return null
-  try {
-    const raw = sessionStorage.getItem(k); if (!raw) return null
-    const p = JSON.parse(raw)
-    if (Date.now() - p.ts > ENQUIRIES_CACHE_TTL) return null
-    return Array.isArray(p.data) ? p.data : null
-  } catch { return null }
-}
-const writeCache = (uid, data) => {
-  const k = CACHE_KEY(uid); if (!k) return
-  try { sessionStorage.setItem(k, JSON.stringify({ ts: Date.now(), data })) } catch { /* quota */ }
-}
+import { useSWRList } from '../../hooks/useSWRList'
 
 const fmtMoney = (n) => n == null || n === 0 ? '—' : `₹${Number(n).toLocaleString('en-IN')}`
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'
@@ -33,30 +17,21 @@ export default function EnquiriesPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const toast = useToast()
-  const cached = useMemo(() => readCache(user?.id), [user?.id])
-  const [list, setList] = useState(cached || [])
-  const [isLoading, setIsLoading] = useState(!cached)
+
+  // Stale-while-revalidate — cached list renders instantly on first paint,
+  // even after long idles. Revalidation happens silently in the background.
+  // React Compiler memoizes these automatically — no useCallback/useMemo needed.
+  const fetcher = () => user?.id ? enquiries.list(user.id) : Promise.resolve({ data: [] })
+  const cacheKey = user?.id ? `saras_enquiries_v2_${user.id}` : null
+  const {
+    data: list,
+    loading: isLoading,
+    refresh: fetchData,
+  } = useSWRList(cacheKey, fetcher, { staleAfterMs: 10 * 60 * 1000 })
+
   const [viewFilter, setViewFilter] = useState('open')  // open | mine | hot | won | lost | all
   const [lostTarget, setLostTarget] = useState(null)
   const [lostLoading, setLostLoading] = useState(false)
-
-  const fetchData = useCallback(async (showSpinner = true) => {
-    if (!user?.id) return
-    if (showSpinner) setIsLoading(true)
-    const { data, error } = await enquiries.list(user.id)
-    if (error) toast.error('Failed to load enquiries')
-    else {
-      const rows = data || []
-      setList(rows)
-      writeCache(user.id, rows)
-    }
-    setIsLoading(false)
-  }, [user, toast])
-
-  useEffect(() => {
-    if (cached?.length) fetchData(false); else fetchData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const handleConvert = async (e, row) => {
     e.stopPropagation()

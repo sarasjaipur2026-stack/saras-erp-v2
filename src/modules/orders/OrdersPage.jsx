@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   ShoppingCart,
   TrendingUp,
@@ -31,44 +31,25 @@ import {
   Spinner,
   Modal,
 } from '../../components/ui';
-
-const ORDERS_CACHE_TTL = 10 * 60 * 1000
-
-function getOrdersCacheKey(userId) {
-  return userId ? `saras_orders_v1_${userId}` : null
-}
-
-function readOrdersCache(userId) {
-  const key = getOrdersCacheKey(userId)
-  if (!key) return null
-  try {
-    const raw = sessionStorage.getItem(key)
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    if (Date.now() - parsed.ts > ORDERS_CACHE_TTL) return null
-    return Array.isArray(parsed.data) ? parsed.data : null
-  } catch {
-    return null
-  }
-}
-
-function writeOrdersCache(userId, data) {
-  const key = getOrdersCacheKey(userId)
-  if (!key) return
-  try {
-    sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data }))
-  } catch { /* cache miss */ }
-}
+import { useSWRList } from '../../hooks/useSWRList';
 
 const OrdersPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const toast = useToast();
-  const cachedOrders = useMemo(() => readOrdersCache(user?.id), [user?.id]);
 
-  // State management
-  const [ordersList, setOrdersList] = useState(cachedOrders || []);
-  const [loading, setLoading] = useState(!cachedOrders);
+  // Single stale-while-revalidate data source. Cached data renders
+  // synchronously on first paint regardless of age — loading spinner only
+  // appears on a genuine first visit with no cache at all. Tab-return and
+  // mount revalidation are centralised in the hook.
+  // React Compiler handles memoization; no manual useCallback/useMemo.
+  const fetcher = () => user?.id ? ordersDb.list(user.id) : Promise.resolve({ data: [] })
+  const cacheKey = user?.id ? `saras_orders_v1_${user.id}` : null
+  const {
+    data: ordersList,
+    loading,
+    refresh: reloadOrders,
+  } = useSWRList(cacheKey, fetcher, { staleAfterMs: 10 * 60 * 1000 })
   const [selectedOrders, setSelectedOrders] = useState(new Set());
   const [activeTab, setActiveTab] = useState('all');
   const [dateRange, setDateRange] = useState('allTime');
@@ -135,40 +116,8 @@ const OrdersPage = () => {
     }
   };
 
-  // Load orders
-  const loadOrders = useCallback(async (showSpinner = true) => {
-    if (!user?.id) return;
-    try {
-      if (showSpinner) setLoading(true);
-      const { data, error } = await ordersDb.list(user.id);
-      if (error) throw error;
-      const rows = data || []
-      setOrdersList(rows);
-      writeOrdersCache(user.id, rows)
-    } catch (error) {
-      toast.error('Failed to load orders');
-      if (import.meta.env.DEV) console.error('Error loading orders:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Load on mount
-  useEffect(() => {
-    if (cachedOrders?.length) loadOrders(false)
-    else loadOrders()
-  }, [cachedOrders, loadOrders]);
-
-  // Re-fetch silently when tab regains focus if cache is stale
-  useEffect(() => {
-    const handler = () => {
-      if (document.visibilityState === 'visible' && !readOrdersCache(user?.id)) {
-        loadOrders(false);
-      }
-    };
-    document.addEventListener('visibilitychange', handler);
-    return () => document.removeEventListener('visibilitychange', handler);
-  }, [loadOrders, user?.id]);
+  // Mount-time load and visibility-revalidate are handled inside useSWRList.
+  // We only expose `reloadOrders` for explicit triggers (delete/update flows).
 
   // Derived: filtered orders (computed, not stored in state)
   const filteredOrders = useMemo(() => {
@@ -234,10 +183,7 @@ const OrdersPage = () => {
       }
       setSelectedOrders(new Set());
       setBulkStatusModal(false);
-       const { data } = await ordersDb.list(user.id);
-       const rows = data || []
-       setOrdersList(rows);
-       writeOrdersCache(user.id, rows)
+      await reloadOrders();
     } catch (error) {
       toast.error('Failed to update orders');
       if (import.meta.env.DEV) console.error('Error:', error);
@@ -302,10 +248,7 @@ const OrdersPage = () => {
       setShowDeleteModal(false);
       setDeleteTarget(null);
       setDeleteWarnings([]);
-       const { data } = await ordersDb.list(user.id);
-       const rows = data || []
-       setOrdersList(rows);
-       writeOrdersCache(user.id, rows)
+      await reloadOrders();
     } catch (error) {
       toast.error(error?.message || 'Failed to delete order');
       if (import.meta.env.DEV) console.error('Error:', error);
