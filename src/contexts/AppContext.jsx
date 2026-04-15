@@ -175,15 +175,17 @@ export function AppProvider({ children }) {
 
     const onDashboard = typeof window !== 'undefined' && window.location.pathname === '/'
 
-    if (loaded.current) {
-      // Cache hit — lazily refresh in background, never block first paint.
-      whenIdle(() => { if (!cancelled) loadCritical() }, 2000)
+    // On Dashboard — skip entirely. Dashboard reads no masters. The first
+    // master-consuming route will trigger hydration via its own useApp() path
+    // (empty arrays render as "loading" until then) + the visibility handler
+    // below will refresh whenever the user returns after a stale cache.
+    if (onDashboard) {
       return () => { cancelled = true }
     }
 
-    // On Dashboard with no cache: skip the critical masters load entirely.
-    // The first master-consuming route will trigger its own hydration.
-    if (onDashboard) {
+    if (loaded.current) {
+      // Non-Dashboard + cache hit — refresh silently during idle time.
+      whenIdle(() => { if (!cancelled) loadCritical() }, 2000)
       return () => { cancelled = true }
     }
 
