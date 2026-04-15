@@ -1,4 +1,5 @@
 import { supabase } from '../supabase'
+import { ensureFreshSession } from '../authGate'
 
 // ─── GENERIC CRUD FACTORY ──────────────────────────────────
 // Creates list/get/create/update/delete for ANY Supabase table.
@@ -52,16 +53,23 @@ const refreshSessionOnce = () => {
 }
 
 export const safe = async (fn) => {
+  // GATE: block until the JWT is guaranteed fresh. Coalesced across all
+  // concurrent callers — 10 parallel queries share one refresh. This is
+  // the authoritative fix for the post-idle lag: it eliminates the race
+  // where a user's click fires a query with a stale JWT while a separate
+  // refresh is in flight.
+  await ensureFreshSession()
+
   try {
     const result = await safeOnce(fn)
-    // Supabase returns `{ data, error }` — inspect error for auth staleness
+    // Belt-and-braces: if the gate missed (e.g. server clock skew, token
+    // rotated mid-flight), still self-heal on 401.
     if (result && result.error && isJwtStaleError(result.error)) {
       await refreshSessionOnce()
       return await safeOnce(fn)
     }
     return result
   } catch (firstErr) {
-    // Thrown error (timeout, network, or occasionally a 401 as throw)
     if (isJwtStaleError(firstErr)) {
       await refreshSessionOnce()
       try { return await safeOnce(fn) }

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { prewarmSession, resetAuthGate } from '../lib/authGate'
 
 const AuthContext = createContext(null)
 
@@ -99,54 +100,68 @@ export function AuthProvider({ children }) {
       }
     })
 
-    // When the tab regains focus after more than 30 seconds idle, PROACTIVELY
-    // refresh the access token. Chrome throttles background-tab setTimeouts
-    // to ~1/min which makes Supabase's autoRefreshToken unreliable — so the
-    // next user click would otherwise hit a 401 → refresh → retry path that
-    // adds 1–2 seconds. We pre-warm the token here so data fetches are fast.
+    // ─── Post-idle prewarm ─────────────────────────────────────
+    // When the tab regains focus / becomes visible / resumes from Page
+    // Lifecycle freeze, force a token refresh via the shared authGate so
+    // the user's next click hits a warm session. Every data layer call in
+    // safe() already awaits the SAME gate promise — so if a query fires
+    // mid-refresh, it queues on the in-flight refresh instead of racing
+    // with a stale JWT.
     let hiddenAt = 0
-    const AUTH_IDLE_THRESHOLD = 30 * 1000 // 30 seconds
+    const AUTH_IDLE_THRESHOLD = 30 * 1000
+    const prewarmIfIdle = () => {
+      const wasIdle = hiddenAt > 0 && Date.now() - hiddenAt >= AUTH_IDLE_THRESHOLD
+      hiddenAt = 0
+      if (!wasIdle) return
+      prewarmSession()
+        .then(async () => {
+          if (!mounted) return
+          // Surface any user-state change after the refresh
+          const { data: { session } } = await supabase.auth.getSession()
+          if (session?.user) setUser(session.user)
+          else { setUser(null); setProfile(null) }
+        })
+        .catch(() => {/* authGate already handles logging */})
+    }
+
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden') {
         hiddenAt = Date.now()
         return
       }
-      if (document.visibilityState !== 'visible') return
-      if (hiddenAt > 0 && Date.now() - hiddenAt < AUTH_IDLE_THRESHOLD) return
-      // Use refreshSession (not getSession) so the token is guaranteed fresh
-      // for the next data call. refreshSession falls back to getSession when
-      // the refresh token itself is valid but the access token isn't yet
-      // stale — it's safe to call anytime.
-      supabase.auth.refreshSession().then(({ data: { session } }) => {
-        if (!mounted) return
-        if (session?.user) {
-          setUser(session.user)
-        } else {
-          // Refresh token itself expired — force re-login
-          setUser(null)
-          setProfile(null)
-        }
-      }).catch(() => {
-        // Network hiccup during refresh — try a passive getSession so the
-        // UI doesn't falsely log the user out. Real 401s on the next data
-        // call will be caught by safe() + refreshSessionOnce().
-        supabase.auth.getSession().then(({ data: { session } }) => {
-          if (mounted && session?.user) setUser(session.user)
-        }).catch(() => {})
-      })
+      if (document.visibilityState === 'visible') prewarmIfIdle()
     }
+
+    // Also listen on window.focus — fires even when visibilitychange doesn't
+    // (e.g. Alt-Tab between windows, or the user clicking into the window).
+    const handleFocus = () => prewarmIfIdle()
+
+    // Page Lifecycle API "resume" — fires when Chrome un-freezes a deeply
+    // backgrounded tab. More reliable than visibilitychange on long idles.
+    const handleResume = () => {
+      // Mark as idle regardless of hiddenAt — a resume means the tab was
+      // frozen, which only happens after extended background time.
+      if (!hiddenAt) hiddenAt = Date.now() - AUTH_IDLE_THRESHOLD - 1
+      prewarmIfIdle()
+    }
+
     document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('focus', handleFocus)
+    document.addEventListener('resume', handleResume)
 
     return () => {
       mounted = false
       subscription.unsubscribe()
       document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('focus', handleFocus)
+      document.removeEventListener('resume', handleResume)
     }
   }, [fetchProfile])
 
   const signIn = useCallback(async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) return { error }
+    resetAuthGate()
     setUser(data.user)
     await fetchProfile(data.user.id)
     return { data }
@@ -154,6 +169,7 @@ export function AuthProvider({ children }) {
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()
+    resetAuthGate()
     setUser(null)
     setProfile(null)
   }, [])
