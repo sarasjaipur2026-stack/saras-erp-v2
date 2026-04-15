@@ -21,13 +21,55 @@ const safeOnce = async (fn) => {
   return result
 }
 
+// Detects PostgREST / Supabase Auth errors that mean "your JWT is stale".
+// On background-tab throttled Chrome, auto-refresh timers don't fire — so
+// users coming back after idle hit 401 on their first click. This function
+// is used by `safe()` to silently refresh + retry.
+const isJwtStaleError = (err) => {
+  if (!err) return false
+  const status = err.status ?? err.statusCode ?? err.cause?.status
+  const code = (err.code || err.cause?.code || '').toString()
+  const msg = String(err.message || err.error_description || '').toLowerCase()
+  return status === 401 || status === 403
+    || code === 'PGRST301' || code === 'PGRST302'
+    || msg.includes('jwt expired')
+    || msg.includes('jwt is expired')
+    || msg.includes('invalid jwt')
+    || msg.includes('not authenticated')
+    || msg.includes('token has expired')
+}
+
+// Coalesce concurrent refresh calls so 10 parallel queries getting 401
+// don't trigger 10 refresh RPCs.
+let inFlightRefresh = null
+const refreshSessionOnce = () => {
+  if (!inFlightRefresh) {
+    inFlightRefresh = supabase.auth.refreshSession()
+      .catch(() => null)
+      .finally(() => { inFlightRefresh = null })
+  }
+  return inFlightRefresh
+}
+
 export const safe = async (fn) => {
   try {
-    return await safeOnce(fn)
+    const result = await safeOnce(fn)
+    // Supabase returns `{ data, error }` — inspect error for auth staleness
+    if (result && result.error && isJwtStaleError(result.error)) {
+      await refreshSessionOnce()
+      return await safeOnce(fn)
+    }
+    return result
   } catch (firstErr) {
-    // One automatic retry after a short pause (handles stale connections after idle)
+    // Thrown error (timeout, network, or occasionally a 401 as throw)
+    if (isJwtStaleError(firstErr)) {
+      await refreshSessionOnce()
+      try { return await safeOnce(fn) }
+      catch { return { data: null, error: firstErr } }
+    }
+    // Non-auth transient — short pause + retry once for stale connections
     try {
-      await new Promise(r => setTimeout(r, 800))
+      await new Promise(r => setTimeout(r, 400))
       return await safeOnce(fn)
     } catch {
       return { data: null, error: firstErr }

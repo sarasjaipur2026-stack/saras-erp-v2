@@ -99,12 +99,13 @@ export function AuthProvider({ children }) {
       }
     })
 
-    // When the tab regains focus after significant idle (2+ min), verify
-    // the session is still valid and refresh if needed. Short idle periods
-    // are handled by Supabase's autoRefreshToken — no need to call
-    // getSession() on every single tab switch.
+    // When the tab regains focus after more than 30 seconds idle, PROACTIVELY
+    // refresh the access token. Chrome throttles background-tab setTimeouts
+    // to ~1/min which makes Supabase's autoRefreshToken unreliable — so the
+    // next user click would otherwise hit a 401 → refresh → retry path that
+    // adds 1–2 seconds. We pre-warm the token here so data fetches are fast.
     let hiddenAt = 0
-    const AUTH_IDLE_THRESHOLD = 2 * 60 * 1000 // 2 minutes
+    const AUTH_IDLE_THRESHOLD = 30 * 1000 // 30 seconds
     const handleVisibility = () => {
       if (document.visibilityState === 'hidden') {
         hiddenAt = Date.now()
@@ -112,16 +113,27 @@ export function AuthProvider({ children }) {
       }
       if (document.visibilityState !== 'visible') return
       if (hiddenAt > 0 && Date.now() - hiddenAt < AUTH_IDLE_THRESHOLD) return
-      supabase.auth.getSession().then(({ data: { session } }) => {
+      // Use refreshSession (not getSession) so the token is guaranteed fresh
+      // for the next data call. refreshSession falls back to getSession when
+      // the refresh token itself is valid but the access token isn't yet
+      // stale — it's safe to call anytime.
+      supabase.auth.refreshSession().then(({ data: { session } }) => {
         if (!mounted) return
         if (session?.user) {
           setUser(session.user)
         } else {
-          // Session expired and couldn't refresh — force re-login
+          // Refresh token itself expired — force re-login
           setUser(null)
           setProfile(null)
         }
-      }).catch(() => {})
+      }).catch(() => {
+        // Network hiccup during refresh — try a passive getSession so the
+        // UI doesn't falsely log the user out. Real 401s on the next data
+        // call will be caught by safe() + refreshSessionOnce().
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (mounted && session?.user) setUser(session.user)
+        }).catch(() => {})
+      })
     }
     document.addEventListener('visibilitychange', handleVisibility)
 
