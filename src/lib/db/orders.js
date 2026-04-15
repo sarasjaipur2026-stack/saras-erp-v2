@@ -235,7 +235,7 @@ export const enquiries = {
       const { data, error } = await safe(() =>
         supabase
           .from('enquiries')
-          .select('id, enquiry_number, status, source, priority, expected_value, followup_date, created_at, customers(firm_name, contact_name)')
+          .select('id, enquiry_number, status, stage, outcome, probability, priority, source_channel, source, expected_value, expected_close_date, followup_date, contact_person_name, contact_phone, assigned_to, lost_reason, lost_at, created_at, customers(firm_name, contact_name)')
           .order('created_at', { ascending: false })
           .range(from, from + PAGE - 1)
       )

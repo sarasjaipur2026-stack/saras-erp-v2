@@ -77,6 +77,7 @@ const OrderForm = lazy(() => import('./modules/orders/OrderForm'))
 const OrderDetail = lazy(() => import('./modules/orders/OrderDetail'))
 const EnquiriesPage = lazy(() => import('./modules/enquiry/EnquiriesPage'))
 const EnquiryForm = lazy(() => import('./modules/enquiry/EnquiryForm'))
+const EnquiryDetail = lazy(() => import('./modules/enquiry/EnquiryDetail'))
 const CalculatorPage = lazy(() => import('./modules/calculator/CalculatorPage'))
 const ProductionPage = lazy(() => import('./modules/production/ProductionPage'))
 const StockPage = lazy(() => import('./modules/stock/StockPage'))
@@ -161,7 +162,8 @@ export default function App() {
       {/* Enquiries */}
       <Route path="/enquiries" element={<ProtectedRoute perm="enquiries"><EnquiriesPage /></ProtectedRoute>} />
       <Route path="/enquiries/new" element={<ProtectedRoute perm="enquiries" action="create"><EnquiryForm /></ProtectedRoute>} />
-      <Route path="/enquiries/:id" element={<ProtectedRoute perm="enquiries"><EnquiryForm /></ProtectedRoute>} />
+      <Route path="/enquiries/:id" element={<ProtectedRoute perm="enquiries"><EnquiryDetail /></ProtectedRoute>} />
+      <Route path="/enquiries/:id/edit" element={<ProtectedRoute perm="enquiries" action="edit"><EnquiryForm /></ProtectedRoute>} />
 
       {/* Calculator */}
       <Route path="/calculator" element={<ProtectedRoute perm="calculator"><CalculatorPage /></ProtectedRoute>} />
