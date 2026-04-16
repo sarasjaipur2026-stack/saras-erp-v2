@@ -26,10 +26,13 @@ const DEFAULT_REVALIDATE_ON_FOCUS_AFTER_MS = 30 * 1000
 
 const inFlightByKey = new Map()
 
+// localStorage (not sessionStorage) so cache survives closing the browser.
+// Monday-morning opens render instantly from Friday's cache while a silent
+// background refresh swaps in the latest rows.
 const readCache = (key) => {
   if (!key) return null
   try {
-    const raw = sessionStorage.getItem(key)
+    const raw = localStorage.getItem(key)
     if (!raw) return null
     const parsed = JSON.parse(raw)
     return {
@@ -44,8 +47,16 @@ const readCache = (key) => {
 const writeCache = (key, data) => {
   if (!key) return
   try {
-    sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), data }))
-  } catch { /* quota — ignore */ }
+    localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data }))
+  } catch {
+    // Quota hit — evict other saras_* list caches and retry once.
+    try {
+      for (const k of Object.keys(localStorage)) {
+        if (k.startsWith('saras_') && k !== key) localStorage.removeItem(k)
+      }
+      localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data }))
+    } catch { /* still over quota — give up silently */ }
+  }
 }
 
 export function useSWRList(
@@ -77,13 +88,14 @@ export function useSWRList(
       if (!force && Date.now() - lastRevalidatedRef.current < 3_000) return
       try {
         if (!mountedRef.current) return
-        // Only flip the spinner if we have nothing to show AT ALL
-        setData((prev) => {
-          if (prev.length === 0 && !readCache(cacheKey)?.data?.length) {
-            setLoading(true)
-          }
-          return prev
-        })
+        // Revalidation is ALWAYS silent. `loading` is only true on the
+        // genuine cold-start initial useState — any subsequent refresh
+        // (mount with stale cache, visibility return, manual refresh())
+        // happens in the background without a spinner. This matters for
+        // tables that are legitimately empty (0 orders / 0 enquiries):
+        // those users would otherwise see a 500 ms spinner on every
+        // post-idle navigation even though the cached empty state is
+        // already on screen.
         const result = await fetcher()
         if (!mountedRef.current) return
         const rows = Array.isArray(result?.data) ? result.data : []
@@ -107,12 +119,19 @@ export function useSWRList(
     return p
   }, [cacheKey, enabled, fetcher])
 
-  // First-mount: reveal cache; revalidate only if stale or missing.
+  // First-mount: reveal cache; revalidate only if cache is missing OR the
+  // cache timestamp is older than staleAfterMs.
+  //
+  // IMPORTANT: an empty-array cache (`data: []`) is a VALID cache entry —
+  // it represents "user has zero rows of this type" and should NOT force a
+  // revalidation. Only the absence of a cache entry or a timestamp past
+  // staleAfterMs triggers a refresh.
   useEffect(() => {
     if (!enabled || !cacheKey) return
     mountedRef.current = true
-    const cacheAge = initial ? Date.now() - initial.ts : Infinity
-    if (!initial?.data?.length || cacheAge > staleAfterMs) {
+    const hasCacheEntry = !!initial && Array.isArray(initial.data)
+    const cacheAge = hasCacheEntry ? Date.now() - initial.ts : Infinity
+    if (!hasCacheEntry || cacheAge > staleAfterMs) {
       revalidate({ force: true })
     }
     return () => { mountedRef.current = false }
