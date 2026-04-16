@@ -1,36 +1,78 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { customers } from '../../lib/db'
+import { supabase } from '../../lib/supabase'
+import { safe } from '../../lib/db/core'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, Input, DataTable, Modal } from '../../components/ui'
-import { Plus, Edit2, Trash2, Users, Search } from 'lucide-react'
+import { Plus, Edit2, Trash2, Search } from 'lucide-react'
+import { useSWRList } from '../../hooks/useSWRList'
+
+// Only the columns actually rendered in the table — cuts JSON payload from
+// ~600 KB (select=*) to ~150 KB for 3,447 rows. Full row is loaded on edit
+// via customers.get(id) so we don't lose any data.
+const LIST_COLUMNS = 'id, firm_name, contact_name, phone, city, gstin'
 
 export default function CustomersPage() {
   const { user } = useAuth()
   const toast = useToast()
-  const [list, setList] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
+
+  // Paginated fetcher with just the display fields. Uses the same
+  // PAGE/HARD_CAP guard-rails as db/core.js::fetchAll so we never hit the
+  // PostgREST 1000-row silent-truncation cap.
+  const fetcher = async () => {
+    if (!user?.id) return { data: [] }
+    const PAGE = 1000
+    const HARD_CAP = 20000
+    const all = []
+    for (let from = 0; from < HARD_CAP; from += PAGE) {
+      const { data, error } = await safe(() =>
+        supabase.from('customers').select(LIST_COLUMNS)
+          .eq('user_id', user.id)
+          .order('firm_name', { ascending: true })
+          .range(from, from + PAGE - 1),
+      )
+      if (error) return { data: null, error }
+      if (!data || data.length === 0) break
+      all.push(...data)
+      if (data.length < PAGE) break
+    }
+    return { data: all, error: null }
+  }
+
+  const cacheKey = user?.id ? `saras_customers_list_v2_${user.id}` : null
+  const {
+    data: list,
+    loading: isLoading,
+    refresh: fetchData,
+  } = useSWRList(cacheKey, fetcher, { staleAfterMs: 15 * 60 * 1000 })
+
   const [showModal, setShowModal] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [saving, setSaving] = useState(false)
   const emptyForm = { firm_name: '', contact_name: '', phone: '', email: '', city: '', address: '', gstin: '', pan: '' }
   const [form, setForm] = useState(emptyForm)
+  const [loadingEdit, setLoadingEdit] = useState(false)
 
-  useEffect(() => { if (user?.id) fetchData() }, [user?.id])
-
-  const fetchData = async () => {
-    setIsLoading(true)
-    const { data, error } = await customers.list(user.id)
-    if (error) toast.error('Failed to load customers')
-    else setList(data || [])
-    setIsLoading(false)
-  }
-
-  const openModal = (customer = null) => {
-    if (customer) { setEditingId(customer.id); setForm({ ...customer }) }
-    else { setEditingId(null); setForm(emptyForm) }
-    setShowModal(true)
+  const openModal = async (customerRow = null) => {
+    if (customerRow) {
+      // Lazy-load the full customer record (phone, email, address, pan)
+      // since the list view only carried the display columns.
+      setEditingId(customerRow.id)
+      setShowModal(true)
+      setLoadingEdit(true)
+      try {
+        const { data } = await customers.get(customerRow.id)
+        setForm(data || { ...emptyForm, ...customerRow })
+      } finally {
+        setLoadingEdit(false)
+      }
+    } else {
+      setEditingId(null)
+      setForm(emptyForm)
+      setShowModal(true)
+    }
   }
 
   const handleSave = async () => {
@@ -42,7 +84,8 @@ export default function CustomersPage() {
         : await customers.create({ ...form, user_id: user.id })
       if (error) throw error
       toast.success(editingId ? 'Customer updated' : 'Customer added')
-      setShowModal(false); fetchData()
+      setShowModal(false)
+      fetchData()
     } catch { toast.error('Failed to save') }
     setSaving(false)
   }
@@ -57,7 +100,7 @@ export default function CustomersPage() {
 
   const filtered = list.filter(c =>
     (c.contact_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (c.firm_name || '').toLowerCase().includes(searchTerm.toLowerCase())
+    (c.firm_name || '').toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   const columns = [
@@ -94,16 +137,16 @@ export default function CustomersPage() {
       <DataTable columns={columns} data={filtered} isLoading={isLoading} emptyMessage="No customers found" />
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editingId ? 'Edit Customer' : 'Add Customer'} size="lg"
-        footer={<><Button variant="secondary" size="sm" onClick={() => setShowModal(false)}>Cancel</Button><Button size="sm" onClick={handleSave} loading={saving}>{editingId ? 'Update' : 'Add'}</Button></>}
+        footer={<><Button variant="secondary" size="sm" onClick={() => setShowModal(false)}>Cancel</Button><Button size="sm" onClick={handleSave} loading={saving || loadingEdit}>{editingId ? 'Update' : 'Add'}</Button></>}
       >
         <div className="grid grid-cols-2 gap-4">
-          <Input label="Firm Name" required value={form.firm_name} onChange={e => setForm(p => ({ ...p, firm_name: e.target.value }))} />
-          <Input label="Contact Person" required value={form.contact_name} onChange={e => setForm(p => ({ ...p, contact_name: e.target.value }))} />
+          <Input label="Firm Name" required value={form.firm_name || ''} onChange={e => setForm(p => ({ ...p, firm_name: e.target.value }))} />
+          <Input label="Contact Person" required value={form.contact_name || ''} onChange={e => setForm(p => ({ ...p, contact_name: e.target.value }))} />
           <Input label="Phone" value={form.phone || ''} onChange={e => setForm(p => ({ ...p, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))} />
           <Input label="Email" type="email" value={form.email || ''} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
           <Input label="City" value={form.city || ''} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} />
-          <Input label="GSTIN" value={form.gstin || ''} onChange={e => setForm(p => ({ ...p, gstin: e.target.value.toUpperCase().slice(0, 15) }))} />
-          <Input label="PAN" value={form.pan || ''} onChange={e => setForm(p => ({ ...p, pan: e.target.value.toUpperCase().slice(0, 10) }))} className="col-span-2" />
+          <Input label="GSTIN" value={form.gstin || ''} onChange={e => setForm(p => ({ ...p, gstin: (e.target.value || '').toUpperCase().slice(0, 15) }))} />
+          <Input label="PAN" value={form.pan || ''} onChange={e => setForm(p => ({ ...p, pan: (e.target.value || '').toUpperCase().slice(0, 10) }))} className="col-span-2" />
           <Input label="Address" value={form.address || ''} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} className="col-span-2" />
         </div>
       </Modal>
