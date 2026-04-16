@@ -105,6 +105,24 @@ const EMPTY_MASTERS = Object.fromEntries(
   [...CRITICAL_KEYS, ...DEFERRED_KEYS].map(k => [k, []])
 )
 
+// Routes where master data is NOT read — loading masters on these routes
+// just clogs HTTP/2 slots and delays the page's own query. Everything not
+// in this blacklist defaults to loading masters (safe for form / editor
+// pages that legitimately need them).
+const LIST_ROUTES_NO_MASTERS = [
+  '/',                      // Dashboard
+  '/orders',                // Orders list (form routes like /orders/new still load)
+  '/enquiries',             // Enquiries list
+  '/invoices',
+  '/payments',
+  '/dispatch',
+  '/stock',
+  '/reports',
+  '/notifications',
+  '/masters/customers',     // 3,400-row customer list — no other masters read
+]
+const routeNeedsMasters = (path) => !!path && !LIST_ROUTES_NO_MASTERS.includes(path)
+
 export function AppProvider({ children }) {
   // Single state object for all masters — one setState call = one re-render
   const [masters, setMasters] = useState(() => {
@@ -197,6 +215,16 @@ export function AppProvider({ children }) {
     loaded.current = true
   }, [loadCritical, loadDeferred])
 
+  // Explicit ensure() — pages that actually consume masters (OrderForm,
+  // EnquiryForm, PurchasePage, CalculatorPage, etc.) call this from a
+  // useEffect on mount. Idempotent + coalesced via criticalInFlightRef.
+  const ensureCritical = useCallback(async () => {
+    if (loaded.current) return
+    await loadCritical()
+    loaded.current = true
+  }, [loadCritical])
+
+
   // On mount: load critical masters only — deferred masters load on demand.
   //
   // Dashboard does not read any masters (it only uses stats.getDashboard()),
@@ -213,24 +241,24 @@ export function AppProvider({ children }) {
   useEffect(() => {
     let cancelled = false
 
-    const onDashboard = typeof window !== 'undefined' && window.location.pathname === '/'
+    const path = typeof window !== 'undefined' ? window.location.pathname : ''
+    const needsMasters = routeNeedsMasters(path)
 
-    // On Dashboard — skip entirely. Dashboard reads no masters. The first
-    // master-consuming route will trigger hydration via its own useApp() path
-    // (empty arrays render as "loading" until then) + the visibility handler
-    // below will refresh whenever the user returns after a stale cache.
-    if (onDashboard) {
+    // Skip loadCritical on list/dashboard routes — they don't read masters.
+    // Pages that DO read masters (OrderForm / EnquiryForm / Calculator /
+    // PurchasePage / Jobwork / Masters/*) must call ensureCritical() from
+    // their own useEffect.
+    if (!needsMasters) {
       return () => { cancelled = true }
     }
 
     if (loaded.current) {
-      // Non-Dashboard + cache hit — refresh silently during idle time.
+      // Cache hit — refresh silently during idle time (cheap, batched).
       whenIdle(() => { if (!cancelled) loadCritical() }, 2000)
       return () => { cancelled = true }
     }
 
-    // Non-Dashboard first-visit: load critical masters during idle time so
-    // the page's own queries get first dibs on Supabase connections.
+    // First-visit to a master-consuming route — load during idle time.
     whenIdle(async () => {
       if (cancelled) return
       setLoading(true)
@@ -322,9 +350,9 @@ export function AppProvider({ children }) {
   const value = useMemo(() => ({
     ...masters,
     loading,
-    loadMasterData, ensureDeferred, getProductsForMachine, getMachinesForProduct,
+    loadMasterData, ensureCritical, ensureDeferred, getProductsForMachine, getMachinesForProduct,
     getChargeTypesByScope, getDefaultPaymentTerms, getExchangeRate, getCustomerById,
-  }), [masters, loading, loadMasterData, ensureDeferred, getProductsForMachine, getMachinesForProduct, getChargeTypesByScope, getDefaultPaymentTerms, getExchangeRate, getCustomerById])
+  }), [masters, loading, loadMasterData, ensureCritical, ensureDeferred, getProductsForMachine, getMachinesForProduct, getChargeTypesByScope, getDefaultPaymentTerms, getExchangeRate, getCustomerById])
 
   return (
     <AppContext.Provider value={value}>
