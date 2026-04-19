@@ -9,6 +9,7 @@ import { stageByValue, priorityByValue } from '../../lib/db/enquiryPipeline'
 import LostReasonModal from './components/LostReasonModal'
 import { markEnquiryLost } from '../../lib/db/enquiryPipeline'
 import { useSWRList } from '../../hooks/useSWRList'
+import { useQueryState } from '../../hooks/useQueryState'
 
 const fmtMoney = (n) => n == null || n === 0 ? '—' : `₹${Number(n).toLocaleString('en-IN')}`
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '—'
@@ -29,7 +30,8 @@ export default function EnquiriesPage() {
     refresh: fetchData,
   } = useSWRList(cacheKey, fetcher, { staleAfterMs: 10 * 60 * 1000 })
 
-  const [viewFilter, setViewFilter] = useState('open')  // open | mine | hot | won | lost | all
+  // URL-backed so filter state is shareable / bookmarkable
+  const [viewFilter, setViewFilter] = useQueryState('view', 'open')
   const [lostTarget, setLostTarget] = useState(null)
   const [lostLoading, setLostLoading] = useState(false)
 

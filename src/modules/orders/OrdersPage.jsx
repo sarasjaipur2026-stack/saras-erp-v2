@@ -32,6 +32,7 @@ import {
   Modal,
 } from '../../components/ui';
 import { useSWRList } from '../../hooks/useSWRList';
+import { useQueryState } from '../../hooks/useQueryState';
 
 const OrdersPage = () => {
   const navigate = useNavigate();
@@ -51,10 +52,11 @@ const OrdersPage = () => {
     refresh: reloadOrders,
   } = useSWRList(cacheKey, fetcher, { staleAfterMs: 10 * 60 * 1000 })
   const [selectedOrders, setSelectedOrders] = useState(new Set());
-  const [activeTab, setActiveTab] = useState('all');
-  const [dateRange, setDateRange] = useState('allTime');
-  const [customerFilter, setCustomerFilter] = useState('');
-  const [viewMode, setViewMode] = useState('allInfo');
+  // Filter state is URL-backed so sharing / bookmarking a view works.
+  const [activeTab, setActiveTab] = useQueryState('tab', 'all');
+  const [dateRange, setDateRange] = useQueryState('range', 'allTime');
+  const [customerFilter, setCustomerFilter] = useQueryState('q', '');
+  const [viewMode, setViewMode] = useQueryState('view', 'allInfo');
   const [openMenuId, setOpenMenuId] = useState(null);
   const statusPipeline = useMemo(() => {
     const pipeline = {};

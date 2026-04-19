@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage'
 import { PageLoader } from './components/ui'
 import CommandPalette from './components/CommandPalette'
 import ShortcutsModal from './components/ShortcutsModal'
+import GlobalLoadingBar from './components/GlobalLoadingBar'
 
 // Prefetch top routes after first paint so navigation feels instant
 const prefetchRoutes = () => {
@@ -91,6 +92,7 @@ const JobworkPage = lazy(() => import('./modules/jobwork/JobworkPage'))
 const QualityPage = lazy(() => import('./modules/quality/QualityPage'))
 const NotificationsPage = lazy(() => import('./modules/notifications/NotificationsPage'))
 const UsersPage = lazy(() => import('./modules/settings/UsersPage'))
+const CatalogsPage = lazy(() => import('./modules/masters/CatalogsPage'))
 const CustomersPage = lazy(() => import('./modules/masters/CustomersPage'))
 const ProductsPage = lazy(() => import('./modules/masters/ProductsPage'))
 const MaterialsPage = lazy(() => import('./modules/masters/MaterialsPage'))
@@ -146,7 +148,8 @@ export default function App() {
 
   return (
     <>
-      {/* Global Cmd+K search palette + Ctrl+/ shortcuts cheatsheet */}
+      {/* Global Cmd+K search palette + Ctrl+/ shortcuts cheatsheet + top loading bar */}
+      <GlobalLoadingBar />
       {user && <CommandPalette />}
       {user && <ShortcutsModal />}
       <Routes>
@@ -182,6 +185,7 @@ export default function App() {
       <Route path="/settings/users" element={<ProtectedRoute perm="settings"><UsersPage /></ProtectedRoute>} />
 
       {/* Masters */}
+      <Route path="/masters/catalogs" element={<ProtectedRoute perm="masters"><CatalogsPage /></ProtectedRoute>} />
       <Route path="/masters/customers" element={<ProtectedRoute perm="masters"><CustomersPage /></ProtectedRoute>} />
       <Route path="/masters/products" element={<ProtectedRoute perm="masters"><ProductsPage /></ProtectedRoute>} />
       <Route path="/masters/materials" element={<ProtectedRoute perm="masters"><MaterialsPage /></ProtectedRoute>} />

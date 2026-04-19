@@ -8,9 +8,15 @@ import {
   Hash, Ruler, Cog, Layers, Workflow, UserCog, Sparkles, PackageOpen, ShieldCheck, Factory, ShoppingBag, Bell
 } from 'lucide-react'
 
-// Each item can declare the permission module it requires. If omitted, the
-// item is always visible (e.g. Dashboard, Calculator). Modules that are not
-// in a user's permission set will be filtered out of the sidebar at render.
+// Sidebar structure (post-polish reorg):
+// - Promote 5 daily-use masters to top-level (Customers, Products, Materials,
+//   Suppliers, Staff). The other ~19 setup-once masters (HSN, Units, Machine
+//   Types, Yarn Types, Chaal Types, Process Types, etc.) were cognitive noise
+//   in daily navigation. They now all live behind a single "Catalogs" link
+//   that opens /masters/catalogs — a hub page with a card per master.
+// - Reduces the daily sidebar from 41 items → ~22 items.
+// - All /masters/<slug> routes still resolve exactly as before; nothing is
+//   removed, just demoted from the sidebar.
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard, category: 'main' },
   { path: '/orders', label: 'Orders', icon: ShoppingCart, category: 'main', badge: true, perm: 'orders' },
@@ -19,30 +25,14 @@ const NAV_ITEMS = [
   { path: '/production', label: 'Production', icon: Factory, category: 'production', perm: 'production' },
   { path: '/jobwork', label: 'Jobwork', icon: Briefcase, category: 'production', perm: 'jobwork' },
   { path: '/quality', label: 'Quality Check', icon: ShieldCheck, category: 'production', perm: 'quality' },
+  // 5 daily-use masters stay top-level
   { path: '/masters/customers', label: 'Customers', icon: Users, category: 'masters', perm: 'masters' },
   { path: '/masters/products', label: 'Products', icon: Package, category: 'masters', perm: 'masters' },
   { path: '/masters/materials', label: 'Materials', icon: Box, category: 'masters', perm: 'masters' },
-  { path: '/masters/machines', label: 'Machines', icon: Settings, category: 'masters', perm: 'masters' },
-  { path: '/masters/colors', label: 'Colors', icon: Palette, category: 'masters', perm: 'masters' },
   { path: '/masters/suppliers', label: 'Suppliers', icon: Truck, category: 'masters', perm: 'masters' },
-  { path: '/masters/brokers', label: 'Brokers', icon: Briefcase, category: 'masters', perm: 'masters' },
-  { path: '/masters/charge-types', label: 'Charge Types', icon: DollarSign, category: 'masters', perm: 'masters' },
-  { path: '/masters/order-types', label: 'Order Types', icon: Archive, category: 'masters', perm: 'masters' },
-  { path: '/masters/payment-terms', label: 'Payment Terms', icon: CreditCard, category: 'masters', perm: 'masters' },
-  { path: '/masters/warehouses', label: 'Warehouses', icon: Building2, category: 'masters', perm: 'masters' },
-  { path: '/masters/banks', label: 'Banks', icon: Building2, category: 'masters', perm: 'masters' },
   { path: '/masters/staff', label: 'Staff', icon: Users, category: 'masters', perm: 'masters' },
-  { path: '/masters/product-types', label: 'Product Types', icon: Layers, category: 'masters', perm: 'masters' },
-  { path: '/masters/yarn-types', label: 'Yarn Types', icon: Sparkles, category: 'masters', perm: 'masters' },
-  { path: '/masters/machine-types', label: 'Machine Types', icon: Cog, category: 'masters', perm: 'masters' },
-  { path: '/masters/chaal-types', label: 'Chaal Types', icon: Workflow, category: 'masters', perm: 'masters' },
-  { path: '/masters/process-types', label: 'Process Types', icon: Workflow, category: 'masters', perm: 'masters' },
-  { path: '/masters/operators', label: 'Operators', icon: UserCog, category: 'masters', perm: 'masters' },
-  { path: '/masters/hsn-codes', label: 'HSN Codes', icon: Hash, category: 'masters', perm: 'masters' },
-  { path: '/masters/units', label: 'Units', icon: Ruler, category: 'masters', perm: 'masters' },
-  { path: '/masters/packaging-types', label: 'Packaging', icon: PackageOpen, category: 'masters', perm: 'masters' },
-  { path: '/masters/transports', label: 'Transports', icon: Truck, category: 'masters', perm: 'masters' },
-  { path: '/masters/quality-parameters', label: 'Quality Params', icon: ShieldCheck, category: 'masters', perm: 'masters' },
+  // The hub for everything else
+  { path: '/masters/catalogs', label: 'Catalogs', icon: Archive, category: 'masters', perm: 'masters' },
   { path: '/purchase', label: 'Purchase', icon: ShoppingBag, category: 'inventory', perm: 'purchase' },
   { path: '/stock', label: 'Stock', icon: BarChart3, category: 'inventory', perm: 'stock' },
   { path: '/dispatch', label: 'Dispatch', icon: Truck, category: 'inventory', perm: 'dispatch' },
