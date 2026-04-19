@@ -70,6 +70,20 @@ export const orders = {
       .single()
   ),
 
+  // Pull the most recent order for a customer so OrderForm can pre-fill
+  // sensible defaults when the user picks a repeat customer. Returns only
+  // the fields we want to carry over (order_type, payment_terms, broker,
+  // currency, priority, nature) — never amounts, dates, or line items.
+  getLastForCustomer: async (customerId) => safe(() =>
+    supabase
+      .from('orders')
+      .select('order_type_id, payment_terms_id, broker_id, currency_id, priority, nature')
+      .eq('customer_id', customerId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+  ),
+
   updateStatus: async (id, status) => {
     // Fetch current order to validate transition
     const { data: current, error: fetchErr } = await safe(() =>

@@ -120,7 +120,7 @@ export default function OrderForm() {
     }
   }, [isEdit, orderId]);
 
-  const handleCustomerSelect = (customer) => {
+  const handleCustomerSelect = async (customer) => {
     setSelectedCustomer(customer);
     setFormData((prev) => ({
       ...prev,
@@ -128,6 +128,29 @@ export default function OrderForm() {
       shipping_address: customer.shipping_addresses?.[0] || null,
       gst_type: customer.state_code === prev.state_code ? 'intra_state' : 'inter_state',
     }));
+
+    // Smart defaults — pre-fill order_type / payment_terms / broker /
+    // currency / priority / nature from this customer's most recent order,
+    // but ONLY when those fields are still empty (never overwrite user input).
+    // Silent on failure; user can edit anything manually.
+    if (!isEdit && customer.id) {
+      try {
+        const { data: last } = await orders.getLastForCustomer(customer.id);
+        if (last) {
+          setFormData((prev) => ({
+            ...prev,
+            order_type_id:   prev.order_type_id   || last.order_type_id   || prev.order_type_id,
+            payment_terms_id: prev.payment_terms_id || last.payment_terms_id || prev.payment_terms_id,
+            broker_id:       prev.broker_id       || last.broker_id       || prev.broker_id,
+            currency_id:     prev.currency_id     || last.currency_id     || prev.currency_id,
+            priority:        prev.priority && prev.priority !== 'normal' ? prev.priority : (last.priority || prev.priority),
+            nature:          prev.nature && prev.nature !== 'production'  ? prev.nature  : (last.nature   || prev.nature),
+          }));
+        }
+      } catch {
+        // Silent — defaults are a nice-to-have, never block customer selection
+      }
+    }
   };
 
   const handleAddLineItem = useCallback(() => {
@@ -466,21 +489,21 @@ export default function OrderForm() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8">
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">
             {isEdit ? 'Edit Order' : 'Create New Order'}
           </h1>
-          <p className="text-slate-600">
+          <p className="text-sm sm:text-base text-slate-600">
             {isEdit ? `Order #${formData.order_number}` : 'Follow the steps to create a new order'}
           </p>
         </div>
 
-        {/* Step Indicator */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
+        {/* Step Indicator — scrollable on narrow screens so phone users can see all 4 steps */}
+        <div className="mb-6 sm:mb-8 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <div className="flex items-center justify-between min-w-[500px]">
             {STEPS.map((step, idx) => {
               const Icon = step.icon;
               const isActive = step.id === currentStep;
@@ -499,7 +522,7 @@ export default function OrderForm() {
                     }}
                   >
                     <div
-                      className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 transition-all ${
+                      className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mb-1.5 sm:mb-2 transition-all ${
                         isActive
                           ? 'bg-indigo-600 text-white'
                           : isCompleted
@@ -507,14 +530,14 @@ export default function OrderForm() {
                           : 'bg-slate-200 text-slate-500'
                       }`}
                     >
-                      {isCompleted ? <CheckCircle size={24} /> : <Icon size={24} />}
+                      {isCompleted ? <CheckCircle size={20} /> : <Icon size={20} />}
                     </div>
-                    <span className="text-sm font-medium text-slate-900">{step.name}</span>
+                    <span className="text-[11px] sm:text-sm font-medium text-slate-900 whitespace-nowrap">{step.name}</span>
                   </div>
 
                   {idx < STEPS.length - 1 && (
                     <div
-                      className={`flex-1 h-1 mx-4 mb-8 rounded-full transition-all ${
+                      className={`flex-1 h-1 mx-2 sm:mx-4 mb-6 sm:mb-8 rounded-full transition-all ${
                         isCompleted ? 'bg-green-600' : 'bg-slate-200'
                       }`}
                     />
