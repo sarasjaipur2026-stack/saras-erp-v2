@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { enquiries, products as productsDb, staff as staffDb } from '../../lib/db'
 import { useAuth } from '../../contexts/AuthContext'
@@ -7,6 +7,7 @@ import { Button, Input, Textarea, Select, Spinner } from '../../components/ui'
 import { ArrowLeft, Save } from 'lucide-react'
 import { CustomerSearch } from '../orders/components/CustomerSearch'
 import LineItemsEditor from './components/LineItemsEditor'
+import { useUnsavedChangesPrompt } from '../../hooks/useUnsavedChangesPrompt'
 import {
   SOURCE_CHANNELS, STAGES, PRIORITIES,
   stageByValue, enquiryLineItems,
@@ -32,6 +33,17 @@ export default function EnquiryForm() {
   const [productsList, setProductsList] = useState([])
   const [staffList, setStaffList] = useState([])
   const [isLoading, setIsLoading] = useState(!!id)
+  const [dirty, setDirty] = useState(false)
+  useUnsavedChangesPrompt(dirty)
+  const initialSnapRef = useRef(null)
+  // Track dirty via JSON-stringified snapshot comparison. Skips the first
+  // run after each load so programmatic hydration doesn't mark dirty.
+  useEffect(() => {
+    if (isLoading) return
+    const snap = JSON.stringify({ form, items })
+    if (initialSnapRef.current === null) { initialSnapRef.current = snap; return }
+    if (snap !== initialSnapRef.current) setDirty(true)
+  }, [form, items, isLoading])
   const [saving, setSaving] = useState(false)
 
   // Load products + staff for dropdowns
@@ -65,6 +77,8 @@ export default function EnquiryForm() {
       const { data: liData } = await enquiryLineItems.listByEnquiry(id)
       setItems(liData || [])
       setIsLoading(false)
+      // Snapshot loaded form state so we can detect user edits
+      initialSnapRef.current = null
     })()
     return () => { cancelled = true }
   }, [id, navigate, toast, user.id])
@@ -137,6 +151,7 @@ export default function EnquiryForm() {
       }
 
       toast.success(`Enquiry ${id ? 'updated' : 'created'}`)
+      setDirty(false)
       navigate(`/enquiries/${enquiryId}`)
     } catch (err) {
       toast.error(err?.message || 'Failed to save enquiry')

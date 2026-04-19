@@ -4,14 +4,39 @@ import { useAuth } from '../contexts/AuthContext'
 import { stats } from '../lib/db'
 import {
   ShoppingCart, MessageSquare, Users, AlertTriangle,
-  Clock, Plus, ArrowRight, TrendingUp
+  Clock, Plus, ArrowRight, TrendingUp, FileText, Receipt, CreditCard, Truck, Package,
 } from 'lucide-react'
 import { useSWRList } from '../hooks/useSWRList'
+import { useRecentSearches } from '../hooks/useRecentSearches'
+import { ENTITY_ROUTES, ENTITY_LABELS } from '../lib/db/search'
+
+const RECENT_ICON = {
+  customer: Users,
+  order: ShoppingCart,
+  enquiry: MessageSquare,
+  invoice: Receipt,
+  payment: CreditCard,
+  delivery: Truck,
+  purchase_order: Package,
+  product: Package,
+}
+
+const fmtRelativeTime = (ts) => {
+  const diff = Math.max(0, Date.now() - ts)
+  const min = Math.floor(diff / 60000)
+  if (min < 1) return 'just now'
+  if (min < 60) return `${min}m ago`
+  const hr = Math.floor(min / 60)
+  if (hr < 24) return `${hr}h ago`
+  const d = Math.floor(hr / 24)
+  return `${d}d ago`
+}
 
 export default function Dashboard() {
   const { profile } = useAuth()
   const navigate = useNavigate()
   const [loadError, setLoadError] = useState(null)
+  const { recents } = useRecentSearches()
 
   // Stale-while-revalidate: cached dashboard data renders instantly on
   // first paint, even after long idles. Revalidation happens silently.
@@ -142,6 +167,42 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+
+      {/* Recent Activity — populated from localStorage via Cmd+K palette.
+          Hidden entirely when empty so first-time users don't see an empty shell. */}
+      {recents.length > 0 && (
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-slate-800">Recent</h2>
+            <span className="text-[11px] text-slate-400">Last {Math.min(recents.length, 8)} opened</span>
+          </div>
+          <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden">
+            {recents.slice(0, 8).map((r, i) => {
+              const Icon = RECENT_ICON[r.entity_type] || FileText
+              const route = ENTITY_ROUTES[r.entity_type]?.(r.entity_id)
+              return (
+                <button
+                  key={`${r.entity_type}-${r.entity_id}-${i}`}
+                  onClick={() => route && navigate(route)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50/70 transition-colors text-left border-b border-slate-50 last:border-0"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                    <Icon size={14} className="text-slate-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-[13px] font-medium text-slate-800 truncate">{r.primary_label}</span>
+                      {r.secondary && <span className="text-[11px] font-mono text-slate-400 flex-shrink-0">· {r.secondary}</span>}
+                    </div>
+                  </div>
+                  <span className="text-[11px] text-slate-400 flex-shrink-0">{fmtRelativeTime(r.openedAt)}</span>
+                  <span className="text-[11px] text-slate-400 capitalize flex-shrink-0 hidden sm:inline">{ENTITY_LABELS[r.entity_type] || r.entity_type}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

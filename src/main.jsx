@@ -6,6 +6,7 @@ import App from './App.jsx'
 import { AuthProvider } from './contexts/AuthContext.jsx'
 import { AppProvider } from './contexts/AppContext.jsx'
 import { ToastProvider } from './contexts/ToastContext.jsx'
+import { ConfirmProvider } from './components/ConfirmProvider.jsx'
 
 // Root-level error boundary — catches crashes in providers themselves
 class RootErrorBoundary extends Component {
@@ -36,7 +37,9 @@ createRoot(document.getElementById('root')).render(
         <AuthProvider>
           <AppProvider>
             <ToastProvider>
-              <App />
+              <ConfirmProvider>
+                <App />
+              </ConfirmProvider>
             </ToastProvider>
           </AppProvider>
         </AuthProvider>

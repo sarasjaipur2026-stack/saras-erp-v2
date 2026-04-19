@@ -18,6 +18,7 @@ import { StepCustomer } from './steps/StepCustomer';
 import { StepLineItems } from './steps/StepLineItems';
 import { StepPricingCharges } from './steps/StepPricingCharges';
 import { StepReview } from './steps/StepReview';
+import { useUnsavedChangesPrompt } from '../../hooks/useUnsavedChangesPrompt';
 
 const STEPS = [
   { id: 1, name: 'Customer', icon: Users },
@@ -78,6 +79,21 @@ export default function OrderForm() {
   const [expandedItems, setExpandedItems] = useState({});
   const [validationErrors, setValidationErrors] = useState({});
   const [warnings, setWarnings] = useState([]);
+  const [dirty, setDirty] = useState(false);
+
+  // Warn on navigation away when form has unsaved changes
+  useUnsavedChangesPrompt(dirty && !saving);
+
+  // Mark dirty on any user change to form data. Skips the initial mount so
+  // loading an existing order in edit mode doesn't flip dirty.
+  const initialFormRef = React.useRef(null);
+  useEffect(() => {
+    if (initialFormRef.current === null) {
+      initialFormRef.current = JSON.stringify(formData);
+      return;
+    }
+    if (JSON.stringify(formData) !== initialFormRef.current) setDirty(true);
+  }, [formData]);
 
   // Load order if editing
   useEffect(() => {

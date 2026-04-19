@@ -56,6 +56,34 @@ export default function Topbar({ onMenuClick }) {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  // Ctrl+F / Cmd+F intercept — focus the current page's filter input instead
+  // of letting the browser's Find-in-page dialog open, which is useless for
+  // a virtualised list. Only active when an input named "filter" / "search"
+  // is present on the page.
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        const tag = (e.target && e.target.tagName) || ''
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return
+        // Find a page-level search input (placeholder contains "Search" or type="search")
+        const candidates = Array.from(document.querySelectorAll('input[type="search"], input[placeholder*="Search" i], input[placeholder*="search" i]'))
+        // Prefer visible, in-viewport inputs — skip the global topbar one (it's a <button>, not input)
+        const visible = candidates.find((el) => {
+          if (el.offsetParent === null) return false
+          const r = el.getBoundingClientRect()
+          return r.top >= 0 && r.top < window.innerHeight
+        })
+        if (visible) {
+          e.preventDefault()
+          visible.focus()
+          visible.select?.()
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   const handleSignOut = async () => {
     await signOut()
     toast.info('Signed out')

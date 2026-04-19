@@ -5,6 +5,7 @@ import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import { PageLoader } from './components/ui'
 import CommandPalette from './components/CommandPalette'
+import ShortcutsModal from './components/ShortcutsModal'
 
 // Prefetch top routes after first paint so navigation feels instant
 const prefetchRoutes = () => {
@@ -145,8 +146,9 @@ export default function App() {
 
   return (
     <>
-      {/* Global Cmd+K search palette — only mounted when authenticated */}
+      {/* Global Cmd+K search palette + Ctrl+/ shortcuts cheatsheet */}
       {user && <CommandPalette />}
+      {user && <ShortcutsModal />}
       <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
 

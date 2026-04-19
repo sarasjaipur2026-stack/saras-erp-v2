@@ -193,25 +193,48 @@ export const Badge = ({ children, variant = 'default', className = '' }) => {
 }
 
 // ─── STATUS BADGE ──────────────────────────────────────────
+// Includes a single-letter prefix inside a tiny square so colorblind
+// users distinguish statuses without relying on the variant color alone.
+// (Green and red look identical to red-green colorblind users.)
 const STATUS_MAP = {
-  draft: { variant: 'default', label: 'Draft' },
-  booking: { variant: 'primary', label: 'Booking' },
-  approved: { variant: 'info', label: 'Approved' },
-  production: { variant: 'warning', label: 'Production' },
-  qc: { variant: 'purple', label: 'QC' },
-  dispatch: { variant: 'success', label: 'Dispatch' },
-  completed: { variant: 'success', label: 'Completed' },
-  cancelled: { variant: 'danger', label: 'Cancelled' },
-  new: { variant: 'primary', label: 'New' },
-  follow_up: { variant: 'warning', label: 'Follow Up' },
-  quoted: { variant: 'info', label: 'Quoted' },
-  converted: { variant: 'success', label: 'Converted' },
-  lost: { variant: 'danger', label: 'Lost' },
+  draft:      { variant: 'default', label: 'Draft',      tag: 'D' },
+  booking:    { variant: 'primary', label: 'Booking',    tag: 'B' },
+  approved:   { variant: 'info',    label: 'Approved',   tag: 'A' },
+  production: { variant: 'warning', label: 'Production', tag: 'P' },
+  qc:         { variant: 'purple',  label: 'QC',         tag: 'Q' },
+  dispatch:   { variant: 'success', label: 'Dispatch',   tag: 'D' },
+  completed:  { variant: 'success', label: 'Completed',  tag: 'C' },
+  cancelled:  { variant: 'danger',  label: 'Cancelled',  tag: 'X' },
+  new:        { variant: 'primary', label: 'New',        tag: 'N' },
+  follow_up:  { variant: 'warning', label: 'Follow Up',  tag: 'F' },
+  quoted:     { variant: 'info',    label: 'Quoted',     tag: 'Q' },
+  converted:  { variant: 'success', label: 'Converted',  tag: '✓' },
+  lost:       { variant: 'danger',  label: 'Lost',       tag: '✗' },
 }
 
-export const StatusBadge = ({ status }) => {
-  const config = STATUS_MAP[status] || { variant: 'default', label: status }
-  return <Badge variant={config.variant}>{config.label}</Badge>
+const BADGE_TAG_BG = {
+  default: 'bg-slate-200 text-slate-700',
+  primary: 'bg-indigo-200 text-indigo-800',
+  info:    'bg-blue-200 text-blue-800',
+  success: 'bg-emerald-200 text-emerald-800',
+  warning: 'bg-amber-200 text-amber-800',
+  danger:  'bg-red-200 text-red-800',
+  purple:  'bg-purple-200 text-purple-800',
+}
+
+export const StatusBadge = ({ status, showTag = true }) => {
+  const config = STATUS_MAP[status] || { variant: 'default', label: status, tag: String(status || '?').charAt(0).toUpperCase() }
+  const tagBg = BADGE_TAG_BG[config.variant] || BADGE_TAG_BG.default
+  return (
+    <Badge variant={config.variant}>
+      {showTag && (
+        <span className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm text-[9px] font-bold mr-1.5 ${tagBg}`} aria-hidden="true">
+          {config.tag}
+        </span>
+      )}
+      {config.label}
+    </Badge>
+  )
 }
 
 // ─── MODAL ─────────────────────────────────────────────────
@@ -297,11 +320,24 @@ export const EmptyState = ({ icon: Icon, title, description, action }) => (
 )
 
 // ─── SPINNER ───────────────────────────────────────────────
-export const Spinner = ({ size = 'md' }) => {
-  const s = { sm: 'w-4 h-4', md: 'w-6 h-6', lg: 'w-10 h-10' }
+// Dual-ring design: soft outer ring + indigo inner arc, slightly faster
+// rotation than before. Reads as deliberate motion rather than a browser
+// default.
+export const Spinner = ({ size = 'md', label = 'Loading' }) => {
+  const dims = {
+    sm: { box: 'w-4 h-4', stroke: 2 },
+    md: { box: 'w-7 h-7', stroke: 2.5 },
+    lg: { box: 'w-12 h-12', stroke: 3 },
+  }
+  const d = dims[size] || dims.md
   return (
-    <div className={`${s[size]} border-2 border-indigo-100 border-t-indigo-600 rounded-full`}
-      style={{ animation: 'spin 0.6s linear infinite' }} />
+    <div className={`relative ${d.box}`} role="status" aria-label={label}>
+      <div className={`absolute inset-0 rounded-full border-slate-200/80`} style={{ borderWidth: d.stroke, borderStyle: 'solid' }} />
+      <div
+        className={`absolute inset-0 rounded-full border-transparent border-t-indigo-600 border-r-indigo-500`}
+        style={{ borderWidth: d.stroke, borderStyle: 'solid', animation: 'spin 0.55s cubic-bezier(0.5,0.1,0.5,0.9) infinite' }}
+      />
+    </div>
   )
 }
 
@@ -382,6 +418,7 @@ export const StatCard = ({ icon: Icon, label, value, trend, color = 'indigo' }) 
 export const DataTable = ({
   columns, data, onRowClick, isLoading, loading,
   emptyMessage = 'No data available', emptyTitle,
+  emptyIcon, emptyDescription, emptyAction,
   pageSize = 50,
 }) => {
   const isLoadingFinal = isLoading ?? loading ?? false
@@ -429,7 +466,12 @@ export const DataTable = ({
 
   if (!data || data.length === 0) {
     return (
-      <EmptyState title={emptyText} description="Try adjusting your search or filters" />
+      <EmptyState
+        icon={emptyIcon}
+        title={emptyText}
+        description={emptyDescription || 'Try adjusting your search or filters'}
+        action={emptyAction}
+      />
     )
   }
 
