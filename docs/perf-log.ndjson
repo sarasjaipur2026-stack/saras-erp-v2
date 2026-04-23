@@ -32,3 +32,5 @@
 
 {"timestamp":"2026-04-22T15:55:36.195Z","commit":"cb0a620fd4283b7f165c3c573b19308a2e1e3d61","branch":"main","prod_url":"https://saras-erp-v2-rebuild.vercel.app","authenticated":false,"dashboard_load_ms":655,"orders_click_ms":null,"enquiries_click_ms":null,"post_idle_orders_ms":null,"expired_jwt_orders_ms":null,"token_refreshes_in_post_idle":null,"errors":["console: Executing inline event handler violates the following Content Security Policy directive 'script-src 'self' 'wasm-unsafe-eval''. Either the 'unsafe-inline' keyword, a hash ('sha256-...'), or a nonce ('"]}
 
+{"timestamp":"2026-04-23T10:56:32.113Z","commit":"8483f4912dffcdff8ed7785ae9d869b799aa3408","branch":"main","prod_url":"https://saras-erp-v2-rebuild.vercel.app","authenticated":false,"dashboard_load_ms":855,"orders_click_ms":null,"enquiries_click_ms":null,"post_idle_orders_ms":null,"expired_jwt_orders_ms":null,"token_refreshes_in_post_idle":null,"errors":[]}
+
