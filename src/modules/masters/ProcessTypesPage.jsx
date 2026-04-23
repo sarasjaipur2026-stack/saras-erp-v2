@@ -9,7 +9,7 @@ export default function ProcessTypesPage() {
       title="Process Types"
       subtitle="process steps"
       api={processTypes}
-      defaults={{ name: '', hindi_name: '', sequence_order: 0, requires_machine: true, is_optional: false, active: true }}
+      defaults={{ name: '', hindi_name: '', sequence_order: 0, requires_machine: true, is_optional: false, is_active: true }}
       fields={[
         { key: 'name', label: 'Name', required: true, placeholder: 'Braiding' },
         { key: 'hindi_name', label: 'Hindi Name', placeholder: 'ब्रेडिंग' },
@@ -19,7 +19,7 @@ export default function ProcessTypesPage() {
         { key: 'requires_machine', label: 'Requires machine', type: 'checkbox' },
         { key: 'is_optional', label: 'Optional step', type: 'checkbox' },
         { key: 'description', label: 'Description', type: 'textarea', showInList: false },
-        { key: 'active', label: 'Active', type: 'checkbox', showInList: false },
+        { key: 'is_active', label: 'Active', type: 'checkbox', showInList: false },
       ]}
     />
   )

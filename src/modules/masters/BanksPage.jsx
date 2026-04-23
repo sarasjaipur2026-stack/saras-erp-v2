@@ -14,7 +14,7 @@ export default function BanksPage() {
   const [editingId, setEditingId] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [saving, setSaving] = useState(false)
-  const emptyForm = { name: '', account_number: '', ifsc_code: '', branch: '', account_type: 'current', active: true }
+  const emptyForm = { name: '', account_number: '', ifsc_code: '', branch: '', account_type: 'current', is_active: true }
   const [form, setForm] = useState(emptyForm)
 
   useEffect(() => { if (user?.id) fetchData() }, [user?.id])
@@ -66,7 +66,7 @@ export default function BanksPage() {
     { key: 'ifsc_code', label: 'IFSC', render: v => <span className="font-mono text-[12px] bg-slate-100 px-2 py-1 rounded">{v}</span> },
     { key: 'branch', label: 'Branch', render: v => v || <span className="text-slate-300">-</span> },
     { key: 'account_type', label: 'Type', render: v => <span className="text-[12px] text-slate-600 bg-slate-100 px-2 py-1 rounded capitalize">{v}</span> },
-    { key: 'active', label: 'Active', render: v => <span className={`text-[12px] font-medium ${v ? 'text-green-600' : 'text-slate-400'}`}>{v ? 'Yes' : 'No'}</span> },
+    { key: 'is_active', label: 'Active', render: v => <span className={`text-[12px] font-medium ${v ? 'text-green-600' : 'text-slate-400'}`}>{v ? 'Yes' : 'No'}</span> },
     { key: 'actions', label: '', render: (_, r) => (
       <div className="flex gap-0.5">
         <button onClick={() => openModal(r)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors"><Edit2 size={14} /></button>
@@ -110,7 +110,7 @@ export default function BanksPage() {
           </div>
           <div className="flex items-end gap-2">
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.active} onChange={e => setForm(p => ({ ...p, active: e.target.checked }))} className="rounded border-slate-300" />
+              <input type="checkbox" checked={form.is_active} onChange={e => setForm(p => ({ ...p, is_active: e.target.checked }))} className="rounded border-slate-300" />
               <span className="text-sm text-slate-600">Active</span>
             </label>
           </div>

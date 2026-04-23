@@ -8,7 +8,7 @@ import { Plus, Edit2 } from 'lucide-react'
 export default function SuppliersPage() {
   const { user } = useAuth()
   const [suppliers, setSuppliers] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true) // true on mount — load starts immediately
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const emptyForm = { name: '', phone: '', firm: '', gstin: '', address: '', city: '', state: '' }
@@ -17,12 +17,12 @@ export default function SuppliersPage() {
   const toast = useToast()
 
   const load = useCallback(async () => {
-    setIsLoading(true)
     const { data } = await supplierDb.getAll()
     setSuppliers(data || [])
     setIsLoading(false)
   }, [])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load() }, [load])
 
   const handleSave = async () => {

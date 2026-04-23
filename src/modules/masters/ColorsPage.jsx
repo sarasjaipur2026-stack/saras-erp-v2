@@ -12,12 +12,13 @@ export default function ColorsPage() {
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ name: '', hex_code: '#6366f1' })
 
-  useEffect(() => { if (user?.id) fetchData() }, [user?.id])
-
   const fetchData = async () => {
     const { data, error } = await colors.list(user.id)
     if (!error) setList(data || [])
   }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { if (user?.id) fetchData() }, [user?.id])
 
   const handleAdd = async () => {
     if (!form.name) { toast.error('Enter a color name'); return }

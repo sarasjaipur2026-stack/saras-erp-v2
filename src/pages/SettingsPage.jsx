@@ -163,6 +163,7 @@ export default function SettingsPage() {
   }
 
   const indian_states = [
+    { value: '', label: '— Select State —' },
     { value: 'AN', label: 'Andaman and Nicobar Islands (AN)' },
     { value: 'AP', label: 'Andhra Pradesh (AP)' },
     { value: 'AR', label: 'Arunachal Pradesh (AR)' },

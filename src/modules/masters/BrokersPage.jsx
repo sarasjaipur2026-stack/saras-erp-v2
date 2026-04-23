@@ -14,7 +14,7 @@ export default function BrokersPage() {
   const [editingId, setEditingId] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [saving, setSaving] = useState(false)
-  const emptyForm = { name: '', phone: '', email: '', commission_rate: '', city: '', active: true }
+  const emptyForm = { name: '', phone: '', email: '', commission_rate: '', city: '', is_active: true }
   const [form, setForm] = useState(emptyForm)
 
   useEffect(() => { fetchData() }, [])
@@ -65,7 +65,7 @@ export default function BrokersPage() {
     { key: 'phone', label: 'Phone', render: v => v ? <span className="tabular-nums">{v}</span> : <span className="text-slate-300">-</span> },
     { key: 'commission_rate', label: 'Commission %', render: v => v !== null ? <span>{v}%</span> : <span className="text-slate-300">-</span> },
     { key: 'city', label: 'City', render: v => v || <span className="text-slate-300">-</span> },
-    { key: 'active', label: 'Active', render: v => <span className={`text-[12px] font-medium ${v ? 'text-green-600' : 'text-slate-400'}`}>{v ? 'Yes' : 'No'}</span> },
+    { key: 'is_active', label: 'Active', render: v => <span className={`text-[12px] font-medium ${v ? 'text-green-600' : 'text-slate-400'}`}>{v ? 'Yes' : 'No'}</span> },
     { key: 'actions', label: '', render: (_, r) => (
       <div className="flex gap-0.5">
         <button onClick={() => openModal(r)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors"><Edit2 size={14} /></button>
@@ -103,7 +103,7 @@ export default function BrokersPage() {
           <Input label="City" value={form.city || ''} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} />
           <div className="flex items-end gap-2">
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.active} onChange={e => setForm(p => ({ ...p, active: e.target.checked }))} className="rounded border-slate-300" />
+              <input type="checkbox" checked={form.is_active} onChange={e => setForm(p => ({ ...p, is_active: e.target.checked }))} className="rounded border-slate-300" />
               <span className="text-sm text-slate-600">Active</span>
             </label>
           </div>

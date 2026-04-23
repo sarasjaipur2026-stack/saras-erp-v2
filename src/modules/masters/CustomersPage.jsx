@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { customers } from '../../lib/db'
+import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, Input, DataTable, Modal } from '../../components/ui'
@@ -14,6 +15,9 @@ export default function CustomersPage() {
   const [editingId, setEditingId] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [saving, setSaving] = useState(false)
+  // QA audit H-04 — legacy Busy-Win imports include rows prefixed
+  // "(C A N C E L L E D) -". Hide them from the working list by default.
+  const [showCancelled, setShowCancelled] = useState(false)
   const emptyForm = { firm_name: '', contact_name: '', phone: '', email: '', city: '', address: '', gstin: '', pan: '' }
   const [form, setForm] = useState(emptyForm)
 
@@ -49,13 +53,27 @@ export default function CustomersPage() {
 
   const handleDelete = async (e, id) => {
     e.stopPropagation()
-    if (!confirm('Delete this customer?')) return
+    // Referential integrity pre-check — prevent FK crash or silent cascade
+    const [oc, ic, ec] = await Promise.all([
+      supabase.from('orders').select('id', { count: 'exact', head: true }).eq('customer_id', id),
+      supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('customer_id', id),
+      supabase.from('enquiries').select('id', { count: 'exact', head: true }).eq('customer_id', id),
+    ])
+    const total = (oc.count || 0) + (ic.count || 0) + (ec.count || 0)
+    if (total > 0) {
+      toast.error(`Cannot delete — customer has ${oc.count || 0} orders, ${ic.count || 0} invoices, ${ec.count || 0} enquiries.`)
+      return
+    }
+    if (!confirm('Delete this customer? This cannot be undone.')) return
     const { error } = await customers.delete(id)
-    if (error) toast.error('Failed to delete')
+    if (error) toast.error(error.message || 'Failed to delete')
     else { toast.success('Customer deleted'); fetchData() }
   }
 
-  const filtered = list.filter(c =>
+  const isCancelled = (c) => /^\(\s*C\s*A\s*N\s*C\s*E\s*L\s*L\s*E\s*D\s*\)/i.test(c.firm_name || '')
+  const cancelledCount = list.filter(isCancelled).length
+  const activeList = showCancelled ? list : list.filter(c => !isCancelled(c))
+  const filtered = activeList.filter(c =>
     (c.contact_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (c.firm_name || '').toLowerCase().includes(searchTerm.toLowerCase())
   )
@@ -66,7 +84,10 @@ export default function CustomersPage() {
     )},
     { key: 'phone', label: 'Phone', render: v => v ? <span className="tabular-nums">{v}</span> : <span className="text-slate-300">-</span> },
     { key: 'city', label: 'City', render: v => v || <span className="text-slate-300">-</span> },
-    { key: 'gstin', label: 'GSTIN', render: v => v ? <span className="font-mono text-[11px] text-slate-500">{v}</span> : <span className="text-slate-300">-</span> },
+    { key: 'gstin', label: 'GSTIN', render: v => v
+      ? <span className="font-mono text-[11px] text-slate-500">{v}</span>
+      : <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-1.5 py-0.5">⚠ Missing</span>
+    },
     { key: 'actions', label: '', render: (_, r) => (
       <div className="flex gap-0.5">
         <button onClick={() => openModal(r)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors"><Edit2 size={14} /></button>
@@ -80,7 +101,17 @@ export default function CustomersPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">Customers</h1>
-          <p className="text-[13px] text-slate-400 mt-0.5">{list.length} customers</p>
+          <p className="text-[13px] text-slate-400 mt-0.5">
+            {activeList.length.toLocaleString('en-IN')} customers
+            {cancelledCount > 0 && !showCancelled && (
+              <> · <button type="button" onClick={() => setShowCancelled(true)}
+                className="text-indigo-600 hover:underline">+{cancelledCount} cancelled hidden</button></>
+            )}
+            {showCancelled && cancelledCount > 0 && (
+              <> · <button type="button" onClick={() => setShowCancelled(false)}
+                className="text-indigo-600 hover:underline">hide cancelled</button></>
+            )}
+          </p>
         </div>
         <Button onClick={() => openModal()}>
           <Plus size={15} /> Add Customer

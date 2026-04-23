@@ -7,7 +7,7 @@ export default function OperatorsPage() {
       title="Operators"
       subtitle="shop-floor operators"
       api={operators}
-      defaults={{ name: '', role: 'operator', shift: 'day', active: true }}
+      defaults={{ name: '', role: 'operator', shift: 'day', is_active: true }}
       fields={[
         { key: 'name', label: 'Name', required: true },
         { key: 'phone', label: 'Phone' },
@@ -15,7 +15,7 @@ export default function OperatorsPage() {
         { key: 'shift', label: 'Shift', type: 'select', options: ['day', 'night', 'both'] },
         { key: 'daily_wage', label: 'Daily Wage ₹', type: 'number' },
         { key: 'joining_date', label: 'Joining Date', type: 'date', showInList: false },
-        { key: 'active', label: 'Active', type: 'checkbox', showInList: false },
+        { key: 'is_active', label: 'Active', type: 'checkbox', showInList: false },
       ]}
     />
   )

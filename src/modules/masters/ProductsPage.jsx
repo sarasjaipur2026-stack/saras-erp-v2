@@ -42,7 +42,7 @@ export default function ProductsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">Products</h1>
-          <p className="text-[13px] text-slate-400 mt-0.5">{products.length} product types</p>
+          <p className="text-[13px] text-slate-400 mt-0.5">{products.length} {products.length === 1 ? 'product' : 'products'}</p>
         </div>
         <Button onClick={() => { setEditing(null); setForm(emptyForm); setShowForm(true) }}>
           <Plus size={15} /> Add Product

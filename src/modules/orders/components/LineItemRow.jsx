@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useApp } from '../../../contexts/AppContext'
 import { Select, Input } from '../../../components/ui'
 import { ChevronDown, X } from 'lucide-react'
@@ -9,10 +9,25 @@ export const LineItemRow = ({ item, onUpdate, onRemove }) => {
 
   const calcAmount = (qty, rate) => onUpdate({ amount: (qty || 0) * (rate || 0) })
 
-  const productOptions = [{ value: '', label: 'Select...' }, ...productList.map(p => ({ value: p.id, label: `${p.code} - ${p.name}` }))]
-  const materialOptions = [{ value: '', label: 'Select...' }, ...materialList.map(m => ({ value: m.id, label: m.name }))]
-  const machineOptions = [{ value: '', label: 'Select...' }, ...machineList.map(m => ({ value: m.id, label: `${m.code} - ${m.name}` }))]
-  const colorOptions = [{ value: '', label: 'Select...' }, ...colorList.map(c => ({ value: c.id, label: c.name }))]
+  // QA audit C-01: with 2310+ products, rebuilding options on every keystroke
+  // (qty/rate/width change) caused a 45-second browser freeze. Memoize per
+  // list identity so options are built once per list, not once per render.
+  const productOptions = useMemo(
+    () => [{ value: '', label: 'Select...' }, ...productList.map(p => ({ value: p.id, label: `${p.code} - ${p.name}` }))],
+    [productList],
+  )
+  const materialOptions = useMemo(
+    () => [{ value: '', label: 'Select...' }, ...materialList.map(m => ({ value: m.id, label: m.name }))],
+    [materialList],
+  )
+  const machineOptions = useMemo(
+    () => [{ value: '', label: 'Select...' }, ...machineList.map(m => ({ value: m.id, label: `${m.code} - ${m.name}` }))],
+    [machineList],
+  )
+  const colorOptions = useMemo(
+    () => [{ value: '', label: 'Select...' }, ...colorList.map(c => ({ value: c.id, label: c.name }))],
+    [colorList],
+  )
 
   return (
     <div className="border border-slate-200 rounded-xl overflow-hidden">

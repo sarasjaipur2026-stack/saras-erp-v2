@@ -9,7 +9,7 @@ export default function ProductTypesPage() {
       title="Product Types"
       subtitle="product types"
       api={productTypes}
-      defaults={{ name: '', code: '', category: 'round_cord', requires_filler: false, default_waste_pct: 5, active: true }}
+      defaults={{ name: '', code: '', category: 'round_cord', requires_filler: false, default_waste_pct: 5, is_active: true }}
       fields={[
         { key: 'name', label: 'Name', required: true, placeholder: 'Round Cord 5mm' },
         { key: 'code', label: 'Code', placeholder: 'RC-5' },
@@ -20,7 +20,7 @@ export default function ProductTypesPage() {
         { key: 'hsn_code_id', label: 'HSN Code', type: 'select', options: (hsnCodes || []).map(h => ({ value: h.id, label: `${h.code} — ${h.description || ''}` })), showInList: false },
         { key: 'default_unit_id', label: 'Default Unit', type: 'select', options: (units || []).map(u => ({ value: u.id, label: `${u.name} (${u.symbol})` })), showInList: false },
         { key: 'description', label: 'Description', type: 'textarea', showInList: false },
-        { key: 'active', label: 'Active', type: 'checkbox', showInList: false },
+        { key: 'is_active', label: 'Active', type: 'checkbox', showInList: false },
       ]}
     />
   )
