@@ -169,30 +169,28 @@ const OrdersPage = () => {
     }
   }, [user?.id]);
 
-  // Reset to page 0 whenever any server-side filter changes
-  // (page stays stable when only ordersList refetches for the same filters).
-  const prevFilterKey = useRef('');
-  useEffect(() => {
-    const key = JSON.stringify({ effectiveStatus, customerDebounced, dateRange, virtualFilter, priorityFilter, pageSize });
-    if (prevFilterKey.current && prevFilterKey.current !== key && page !== 0) {
-      setPage(0);
-    }
-    prevFilterKey.current = key;
-  }, [effectiveStatus, customerDebounced, dateRange, virtualFilter, priorityFilter, pageSize, page]);
+  // Reset to page 0 whenever a server-side filter (not page itself) changes.
+  // Using sync-state-during-render avoids the extra render + double fetch
+  // that useEffect+setState would cause (old loadOrders would run once on
+  // filter change and again after page reset).
+  const filterKey = JSON.stringify({ effectiveStatus, customerDebounced, dateRange, virtualFilter, priorityFilter, pageSize });
+  const prevFilterKey = useRef(filterKey);
+  if (prevFilterKey.current !== filterKey) {
+    prevFilterKey.current = filterKey;
+    if (page !== 0) setPage(0);
+  }
 
   // Load on mount and whenever paged filters change
   useEffect(() => { loadOrders(); }, [loadOrders]);
   useEffect(() => { loadSummary(); }, [loadSummary]);
 
-  // Live sync — another device creates/updates/deletes an order, this list
-  // refetches silently (debounced). Also catches status changes from the
-  // Kanban or detail page without needing a manual refresh. Summary too.
-  // If the change wasn't our own echo, show a toast so operators know the
-  // data updated under their feet.
+  // Live sync. Echoes from our own writes only refresh the visible list
+  // (cheap, paged). Foreign writes additionally refresh stats + pipeline
+  // and show a toast.
   useRealtimeTable('orders', (payload) => {
     loadOrders(false);
-    loadSummary();
     if (payload && !payload.isEcho) {
+      loadSummary();
       const evt = payload.eventType === 'DELETE' ? 'deleted' : payload.eventType === 'INSERT' ? 'created' : 'updated'
       const num = payload.new?.order_number || payload.old?.order_number || ''
       toast.info?.(`Order ${num} ${evt} by another user`, { duration: 3000 }) || toast.success(`Order ${num} ${evt}`)

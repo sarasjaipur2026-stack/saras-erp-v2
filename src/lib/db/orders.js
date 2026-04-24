@@ -52,7 +52,13 @@ export const orders = {
 
   // Server-side paged list with filter push-down.
   // Used by OrdersPage so the client never holds more than `pageSize` rows.
-  // Returns { data, count, error } — count is exact total after filters.
+  // Returns { data, count, error }.
+  //
+  // Count mode:
+  // - Default: 'estimated' (reads pg_stat_tuple, sub-ms regardless of size).
+  // - When filters are applied: 'exact' (user is narrowing and expects an
+  //   accurate pagination count).
+  // Callers can force exact via `exactCount: true`.
   listPaged: async ({
     page = 0,
     pageSize = 50,
@@ -62,13 +68,19 @@ export const orders = {
     dateTo,         // ISO timestamp upper bound on created_at
     pending = false, // virtual: excludes draft/completed/cancelled
     urgent = false,  // virtual: balance_due > 0 AND not completed/cancelled
+    exactCount = false,
   } = {}) => {
     try {
+      const anyFilterActive = Boolean(
+        (status && status !== 'all') || pending || urgent || dateFrom || dateTo ||
+        (customerTerm && customerTerm.trim())
+      )
+      const countMode = exactCount || anyFilterActive ? 'exact' : 'estimated'
       let q = supabase
         .from('orders')
         .select(
           'id, order_number, status, priority, grand_total, balance_due, advance_paid, delivery_date_1, created_at, nature, customers(firm_name, contact_name)',
-          { count: 'exact' },
+          { count: countMode },
         )
         .order('created_at', { ascending: false })
 
@@ -124,19 +136,15 @@ export const orders = {
     }
   },
 
-  // Per-status pipeline counts — one row per status, with zero-fill on the client.
+  // Per-status pipeline counts — server-side GROUP BY via orders_status_counts RPC.
+  // Replaces the old client-side 10k-row fetch that degraded Orders page load
+  // time as volume grew.
   statusCounts: async () => {
     try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('status')
-        .limit(10000) // bounded; rebuild as RPC if we ever have >10k orders per tenant
+      const { data, error } = await supabase.rpc('orders_status_counts')
       if (error) return { data: null, error }
       const counts = {}
-      for (const row of data || []) {
-        const s = (row.status || 'draft').toLowerCase()
-        counts[s] = (counts[s] || 0) + 1
-      }
+      for (const row of data || []) counts[row.status] = Number(row.count || 0)
       return { data: counts, error: null }
     } catch (error) {
       return { data: null, error }
