@@ -1,4 +1,5 @@
 import { supabase } from '../supabase'
+import { ensureFreshSession } from '../authGate'
 
 // ─── GENERIC CRUD FACTORY ──────────────────────────────────
 // Creates list/get/create/update/delete for ANY Supabase table.
@@ -32,6 +33,14 @@ export const fetchAllPaged = async (buildQuery) => {
 }
 
 export const safe = async (fn) => {
+  // Every DB call awaits the auth gate first. Warm path = μs; cold path = one
+  // coalesced refresh shared by all concurrent callers. See src/lib/authGate.js.
+  try {
+    await ensureFreshSession()
+  } catch {
+    // Refresh failure is non-fatal here — the query will bubble the real error
+    // (e.g. RLS rejection) instead of a generic session error.
+  }
   let timeoutId
   try {
     const result = await Promise.race([

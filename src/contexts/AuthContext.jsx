@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { prewarmSession, markSessionFresh } from '../lib/authGate'
 
 const AuthContext = createContext(null)
 
@@ -65,6 +66,9 @@ export function AuthProvider({ children }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return
+      // Inform authGate of the new session so subsequent DB calls don't
+      // trigger a duplicate refresh.
+      markSessionFresh(session || null)
       if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
         setUser(session.user)
         // Only re-fetch profile on sign-in, not every token refresh
@@ -77,28 +81,22 @@ export function AuthProvider({ children }) {
       }
     })
 
-    // When the tab regains focus after being idle, prod Supabase to
-    // verify the session is still valid and refresh it if needed.
+    // Pre-warm the auth token when the tab regains focus. Running the refresh
+    // BEFORE the user clicks means the ensureFreshSession() call in safe() is
+    // a μs no-op and the click-to-data path is just one query round-trip.
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-          if (!mounted) return
-          if (session?.user) {
-            setUser(session.user)
-          } else {
-            // Session expired and couldn't refresh — force re-login
-            setUser(null)
-            setProfile(null)
-          }
-        }).catch(() => {})
+        prewarmSession()
       }
     }
     document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('focus', prewarmSession)
 
     return () => {
       mounted = false
       subscription.unsubscribe()
       document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('focus', prewarmSession)
     }
   }, [fetchProfile])
 

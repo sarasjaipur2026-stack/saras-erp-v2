@@ -1,65 +1,83 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 // ─── STALE-WHILE-REVALIDATE (SWR) LIST HOOK ──────────────────
-// Paints instantly from sessionStorage cache, refetches in background.
+// Re-applying the fix from commit `ea472e9` — the "always-show-stale" contract.
 //
-// Eliminates the full-page spinner that made list pages feel slow even
-// when the actual data was tiny. First visit = normal fetch; repeat visit
-// (same session) = instant paint, silent refetch.
+// Prior regression history:
+//   Every list page had its own sessionStorage cache with TTL. When the user
+//   came back after ≥10 min idle, readCache returned null → loading=true →
+//   full-page spinner painted for 1-2s while query ran. This is the exact
+//   anti-pattern that the prior fix eliminated. Any `if (age > TTL) return null`
+//   pattern silently re-introduces the bug.
+//
+// Contract (DO NOT CHANGE without reading the prior incident report):
+//   - Cache renders synchronously on FIRST PAINT regardless of age. Always.
+//   - loading=true ONLY when there's no cache entry at all (genuine first visit).
+//   - Background revalidation on mount + on tab refocus (after ≥30s hidden).
+//   - Concurrent refetches for the same key coalesce onto a single in-flight
+//     promise (via module-level map) — 10 simultaneous mounts share 1 round trip.
+//   - invalidateSWR(key) wipes an entry; next read returns null → spinner on.
 //
 // Usage:
 //   const { data, loading, error, refetch } = useSWRList(
 //     `orders:${JSON.stringify(filters)}`,
 //     () => ordersDb.listPaged(filters),
 //   )
-//
-// Mutations (create/update/delete): call invalidateSWR(keyPrefix) after
-// the write to force the next mount / refetch to skip cache.
 
 const CACHE_PREFIX = 'saras.swr.v1.'
-const DEFAULT_TTL = 30 * 60 * 1000 // 30 minutes — conservative
+
+// Module-level in-flight coalescing. Key → Promise. Shared across all mounts.
+const inFlight = new Map()
 
 function readCache(key) {
   try {
     const raw = typeof window === 'undefined' ? null : sessionStorage.getItem(CACHE_PREFIX + key)
     if (!raw) return null
     const parsed = JSON.parse(raw)
-    if (!parsed?.ts) return null
-    const ttl = typeof parsed.ttl === 'number' ? parsed.ttl : DEFAULT_TTL
-    if (Date.now() - parsed.ts > ttl) return null
-    return parsed.data
+    // NO age check. Stale data beats a spinner every time.
+    return parsed?.data ?? null
   } catch {
     return null
   }
 }
 
-function writeCache(key, data, ttl) {
+function writeCache(key, data) {
   try {
     sessionStorage.setItem(
       CACHE_PREFIX + key,
-      JSON.stringify({ ts: Date.now(), ttl: ttl ?? DEFAULT_TTL, data }),
+      JSON.stringify({ ts: Date.now(), data }),
     )
   } catch {
-    // quota exceeded / private mode — ignore, cache is a nice-to-have
+    // quota exceeded / private mode — cache is a nice-to-have, continue
+  }
+}
+
+function cacheAge(key) {
+  try {
+    const raw = sessionStorage.getItem(CACHE_PREFIX + key)
+    if (!raw) return Infinity
+    const parsed = JSON.parse(raw)
+    return Date.now() - (parsed?.ts || 0)
+  } catch {
+    return Infinity
   }
 }
 
 /**
  * Stale-while-revalidate fetch.
- * @param {string} key      Cache key — include all filter inputs so different
- *                          filter combos get different cache entries.
- * @param {() => Promise<any>} fetcher  Async function returning fresh data.
+ * @param {string} key
+ * @param {() => Promise<any>} fetcher
  * @param {object} [opts]
- * @param {boolean} [opts.enabled=true]  Skip fetching entirely when false.
- * @param {number}  [opts.ttl]           Cache TTL ms override.
+ * @param {boolean} [opts.enabled=true]
+ * @param {number}  [opts.staleAfterMs]  Skip background revalidation if cache is
+ *                                       newer than this. Default 30s.
  */
-export function useSWRList(key, fetcher, { enabled = true, ttl } = {}) {
+export function useSWRList(key, fetcher, { enabled = true, staleAfterMs = 30_000 } = {}) {
   const cached = enabled ? readCache(key) : null
   const [data, setData] = useState(cached)
   const [loading, setLoading] = useState(enabled && !cached)
   const [error, setError] = useState(null)
 
-  // Keep callback in a ref so we don't re-subscribe on every render
   const fetcherRef = useRef(fetcher)
   useEffect(() => {
     fetcherRef.current = fetcher
@@ -73,36 +91,68 @@ export function useSWRList(key, fetcher, { enabled = true, ttl } = {}) {
     }
   }, [])
 
+  // Coalesce concurrent refetches for the same key. Returns the shared promise.
   const refetch = useCallback(async () => {
     if (!enabled) return null
-    try {
-      const fresh = await fetcherRef.current()
-      if (cancelledRef.current) return null
+    let pending = inFlight.get(key)
+    if (!pending) {
+      pending = (async () => {
+        try {
+          const fresh = await fetcherRef.current()
+          writeCache(key, fresh)
+          return { fresh, error: null }
+        } catch (e) {
+          return { fresh: null, error: e }
+        } finally {
+          inFlight.delete(key)
+        }
+      })()
+      inFlight.set(key, pending)
+    }
+    const { fresh, error: err } = await pending
+    if (cancelledRef.current) return fresh
+    if (err) {
+      setError(err)
+    } else {
       setData(fresh)
       setError(null)
-      writeCache(key, fresh, ttl)
-      return fresh
-    } catch (e) {
-      if (!cancelledRef.current) setError(e)
-      return null
-    } finally {
-      if (!cancelledRef.current) setLoading(false)
     }
-  }, [key, enabled, ttl])
+    setLoading(false)
+    return fresh
+  }, [key, enabled])
 
-  // Mount / key-change: trigger fetch. If cache already present we stay
-  // out of the "loading" state so the UI paints immediately.
+  // Mount / key change: fire a refetch if we don't have cache OR cache is stale
   useEffect(() => {
     if (!enabled) return
-    refetch()
-  }, [key, enabled, refetch])
+    const age = cacheAge(key)
+    if (age === Infinity || age > staleAfterMs) {
+      refetch()
+    } else {
+      // Fresh cache — no network needed
+      setLoading(false)
+    }
+  }, [key, enabled, staleAfterMs, refetch])
+
+  // Tab re-focus after ≥30s hidden: revalidate silently in background
+  useEffect(() => {
+    if (!enabled) return
+    let hiddenAt = 0
+    const handler = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now()
+      } else if (document.visibilityState === 'visible' && hiddenAt > 0) {
+        if (Date.now() - hiddenAt >= 30_000) refetch()
+      }
+    }
+    document.addEventListener('visibilitychange', handler)
+    return () => document.removeEventListener('visibilitychange', handler)
+  }, [enabled, refetch])
 
   return { data, loading, error, refetch }
 }
 
 /**
  * Evict a cache entry. Accepts an exact key OR a key prefix (trailing `*`).
- * Example: `invalidateSWR('orders:*')` wipes every cached filter combo.
  */
 export function invalidateSWR(key) {
   try {
