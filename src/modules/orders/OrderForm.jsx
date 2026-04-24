@@ -96,7 +96,11 @@ export default function OrderForm() {
   const { id: orderId } = useParams();
   // Need role gate for credit-override workflow
   const { canManage } = useAuth();
-  const { products, materials, machines, colors, orderTypes, paymentTerms, chargeTypes, currencies, brokers } = useApp();
+  const { products, materials, machines, colors, orderTypes, paymentTerms, chargeTypes, currencies, brokers, primeMasters } = useApp();
+  // Master dropdowns are lazy-loaded. Trigger the fetch only on pages that
+  // actually need them — keeps the post-login HTTP/2 queue clean for list
+  // pages that don't consume masters.
+  useEffect(() => { primeMasters?.(); }, [primeMasters]);
   const toast = useToast();
   const isEdit = !!orderId;
 

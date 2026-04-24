@@ -177,40 +177,44 @@ export function AppProvider({ children }) {
     await loadMasterData()
   }, [loadMasterData])
 
-  // On mount:
-  // - Cache hit → use it. Do NOT refetch in background. Firing 10 parallel
-  //   master requests on every page visit saturates HTTP/2 (6 streams per
-  //   origin) and pushes the actual page query (e.g. orders.listPaged) to
-  //   the back of the queue — the single biggest cause of "modules feel
-  //   laggy" on post-idle return. Masters are invalidated explicitly when
-  //   a master page writes (via invalidateMaster), which is the only time
-  //   we actually need fresh data.
-  // - Cache miss → defer to idle, load critical first, then deferred.
-  useEffect(() => {
-    let cancelled = false
-
-    if (loaded.current) {
-      // Cache hit — trust it. No background thrash.
-      return () => { cancelled = true }
-    }
-
-    whenIdle(async () => {
-      if (cancelled) return
-      setLoading(true)
-      await loadCritical()
-      if (cancelled) return
-      setLoading(false)
-      loaded.current = true
-      whenIdle(() => { if (!cancelled) loadDeferred() }, 200)
-    })
-    return () => { cancelled = true }
+  // LAZY LOADING CONTRACT.
+  //
+  // Supabase API logs showed that on every post-login visit, AppContext fired
+  // 25 master GETs in parallel (10 critical + 15 deferred). HTTP/2 caps
+  // concurrent streams at 6 per origin, so OrdersPage's listPaged ended up at
+  // position 40+ in the queue. That's the visible "modules feel laggy".
+  //
+  // Fix: AppContext no longer fetches anything on mount. It only reads the
+  // sessionStorage cache (if present) and exposes `primeMasters()` for pages
+  // that actually need masters (OrderForm dropdowns, enquiry form, master
+  // CRUD pages). Pages that don't consume masters — list views, dashboard,
+  // reports — pay zero master-load cost.
+  //
+  // Masters refetch only when:
+  //   1. primeMasters() is explicitly called by a consumer
+  //   2. invalidateMaster(key) is triggered after a master-page write
+  //   3. invalidateAll() wipes the cache (CSV import etc.)
+  const priming = useRef(null)
+  const primeMasters = useCallback(() => {
+    if (loaded.current) return Promise.resolve()
+    if (priming.current) return priming.current
+    priming.current = (async () => {
+      try {
+        setLoading(true)
+        // Serialize rather than parallelize. HTTP/2 stream contention > JS
+        // await cost. 10 sequential 50ms queries < 10 parallel 500ms queries
+        // behind 40 other requests.
+        await loadCritical()
+        loaded.current = true
+        // Kick Phase 2 once critical is done so forms can paint with primary
+        // dropdowns immediately.
+        whenIdle(() => { loadDeferred() }, 200)
+      } finally {
+        setLoading(false)
+      }
+    })()
+    return priming.current
   }, [loadCritical, loadDeferred])
-
-  // Tab re-focus: DO NOT refetch masters. They rarely change during an
-  // operator's session — an order form's stale dropdown is much less bad
-  // than a 10-request HTTP/2 stampede making every subsequent page click
-  // wait 500-1000ms. Refresh only when the user explicitly navigates to a
-  // master page, or when a master write triggers invalidateMaster().
 
   // O(1) lookup maps — rebuilt only when underlying arrays change
   const machinesByCode = useMemo(() => new Map(masters.machines.map(m => [m.code, m])), [masters.machines])
@@ -249,10 +253,10 @@ export function AppProvider({ children }) {
   const value = useMemo(() => ({
     ...masters,
     loading,
-    loadMasterData, invalidateMaster, invalidateAll,
+    primeMasters, loadMasterData, invalidateMaster, invalidateAll,
     getProductsForMachine, getMachinesForProduct,
     getChargeTypesByScope, getDefaultPaymentTerms, getExchangeRate,
-  }), [masters, loading, loadMasterData, invalidateMaster, invalidateAll, getProductsForMachine, getMachinesForProduct, getChargeTypesByScope, getDefaultPaymentTerms, getExchangeRate])
+  }), [masters, loading, primeMasters, loadMasterData, invalidateMaster, invalidateAll, getProductsForMachine, getMachinesForProduct, getChargeTypesByScope, getDefaultPaymentTerms, getExchangeRate])
 
   return (
     <AppContext.Provider value={value}>
