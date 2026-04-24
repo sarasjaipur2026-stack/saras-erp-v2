@@ -164,7 +164,6 @@ const OrdersPage = () => {
   )
   const ordersList = listResult?.data || []
   const totalCount = listResult?.count || 0
-  const loading = listLoading
 
   // ─── SWR: SUMMARY + STATUS PIPELINE ──────────────────────
   // Both are global aggregates — same cache slot across every filter combo.
@@ -370,13 +369,10 @@ const OrdersPage = () => {
     navigate(`/orders/${row.id}`);
   }, [navigate]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Spinner />
-      </div>
-    );
-  }
+  // Full-page spinner removed. The DataTable below renders its skeleton rows
+  // when `loading` is true; StatCards + filters paint immediately with last
+  // cached values. This eliminates the perceived blank-screen lag when the
+  // network is slow (India → Singapore, ~120ms RTT + Supabase cold start).
 
   // Table columns based on view mode — uses the project's DataTable API:
   //   { key: string, label: ReactNode, render?: (value, row) => ReactNode }
@@ -722,6 +718,7 @@ const OrdersPage = () => {
           columns={getTableColumns()}
           data={filteredOrders}
           onRowClick={handleRowClick}
+          loading={listLoading && filteredOrders.length === 0}
         />
 
         {/* Pagination footer */}

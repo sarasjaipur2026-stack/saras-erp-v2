@@ -500,11 +500,42 @@ export const DataTable = ({
   }
 
   if (isLoadingFinal) {
+    // Skeleton: same layout, shimmering bars. Paints on the same frame as
+    // navigation so the user sees structure instead of a blank-screen spinner.
+    const skeletonRows = Array.from({ length: Math.min(8, dataLen || 8) })
     return (
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-12" role="status" aria-live="polite">
-        <div className="flex flex-col items-center justify-center">
-          <Spinner size="md" />
-          <p className="mt-3 text-sm text-slate-500">Loading...</p>
+      <div
+        className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-slate-100">
+                {columns.map((col) => (
+                  <th
+                    key={col.key}
+                    className="px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/70"
+                  >
+                    {col.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {skeletonRows.map((_, i) => (
+                <tr key={i}>
+                  {columns.map((col) => (
+                    <td key={col.key} className="px-5 py-3.5">
+                      <div className="h-3 bg-slate-100 rounded animate-pulse" style={{ width: `${40 + ((i * 13 + col.key.length * 7) % 50)}%` }} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     )

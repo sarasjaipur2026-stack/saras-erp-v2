@@ -5,13 +5,24 @@ import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import { PageLoader } from './components/ui'
 
-// Prefetch top routes after first paint so navigation feels instant
+// Prefetch top routes after first paint so navigation feels instant.
+// Splits into two waves so we don't saturate the network on login.
 const prefetchRoutes = () => {
   const idle = typeof requestIdleCallback === 'function' ? requestIdleCallback : (fn) => setTimeout(fn, 300)
   idle(() => {
+    // Wave 1 — immediately after dashboard paints (most likely next clicks)
     import('./pages/Dashboard')
     import('./modules/orders/OrdersPage')
     import('./modules/enquiry/EnquiriesPage')
+    import('./modules/invoicing/InvoicesPage')
+    import('./modules/finance/PaymentsPage')
+    // Wave 2 — another idle slot out for less-common flows
+    idle(() => {
+      import('./modules/stock/StockPage')
+      import('./modules/purchase/PurchasePage')
+      import('./modules/reports/ReportsPage')
+      import('./modules/jobwork/JobworkPage')
+    })
   })
 }
 

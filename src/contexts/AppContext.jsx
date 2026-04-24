@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import * as db from '../lib/db'
+import { perfMark } from '../lib/perfMark'
 
 const AppContext = createContext(null)
 
@@ -114,8 +115,10 @@ export function AppProvider({ children }) {
 
   // Phase 1: Core masters needed by order forms and most pages
   const loadCritical = useCallback(async () => {
-    const results = await Promise.allSettled(
-      CRITICAL_FNS.map(fn => fn.getAll())
+    const results = await perfMark('appContext.critical', () =>
+      Promise.allSettled(CRITICAL_FNS.map((fn, i) =>
+        perfMark(`master.${CRITICAL_KEYS[i]}`, () => fn.getAll())
+      ))
     )
     setMasters(prev => {
       const next = { ...prev }
@@ -129,8 +132,10 @@ export function AppProvider({ children }) {
 
   // Phase 2: Secondary masters — loaded in background after first paint
   const loadDeferred = useCallback(async () => {
-    const results = await Promise.allSettled(
-      DEFERRED_FNS.map(fn => fn.getAll())
+    const results = await perfMark('appContext.deferred', () =>
+      Promise.allSettled(DEFERRED_FNS.map((fn, i) =>
+        perfMark(`master.${DEFERRED_KEYS[i]}`, () => fn.getAll())
+      ))
     )
     setMasters(prev => {
       const next = { ...prev }
