@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
+import CommandPalette from './CommandPalette'
 
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -24,6 +25,9 @@ export default function Layout({ children }) {
           {children}
         </main>
       </div>
+
+      {/* Global Ctrl+K command palette — mounted at root so it's reachable anywhere */}
+      <CommandPalette />
     </div>
   )
 }

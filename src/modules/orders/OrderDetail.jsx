@@ -23,7 +23,7 @@ import {
   AlertCircle,
   TrendingUp,
 } from 'lucide-react';
-import { orders, deliveries, activityLog, attachments, payments } from '../../lib/db';
+import { orders, deliveries, activityLog, attachments } from '../../lib/db';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { Button, Modal, Input, StatusBadge, Badge, Currency, Spinner } from '../../components/ui';
@@ -43,7 +43,6 @@ export default function OrderDetail() {
   const [showAddDelivery, setShowAddDelivery] = useState(false);
   const [showAddComment, setShowAddComment] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
-  const [showSendUpdate, setShowSendUpdate] = useState(false);
   const [deliveryForm, setDeliveryForm] = useState({ lineId: '', date: '', qty: '', note: '', challan: '', vehicle: '' });
   const [commentText, setCommentText] = useState('');
   const [cancelReason, setCancelReason] = useState('');
@@ -81,7 +80,7 @@ export default function OrderDetail() {
     if (nextIndex >= states.length || order?.status === 'cancelled') return null;
     const nextState = states[nextIndex];
     const labels = { draft: 'Create Booking', booking: 'Approve', approved: 'Start Production', production: 'QC', qc: 'Dispatch', dispatch: 'Complete' };
-    return { nextState, label: `Move to ${nextState} →`, current: order?.status };
+    return { nextState, label: labels[order?.status] || `Move to ${nextState} →`, current: order?.status };
   };
 
   const handleAddDelivery = async () => {
@@ -110,7 +109,7 @@ export default function OrderDetail() {
       setShowAddDelivery(false);
       await loadOrderData();
       toast.success('Delivery recorded');
-    } catch (error) {
+    } catch {
       toast.error('Failed to record delivery');
     }
   };
@@ -129,7 +128,7 @@ export default function OrderDetail() {
       setShowAddComment(false);
       await loadOrderData();
       toast.success('Comment added');
-    } catch (error) {
+    } catch {
       toast.error('Failed to add comment');
     }
   };
@@ -150,7 +149,7 @@ export default function OrderDetail() {
       setCancelReason('');
       await loadOrderData();
       toast.success(`Order moved to ${progression.nextState}`);
-    } catch (error) {
+    } catch {
       toast.error('Failed to update status');
     }
   };
@@ -170,7 +169,6 @@ export default function OrderDetail() {
     } else {
       toast.error('Contact information not available');
     }
-    setShowSendUpdate(false);
   };
 
   const getDeliveryProgress = (lineItem) => {

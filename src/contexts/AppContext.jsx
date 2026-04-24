@@ -34,10 +34,20 @@ const CACHE_FIELDS = new Set([
   'id', 'name', 'code', 'firm_name', 'contact_name', 'city', 'phone',
   'prefix', 'symbol', 'hex_code', 'hindi_name', 'category', 'days',
   'description', 'charge_mode', 'default_value', 'applies_to', 'is_taxable',
-  'commission_pct', 'order_mode', 'unit_type', 'active', 'state_code',
+  'commission_pct', 'order_mode', 'unit_type', 'active', 'is_active', 'state_code',
   'exchange_rate', 'products', 'count_or_denier', 'sequence_order',
   'cgst_pct', 'sgst_pct', 'igst_pct', 'vehicle_number', 'vehicle_type',
   'gstin', 'credit_limit', 'broker_id', 'payment_term_id',
+  // Critical for dropdown + line-item cascades
+  'gst_rate', 'hsn_code', 'default_unit_id', 'unit_id',
+  // Banks — DB uses bank_name not name
+  'bank_name', 'account_number', 'ifsc_code', 'branch', 'account_type',
+  // Brokers — DB also has commission_rate in some schemas
+  'commission_rate',
+  // Customers — needed for pricing/GST decisions
+  'commission_pct_override', 'advance_required_pct', 'overdue_days_allowed',
+  // Spindles/machine_count (machine display)
+  'spindles', 'machine_count', 'compatible_products', 'machine_type',
 ])
 
 function trimForCache(data) {
@@ -140,6 +150,28 @@ export function AppProvider({ children }) {
     loaded.current = true
   }, [loadCritical, loadDeferred])
 
+  // Invalidate a single master (call after create/update/delete in master edit pages)
+  const invalidateMaster = useCallback(async (key) => {
+    const all = [...CRITICAL_KEYS, ...DEFERRED_KEYS]
+    const allFns = [...CRITICAL_FNS, ...DEFERRED_FNS]
+    const idx = all.indexOf(key)
+    if (idx < 0) return
+    const res = await allFns[idx].getAll()
+    if (res?.data) {
+      setMasters(prev => {
+        const next = { ...prev, [key]: res.data }
+        writeCache(next)
+        return next
+      })
+    }
+  }, [])
+
+  // Full cache bust (e.g., after CSV import or multi-master change)
+  const invalidateAll = useCallback(async () => {
+    try { sessionStorage.removeItem(CACHE_KEY) } catch { /* ignore */ }
+    await loadMasterData()
+  }, [loadMasterData])
+
   // On mount: if cache hit, skip loading spinner entirely; else defer load
   useEffect(() => {
     let cancelled = false
@@ -224,9 +256,10 @@ export function AppProvider({ children }) {
   const value = useMemo(() => ({
     ...masters,
     loading,
-    loadMasterData, getProductsForMachine, getMachinesForProduct,
+    loadMasterData, invalidateMaster, invalidateAll,
+    getProductsForMachine, getMachinesForProduct,
     getChargeTypesByScope, getDefaultPaymentTerms, getExchangeRate,
-  }), [masters, loading, loadMasterData, getProductsForMachine, getMachinesForProduct, getChargeTypesByScope, getDefaultPaymentTerms, getExchangeRate])
+  }), [masters, loading, loadMasterData, invalidateMaster, invalidateAll, getProductsForMachine, getMachinesForProduct, getChargeTypesByScope, getDefaultPaymentTerms, getExchangeRate])
 
   return (
     <AppContext.Provider value={value}>
@@ -235,6 +268,7 @@ export function AppProvider({ children }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useApp = () => {
   const ctx = useContext(AppContext)
   if (!ctx) throw new Error('useApp must be used within AppProvider')

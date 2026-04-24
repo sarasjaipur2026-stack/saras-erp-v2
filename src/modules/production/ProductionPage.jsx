@@ -20,7 +20,7 @@ import { fmt, fmtDateShort as fmtDate } from '../../lib/format'
 
 export default function ProductionPage() {
   const toast = useToast()
-  const { machines, operators } = useApp()
+  useApp() // ensure master data is loaded; machine/operator details read from job row joins
   const [list, setList] = useState([])
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState('all')
@@ -269,9 +269,17 @@ function ProductionDetailBody({ job, onPatch }) {
   const [completed, setCompleted] = useState(job.completed_qty || 0)
   const [notes, setNotes] = useState(job.notes || '')
 
-  // Sync state when job prop changes (e.g. after status update or re-open)
-  useEffect(() => { setCompleted(job.completed_qty || 0) }, [job.completed_qty])
-  useEffect(() => { setNotes(job.notes || '') }, [job.notes])
+  // Sync state when job prop changes (React-recommended pattern: compare to prev via useState)
+  const [prevCompleted, setPrevCompleted] = useState(job.completed_qty)
+  if (prevCompleted !== job.completed_qty) {
+    setPrevCompleted(job.completed_qty)
+    setCompleted(job.completed_qty || 0)
+  }
+  const [prevNotes, setPrevNotes] = useState(job.notes)
+  if (prevNotes !== job.notes) {
+    setPrevNotes(job.notes)
+    setNotes(job.notes || '')
+  }
   const pct = job.planned_qty > 0 ? Math.min(100, (completed / job.planned_qty) * 100) : 0
 
   return (

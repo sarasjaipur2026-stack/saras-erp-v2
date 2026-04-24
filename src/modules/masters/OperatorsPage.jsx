@@ -6,6 +6,7 @@ export default function OperatorsPage() {
     <SimpleMasterPage
       title="Operators"
       subtitle="shop-floor operators"
+      cacheKey="operators"
       api={operators}
       defaults={{ name: '', role: 'operator', shift: 'day', is_active: true }}
       fields={[

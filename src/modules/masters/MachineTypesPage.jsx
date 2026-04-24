@@ -6,6 +6,7 @@ export default function MachineTypesPage() {
     <SimpleMasterPage
       title="Machine Types"
       subtitle="machine types"
+      cacheKey="machineTypes"
       api={machineTypes}
       defaults={{ name: '', machine_type: 'round', spindle_count: null, default_carriers: null, default_speed_m_per_min: null, hourly_cost: null, machine_count: 1, is_active: true }}
       fields={[

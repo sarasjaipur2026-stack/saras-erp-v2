@@ -5,7 +5,6 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseKey) {
   // Surfacing this loudly so a misconfigured Vercel build is obvious in the console
-  // eslint-disable-next-line no-console
   console.error('[saras-erp] Supabase env vars missing at build time', { hasUrl: !!supabaseUrl, hasKey: !!supabaseKey })
 }
 

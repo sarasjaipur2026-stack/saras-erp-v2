@@ -105,25 +105,83 @@ export const Select = ({
 )
 
 // ─── SEARCH SELECT ─────────────────────────────────────────
+// Fuzzy searchable dropdown with keyboard nav (↑/↓/Enter/Esc).
+// - `options`: [{ value, label, ...anything }]
+// - `onChange(opt)` receives full option object on selection
+// - `value`: currently selected value (used to highlight + show selected label)
+// - `searchKeys`: optional field names in each option to match beyond `label`
+// - `renderOption(opt)`: custom rendering for each row
 export const SearchSelect = ({
   label, error, required, options = [], onSearch, onChange,
   value, placeholder = 'Search...', renderOption, className = '',
+  searchKeys,
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [activeIdx, setActiveIdx] = useState(0)
+  // Prev-prop sync pattern — reset active row on search/isOpen change
+  // without using useEffect (avoids react-hooks/set-state-in-effect).
+  const [prevReset, setPrevReset] = useState('')
   const ref = useRef(null)
+  const listRef = useRef(null)
 
   useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setIsOpen(false) }
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) { setIsOpen(false); setSearchTerm('') } }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  const selectedOption = useMemo(
+    () => (value != null && value !== '' ? options.find(o => o.value === value) : null),
+    [options, value],
+  )
+
   const filtered = useMemo(() => {
     if (!searchTerm) return options
     const term = searchTerm.toLowerCase()
-    return options.filter(opt => opt.label.toLowerCase().includes(term))
-  }, [options, searchTerm])
+    return options.filter(opt => {
+      if ((opt.label || '').toLowerCase().includes(term)) return true
+      if (searchKeys && searchKeys.length) {
+        for (const k of searchKeys) {
+          const v = opt[k]
+          if (v && String(v).toLowerCase().includes(term)) return true
+        }
+      }
+      return false
+    })
+  }, [options, searchTerm, searchKeys])
+
+  const resetKey = `${searchTerm}|${isOpen}`
+  if (prevReset !== resetKey) {
+    setPrevReset(resetKey)
+    if (activeIdx !== 0) setActiveIdx(0)
+  }
+
+  const pick = (opt) => {
+    onChange(opt)
+    setIsOpen(false)
+    setSearchTerm('')
+  }
+
+  const handleKeyDown = (e) => {
+    if (!isOpen && (e.key === 'ArrowDown' || e.key === 'Enter')) {
+      setIsOpen(true)
+      return
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveIdx(i => Math.min(i + 1, filtered.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveIdx(i => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      if (filtered[activeIdx]) pick(filtered[activeIdx])
+    } else if (e.key === 'Escape') {
+      setIsOpen(false)
+      setSearchTerm('')
+    }
+  }
 
   return (
     <div className={`relative ${className}`} ref={ref}>
@@ -142,31 +200,45 @@ export const SearchSelect = ({
             value={searchTerm}
             onChange={e => { setSearchTerm(e.target.value); onSearch?.(e.target.value); setIsOpen(true) }}
             onFocus={() => setIsOpen(true)}
-            placeholder={placeholder}
-            className="w-full outline-none text-sm bg-transparent placeholder:text-slate-400"
+            onKeyDown={handleKeyDown}
+            placeholder={selectedOption?.label || placeholder}
+            className={`w-full outline-none text-sm bg-transparent ${selectedOption && !searchTerm ? 'placeholder:text-slate-700 placeholder:font-medium' : 'placeholder:text-slate-400'}`}
           />
+          {selectedOption && !searchTerm && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onChange({ value: '', label: '' }); setSearchTerm('') }}
+              className="text-slate-300 hover:text-slate-500 shrink-0"
+              aria-label="Clear"
+            >
+              <X size={14} />
+            </button>
+          )}
+          <ChevronDown size={14} className={`text-slate-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
         </div>
       </div>
       {isOpen && filtered.length > 0 && (
-        <div role="listbox" className="absolute top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 z-20 max-h-60 overflow-auto dropdown-in">
-          {filtered.map(opt => (
+        <div role="listbox" ref={listRef} className="absolute top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 z-20 max-h-60 overflow-auto dropdown-in">
+          {filtered.map((opt, idx) => (
             <div
-              key={opt.value}
+              key={opt.value || idx}
               role="option"
               aria-selected={value === opt.value}
-              tabIndex={0}
-              onClick={() => { onChange(opt); setIsOpen(false); setSearchTerm('') }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  onChange(opt); setIsOpen(false); setSearchTerm('')
-                }
-              }}
-              className="px-3 py-2.5 hover:bg-indigo-50 focus:bg-indigo-50 focus:outline-none cursor-pointer text-sm transition-colors first:rounded-t-xl last:rounded-b-xl"
+              tabIndex={-1}
+              onMouseEnter={() => setActiveIdx(idx)}
+              onClick={() => pick(opt)}
+              className={`px-3 py-2.5 cursor-pointer text-sm transition-colors first:rounded-t-xl last:rounded-b-xl ${
+                idx === activeIdx ? 'bg-indigo-50 text-indigo-900' : 'hover:bg-slate-50'
+              } ${value === opt.value ? 'font-medium' : ''}`}
             >
               {renderOption ? renderOption(opt) : opt.label}
             </div>
           ))}
+        </div>
+      )}
+      {isOpen && filtered.length === 0 && (
+        <div className="absolute top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 z-20 p-4 text-sm text-slate-400 text-center dropdown-in">
+          No matches
         </div>
       )}
       {error && <span className="text-xs text-red-500 font-medium block mt-1">{error}</span>}
@@ -217,6 +289,7 @@ export const StatusBadge = ({ status }) => {
 // ─── MODAL ─────────────────────────────────────────────────
 export const Modal = ({ isOpen, open, onClose, title, children, footer, size = 'md' }) => {
   const visible = isOpen ?? open
+  const bodyRef = useRef(null)
 
   // ESC-to-close + body scroll lock while the modal is open.
   useEffect(() => {
@@ -230,6 +303,25 @@ export const Modal = ({ isOpen, open, onClose, title, children, footer, size = '
       document.body.style.overflow = prev
     }
   }, [visible, onClose])
+
+  // Autofocus the first interactive field (input/select/textarea) on open so
+  // keyboard users can start typing immediately. Skips the Close button so we
+  // don't land on the X. Wrapped in setTimeout so the focus happens AFTER the
+  // scale-in animation settles.
+  useEffect(() => {
+    if (!visible) return
+    const t = setTimeout(() => {
+      const root = bodyRef.current
+      if (!root) return
+      const candidate = root.querySelector(
+        'input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled])'
+      )
+      if (candidate && typeof candidate.focus === 'function') {
+        try { candidate.focus({ preventScroll: true }) } catch { /* focus unavailable — non-fatal */ }
+      }
+    }, 80)
+    return () => clearTimeout(t)
+  }, [visible])
 
   if (!visible) return null
   const sizes = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg', xl: 'max-w-xl', '2xl': 'max-w-2xl' }
@@ -258,7 +350,7 @@ export const Modal = ({ isOpen, open, onClose, title, children, footer, size = '
             <X size={18} />
           </button>
         </div>
-        <div className="px-6 py-5 overflow-y-auto flex-1">{children}</div>
+        <div ref={bodyRef} className="px-6 py-5 overflow-y-auto flex-1">{children}</div>
         {footer && (
           <div className="px-6 py-3.5 border-t border-slate-100 flex items-center justify-end gap-2 bg-slate-50/50 rounded-b-2xl">
             {footer}
@@ -354,10 +446,21 @@ const STAT_COLORS = {
   purple: { bg: 'bg-purple-50/70', icon: 'bg-purple-100 text-purple-600', text: 'text-purple-600', border: 'border-purple-100/60' },
 }
 
-export const StatCard = ({ icon: Icon, label, value, trend, color = 'indigo' }) => {
+export const StatCard = ({ icon: Icon, label, value, trend, color = 'indigo', onClick }) => {
   const c = STAT_COLORS[color] || STAT_COLORS.indigo
+  // Clickable variant renders as <button> for keyboard/a11y with a subtle
+  // hover-lift so operators learn they can drill into a filtered list.
+  const isClickable = typeof onClick === 'function'
+  const Cmp = isClickable ? 'button' : 'div'
+  const interactiveClasses = isClickable
+    ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 text-left w-full'
+    : ''
   return (
-    <div className={`${c.bg} rounded-2xl p-5 transition-all duration-200 border ${c.border} hover:shadow-sm`}>
+    <Cmp
+      type={isClickable ? 'button' : undefined}
+      onClick={isClickable ? onClick : undefined}
+      className={`${c.bg} rounded-2xl p-5 transition-all duration-200 border ${c.border} hover:shadow-sm ${interactiveClasses}`.trim()}
+    >
       <div className="flex items-start justify-between">
         <div>
           <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">{label}</p>
@@ -374,7 +477,7 @@ export const StatCard = ({ icon: Icon, label, value, trend, color = 'indigo' }) 
           </div>
         )}
       </div>
-    </div>
+    </Cmp>
   )
 }
 
@@ -388,9 +491,13 @@ export const DataTable = ({
   const emptyText = emptyTitle || emptyMessage
   const [currentPage, setCurrentPage] = useState(0)
 
-  // Reset to page 0 when data changes (e.g. filter/search)
+  // Reset to page 0 when data length changes (React-recommended prev-prop pattern)
   const dataLen = data?.length || 0
-  useEffect(() => { setCurrentPage(0) }, [dataLen])
+  const [prevDataLen, setPrevDataLen] = useState(dataLen)
+  if (prevDataLen !== dataLen) {
+    setPrevDataLen(dataLen)
+    if (currentPage !== 0) setCurrentPage(0)
+  }
 
   if (isLoadingFinal) {
     return (

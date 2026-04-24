@@ -1,3 +1,4 @@
+/* global process */
 import { defineConfig } from '@playwright/test'
 
 const BASE_URL = process.env.BASE_URL || 'https://saras-erp-v2-rebuild.vercel.app'

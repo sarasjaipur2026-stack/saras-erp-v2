@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { stats } from '../lib/db'
 import { StatCard, Spinner } from '../components/ui'
+import { useRealtimeTable } from '../hooks/useRealtimeTable'
 import {
   ShoppingCart, MessageSquare, Users, AlertTriangle,
   Clock, Plus, ArrowRight, TrendingUp
@@ -23,7 +24,7 @@ function readDashCache() {
 }
 
 function writeDashCache(data) {
-  try { sessionStorage.setItem(DASH_CACHE_KEY, JSON.stringify({ ts: Date.now(), data })) } catch {}
+  try { sessionStorage.setItem(DASH_CACHE_KEY, JSON.stringify({ ts: Date.now(), data })) } catch { /* sessionStorage full/unavailable */ }
 }
 
 export default function Dashboard() {
@@ -56,6 +57,13 @@ export default function Dashboard() {
       loadDashboard()
     }
   }, [loadDashboard]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Live-update KPIs when orders/payments/enquiries change elsewhere in the
+  // system. Debounced silent refetch — the dashboard stays current without
+  // the operator having to reload.
+  useRealtimeTable('orders', () => loadDashboard(false), { debounceMs: 1500 })
+  useRealtimeTable('payments', () => loadDashboard(false), { debounceMs: 1500 })
+  useRealtimeTable('enquiries', () => loadDashboard(false), { debounceMs: 1500 })
 
   // Re-fetch silently when tab regains focus after 5+ min idle
   useEffect(() => {
@@ -108,12 +116,16 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* Stats */}
+      {/* Stats — each drills into the relevant filtered list */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
-        <StatCard label="Total Orders" value={data?.totalOrders || 0} icon={ShoppingCart} color="indigo" />
-        <StatCard label="New Enquiries" value={data?.newEnquiries || 0} icon={MessageSquare} color="amber" />
-        <StatCard label="Pending Orders" value={data?.pendingOrders || 0} icon={Clock} color="blue" />
-        <StatCard label="Total Customers" value={data?.totalCustomers || 0} icon={Users} color="green" />
+        <StatCard label="Total Orders" value={data?.totalOrders || 0} icon={ShoppingCart} color="indigo"
+          onClick={() => navigate('/orders')} />
+        <StatCard label="New Enquiries" value={data?.newEnquiries || 0} icon={MessageSquare} color="amber"
+          onClick={() => navigate('/enquiries?status=new')} />
+        <StatCard label="Pending Orders" value={data?.pendingOrders || 0} icon={Clock} color="blue"
+          onClick={() => navigate('/orders?filter=pending')} />
+        <StatCard label="Total Customers" value={data?.totalCustomers || 0} icon={Users} color="green"
+          onClick={() => navigate('/masters/customers')} />
       </div>
 
       {/* Urgent Orders Alert */}

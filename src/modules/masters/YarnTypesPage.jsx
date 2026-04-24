@@ -8,6 +8,7 @@ export default function YarnTypesPage() {
     <SimpleMasterPage
       title="Yarn Types"
       subtitle="yarn types"
+      cacheKey="yarnTypes"
       api={yarnTypes}
       defaults={{ name: '', yarn_category: 'polyester_dty', usage_type: 'both', is_active: true }}
       fields={[

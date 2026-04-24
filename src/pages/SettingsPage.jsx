@@ -56,6 +56,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (user?.id) fetchProfile()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
   const fetchProfile = async () => {

@@ -28,69 +28,52 @@ export const deliveries = {
       .limit(200)
   ),
 
-  createFromOrder: async ({ order_id, vehicle_number, driver_name, delivery_note }) => {
+  // Atomic dispatch. Delegates to create_delivery_atomic RPC so the delivery +
+  // stock movements + per-line delivered_qty + order status are committed or
+  // rolled back as one transaction. Auto-flips order status to
+  // 'partially_dispatched' when some lines still have pending qty, or
+  // 'dispatch' when every line is fully delivered.
+  //
+  // Pass `line_items: [{line_item_id, qty}]` to ship a specific partial.
+  // Omit to ship the full pending qty on every line.
+  createFromOrder: async ({ order_id, vehicle_number, driver_name, delivery_note, line_items }) => {
     try {
-      const { data: order, error: oErr } = await supabase
-        .from('orders')
-        .select('id, status, order_line_items(id, quantity, unit, product_id)')
-        .eq('id', order_id)
-        .single()
-      if (oErr || !order) return { data: null, error: oErr }
+      const { data, error } = await supabase.rpc('create_delivery_atomic', {
+        p_order_id: order_id,
+        p_vehicle_number: vehicle_number || null,
+        p_driver_name: driver_name || null,
+        p_delivery_note: delivery_note || null,
+        p_line_items: line_items && line_items.length ? line_items : null,
+      })
+      if (error) return { data: null, error }
 
-      const { data: challanNum, error: chErr } = await supabase.rpc('next_challan_number')
-      if (chErr) return { data: null, error: chErr }
-
-      const today = new Date().toISOString().slice(0, 10)
-      const rows = (order.order_line_items || []).map(li => ({
-        order_id: order.id,
-        line_item_id: li.id,
-        delivery_date: today,
-        quantity_delivered: li.quantity || 0,
-        unit: li.unit || 'pcs',
-        challan_number: challanNum,
-        vehicle_number,
-        driver_name,
-        delivery_note,
-      }))
-
-      const { data: inserted, error: insErr } = await supabase.from('deliveries').insert(rows).select()
-      if (insErr) return { data: null, error: insErr }
-
-      const movements = (order.order_line_items || [])
-        .filter(li => li.product_id)
-        .map(li => ({
-          kind: 'out',
-          product_id: li.product_id,
-          quantity: li.quantity || 0,
-          unit: li.unit || 'pcs',
-          source_type: 'delivery',
-          source_id: inserted?.[0]?.id,
-          notes: `Dispatched via ${challanNum}`,
-        }))
-      if (movements.length) {
-        await supabase.from('stock_movements').insert(movements)
-      }
-
-      await supabase.from('orders').update({ status: 'dispatch' }).eq('id', order_id)
-
+      // Fire-and-forget notification (explicitly outside the atomic unit)
       try {
         const { data: orderRow } = await supabase
           .from('orders')
           .select('order_number, customers(firm_name)')
           .eq('id', order_id)
           .single()
+        const deliveryCount = Array.isArray(data?.delivery_ids) ? data.delivery_ids.length : 0
         notifications.emit({
           type: 'delivery_added',
-          title: `Dispatched · ${challanNum}`,
-          message: `${orderRow?.customers?.firm_name || 'Customer'} · ${orderRow?.order_number || ''} · ${rows.length} line${rows.length === 1 ? '' : 's'}${vehicle_number ? ` · vehicle ${vehicle_number}` : ''}`,
+          title: `Dispatched · ${data?.challan_number || ''}`,
+          message: `${orderRow?.customers?.firm_name || 'Customer'} · ${orderRow?.order_number || ''} · ${deliveryCount} line${deliveryCount === 1 ? '' : 's'}${vehicle_number ? ` · vehicle ${vehicle_number}` : ''}${data?.order_status === 'partially_dispatched' ? ' (partial)' : ''}`,
           entity_type: 'order',
           entity_id: order_id,
         }).catch(() => {})
       } catch {
-        // ignore
+        // notification failures are non-fatal
       }
 
-      return { data: { challan_number: challanNum, deliveries: inserted }, error: null }
+      return {
+        data: {
+          challan_number: data?.challan_number,
+          delivery_ids: data?.delivery_ids || [],
+          order_status: data?.order_status,
+        },
+        error: null,
+      }
     } catch (error) {
       return { data: null, error }
     }

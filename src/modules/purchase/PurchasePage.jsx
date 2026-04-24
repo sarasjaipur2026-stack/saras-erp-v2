@@ -8,7 +8,9 @@ import {
 } from 'lucide-react'
 
 import { fmt, fmtMoney, fmtDate } from '../../lib/format'
+import { todayIST } from '../../lib/dates'
 import { usePagination } from '../../hooks/usePagination'
+import { useStickyState } from '../../hooks/useStickyState'
 
 const PO_STATUS = {
   draft: { variant: 'default', label: 'Draft' },
@@ -30,7 +32,7 @@ const emptyLine = () => ({
 export default function PurchasePage() {
   const toast = useToast()
   const { suppliers, yarnTypes, warehouses } = useApp()
-  const [view, setView] = useState('pos') // pos | grns
+  const [view, setView] = useStickyState('purchase.view', 'pos') // pos | grns
   const [poList, setPoList] = useState([])
   const [grnList, setGrnList] = useState([])
   const [search, setSearch] = useState('')
@@ -41,7 +43,7 @@ export default function PurchasePage() {
   const [showCreatePo, setShowCreatePo] = useState(false)
   const [poForm, setPoForm] = useState({
     supplier_id: '',
-    po_date: new Date().toISOString().slice(0, 10),
+    po_date: todayIST(),
     expected_date: '',
     notes: '',
     items: [emptyLine()],
@@ -51,7 +53,7 @@ export default function PurchasePage() {
   const [showCreateGrn, setShowCreateGrn] = useState(false)
   const [grnSourcePo, setGrnSourcePo] = useState(null)
   const [grnForm, setGrnForm] = useState({
-    received_date: new Date().toISOString().slice(0, 10),
+    received_date: todayIST(),
     vehicle_number: '',
     warehouse_id: '',
     notes: '',
@@ -84,7 +86,7 @@ export default function PurchasePage() {
   const openCreatePo = () => {
     setPoForm({
       supplier_id: '',
-      po_date: new Date().toISOString().slice(0, 10),
+      po_date: todayIST(),
       expected_date: '',
       notes: '',
       items: [emptyLine()],
@@ -157,7 +159,7 @@ export default function PurchasePage() {
   const openCreateGrn = (po) => {
     setGrnSourcePo(po)
     setGrnForm({
-      received_date: new Date().toISOString().slice(0, 10),
+      received_date: todayIST(),
       vehicle_number: '',
       warehouse_id: '',
       notes: '',

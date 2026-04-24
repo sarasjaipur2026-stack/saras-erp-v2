@@ -6,6 +6,7 @@ export default function ChaalTypesPage() {
     <SimpleMasterPage
       title="Chaal Types"
       subtitle="braid patterns"
+      cacheKey="chaalTypes"
       api={chaalTypes}
       defaults={{ name: '', hindi_name: '', speed_factor: 1, is_active: true }}
       fields={[

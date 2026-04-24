@@ -8,6 +8,7 @@ export default function ProcessTypesPage() {
     <SimpleMasterPage
       title="Process Types"
       subtitle="process steps"
+      cacheKey="processTypes"
       api={processTypes}
       defaults={{ name: '', hindi_name: '', sequence_order: 0, requires_machine: true, is_optional: false, is_active: true }}
       fields={[

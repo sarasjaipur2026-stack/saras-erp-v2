@@ -70,29 +70,41 @@ const BUSY_WIN_DEFAULTS = {
   },
 }
 
-// Sanitize a string value: trim, limit length, strip control chars
+// Max upload size — 50MB (UI also advertises this; enforce here)
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+
+// XLSX files are ZIP archives — magic bytes PK\x03\x04 or PK\x05\x06 (empty) or PK\x07\x08 (spanned)
+const XLSX_MAGIC = [0x50, 0x4B, 0x03, 0x04]
+
+// Sanitize a string value: trim, limit length, strip control chars, neutralize CSV-injection leading chars
 const sanitizeString = (val, maxLen = 500) => {
   if (typeof val !== 'string') return val
-  return val.trim().replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').slice(0, maxLen)
+  // eslint-disable-next-line no-control-regex -- intentional scrub of control chars from imported CSV/XLSX cells
+  let s = val.trim().replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').slice(0, maxLen)
+  // CSV injection guard (H21): prefix apostrophe if leading char is a spreadsheet-formula trigger.
+  // Protects downstream Excel/LibreOffice exports — any future CSV dump of this row won't run.
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s
+  return s
+}
+
+// Strip CR/LF from filename before inserting into audit log (L9 — log-injection guard).
+const sanitizeFilename = (name) => String(name || '').replace(/[\r\n]/g, '').slice(0, 255)
+
+// Validate magic bytes for XLSX uploads (L7). CSV is text — no magic bytes to verify.
+const validateMagicBytes = async (file) => {
+  if (file.name.toLowerCase().endsWith('.csv')) return true
+  if (file.name.toLowerCase().endsWith('.xlsx')) {
+    const head = new Uint8Array(await file.slice(0, 4).arrayBuffer())
+    return XLSX_MAGIC.every((b, i) => head[i] === b)
+  }
+  return false
 }
 
 export default function ImportPage() {
   const { user, isAdmin } = useAuth()
   const toast = useToast()
 
-  // Admin-only gate
-  if (!isAdmin) {
-    return (
-      <div className="max-w-md mx-auto py-16 px-4 text-center">
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8">
-          <h2 className="text-lg font-bold text-amber-900 mb-2">Admin Only</h2>
-          <p className="text-sm text-amber-700">Only administrators can import data. Contact your admin for access.</p>
-        </div>
-      </div>
-    )
-  }
-
-  // Import flow state
+  // Import flow state — hooks MUST run unconditionally (admin gate is a render-time check below)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [selectedType, setSelectedType] = useState(null)
   const [uploadedFile, setUploadedFile] = useState(null)
@@ -107,11 +119,24 @@ export default function ImportPage() {
   const [recordCounts, setRecordCounts] = useState({})
 
   useEffect(() => {
-    if (user?.id) {
+    if (user?.id && isAdmin) {
       fetchImportLogs()
       fetchRecordCounts()
     }
-  }, [user?.id])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchers stable at module scope inside component; re-run only on user/role change
+  }, [user?.id, isAdmin])
+
+  // Admin-only gate — runs AFTER all hooks
+  if (!isAdmin) {
+    return (
+      <div className="max-w-md mx-auto py-16 px-4 text-center">
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8">
+          <h2 className="text-lg font-bold text-amber-900 mb-2">Admin Only</h2>
+          <p className="text-sm text-amber-700">Only administrators can import data. Contact your admin for access.</p>
+        </div>
+      </div>
+    )
+  }
 
   const fetchRecordCounts = async () => {
     try {
@@ -193,9 +218,28 @@ export default function ImportPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    const isValidType = file.name.endsWith('.csv') || file.name.endsWith('.xlsx')
+    const lowerName = file.name.toLowerCase()
+    const isValidType = lowerName.endsWith('.csv') || lowerName.endsWith('.xlsx')
     if (!isValidType) {
       toast.error('Please select a CSV or XLSX file')
+      return
+    }
+
+    // L8 — enforce advertised 50MB cap before reading the file into memory
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max 50 MB.`)
+      return
+    }
+
+    // L7 — verify XLSX magic bytes to reject mis-extension'd files
+    try {
+      const magicOk = await validateMagicBytes(file)
+      if (!magicOk) {
+        toast.error('File signature does not match its extension. Re-export from Busy Win and try again.')
+        return
+      }
+    } catch (err) {
+      toast.error('Failed to read file header: ' + err.message)
       return
     }
 
@@ -325,7 +369,7 @@ export default function ImportPage() {
         .insert({
           user_id: user.id,
           import_type: selectedType,
-          filename: uploadedFile.name,
+          filename: sanitizeFilename(uploadedFile.name),
           record_count: cleanedRows.length,
           status: 'completed',
           created_at: new Date().toISOString(),

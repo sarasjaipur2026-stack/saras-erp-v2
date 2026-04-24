@@ -118,6 +118,12 @@ export default function UsersPage() {
   }
 
   const setRole = (role) => {
+    // H20 — block an admin from demoting themselves (prevents lockout and
+    // last-admin scenarios). The account owner must ask a peer admin to change it.
+    if (editing?.id === currentUser?.id && editing?.role === 'admin' && role !== 'admin') {
+      toast.error("You can't change your own admin role. Ask another admin.")
+      return
+    }
     setEditForm(f => ({
       ...f,
       role,
@@ -163,6 +169,16 @@ export default function UsersPage() {
 
   const submit = async () => {
     if (!editing || !editForm) return
+    // H20 — defensive server-gate: block self-demote on submit too
+    if (editing.id === currentUser?.id && editing.role === 'admin' && editForm.role !== 'admin') {
+      toast.error("You can't change your own admin role. Ask another admin.")
+      return
+    }
+    // Maintain at least one admin — prevent last-admin demotion
+    if (editing.role === 'admin' && editForm.role !== 'admin' && counts.admin <= 1) {
+      toast.error('At least one admin must remain. Promote another user first.')
+      return
+    }
     setSaving(true)
     try {
       const { error } = await supabase

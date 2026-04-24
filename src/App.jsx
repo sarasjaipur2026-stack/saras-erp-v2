@@ -34,24 +34,43 @@ class PageErrorBoundary extends Component {
   }
   render() {
     if (this.state.error) {
+      // Detect chunk-load failure: user has a stale SPA tab open after a
+      // deploy changed the chunk hashes. Reload is the only real recovery.
+      const msg = String(this.state.error?.message || this.state.error || '')
+      const isChunkLoadFailure = /Loading (chunk|CSS chunk|module)|Failed to fetch dynamically imported module|ChunkLoadError/i.test(msg)
+
       return (
         <div className="fade-in max-w-3xl mx-auto py-12 px-4">
           <div className="bg-red-50 border border-red-200 rounded-2xl p-6">
-            <h2 className="text-lg font-bold text-red-900 mb-2">This page failed to render</h2>
+            <h2 className="text-lg font-bold text-red-900 mb-2">
+              {isChunkLoadFailure ? 'A new version was deployed' : 'This page failed to render'}
+            </h2>
             <p className="text-[13px] text-red-700 mb-4">
-              The rest of the app is still working — use the sidebar to navigate elsewhere.
+              {isChunkLoadFailure
+                ? 'Your open tab is out of date. Click Reload to pick up the latest version.'
+                : 'The rest of the app is still working — use the sidebar to navigate elsewhere.'}
             </p>
-            <pre className="text-[11px] font-mono bg-white border border-red-100 rounded-lg p-3 text-red-800 overflow-auto max-h-64 whitespace-pre-wrap">
-              {import.meta.env.DEV
-                ? String(this.state.error?.stack || this.state.error?.message || this.state.error)
-                : String(this.state.error?.message || 'An unexpected error occurred')}
-            </pre>
-            <button
-              onClick={() => this.setState({ error: null })}
-              className="mt-4 px-3 py-1.5 text-[12px] font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700"
-            >
-              Retry
-            </button>
+            {!isChunkLoadFailure && (
+              <pre className="text-[11px] font-mono bg-white border border-red-100 rounded-lg p-3 text-red-800 overflow-auto max-h-64 whitespace-pre-wrap">
+                {import.meta.env.DEV
+                  ? String(this.state.error?.stack || this.state.error?.message || this.state.error)
+                  : String(this.state.error?.message || 'An unexpected error occurred')}
+              </pre>
+            )}
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => this.setState({ error: null })}
+                className="px-3 py-1.5 text-[12px] font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Retry
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-3 py-1.5 text-[12px] font-semibold bg-white border border-red-200 text-red-700 rounded-lg hover:bg-red-100"
+              >
+                {isChunkLoadFailure ? 'Reload' : 'Reload page'}
+              </button>
+            </div>
           </div>
         </div>
       )
@@ -83,8 +102,10 @@ const DispatchPage = lazy(() => import('./modules/dispatch/DispatchPage'))
 const InvoicesPage = lazy(() => import('./modules/invoicing/InvoicesPage'))
 const PaymentsPage = lazy(() => import('./modules/finance/PaymentsPage'))
 const PurchasePage = lazy(() => import('./modules/purchase/PurchasePage'))
+const PurchaseReconcilePage = lazy(() => import('./modules/purchase/PurchaseReconcilePage'))
 const ReportsPage = lazy(() => import('./modules/reports/ReportsPage'))
 const JobworkPage = lazy(() => import('./modules/jobwork/JobworkPage'))
+const JobworkBalancePage = lazy(() => import('./modules/jobwork/JobworkBalancePage'))
 const QualityPage = lazy(() => import('./modules/quality/QualityPage'))
 const NotificationsPage = lazy(() => import('./modules/notifications/NotificationsPage'))
 const UsersPage = lazy(() => import('./modules/settings/UsersPage'))
@@ -175,8 +196,10 @@ export default function App() {
       <Route path="/invoices" element={<ProtectedRoute perm="invoices"><InvoicesPage /></ProtectedRoute>} />
       <Route path="/payments" element={<ProtectedRoute perm="payments"><PaymentsPage /></ProtectedRoute>} />
       <Route path="/purchase" element={<ProtectedRoute perm="purchase"><PurchasePage /></ProtectedRoute>} />
+      <Route path="/purchase/reconcile" element={<ProtectedRoute perm="purchase"><PurchaseReconcilePage /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute perm="reports"><ReportsPage /></ProtectedRoute>} />
       <Route path="/jobwork" element={<ProtectedRoute perm="jobwork"><JobworkPage /></ProtectedRoute>} />
+      <Route path="/jobwork/balance" element={<ProtectedRoute perm="jobwork"><JobworkBalancePage /></ProtectedRoute>} />
       <Route path="/quality" element={<ProtectedRoute perm="quality"><QualityPage /></ProtectedRoute>} />
       <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
       <Route path="/settings/users" element={<ProtectedRoute perm="settings"><UsersPage /></ProtectedRoute>} />

@@ -8,7 +8,9 @@ import {
 } from 'lucide-react'
 
 import { fmt, fmtMoney, fmtDate } from '../../lib/format'
+import { todayIST } from '../../lib/dates'
 import { usePagination } from '../../hooks/usePagination'
+import { useRealtimeTable, markSelfWrite } from '../../hooks/useRealtimeTable'
 
 const STATUS = {
   pending: { variant: 'default', label: 'Pending' },
@@ -65,6 +67,22 @@ export default function JobworkPage() {
   }
   useEffect(() => { load() }, [])
 
+  // Realtime: another device posted yarn in / finished out — refresh live + toast
+  useRealtimeTable('jobwork_jobs', (payload) => {
+    load()
+    if (payload && !payload.isEcho) {
+      const num = payload.new?.job_number || payload.old?.job_number || ''
+      const evt = payload.eventType === 'INSERT' ? 'created' : payload.eventType === 'DELETE' ? 'deleted' : 'updated'
+      toast.info?.(`Jobwork ${num} ${evt} by another user`, { duration: 2500 })
+    }
+  }, { debounceMs: 800 })
+  useRealtimeTable('jobwork_items', (payload) => {
+    load()
+    if (payload && !payload.isEcho) {
+      toast.info?.('Jobwork item posted by another user', { duration: 2000 })
+    }
+  }, { debounceMs: 800 })
+
   const filtered = useMemo(() => {
     let rows = list.filter(j => j.direction === direction)
     if (search.trim()) {
@@ -93,7 +111,7 @@ export default function JobworkPage() {
       direction,
       customer_id: '',
       supplier_id: '',
-      start_date: new Date().toISOString().slice(0, 10),
+      start_date: todayIST(),
       due_date: '',
       rate_per_unit: 0,
       notes: '',
@@ -126,6 +144,8 @@ export default function JobworkPage() {
       return
     }
     try {
+      markSelfWrite('jobwork_jobs')
+      markSelfWrite('jobwork_items')
       const { data, error } = await jobworkJobs.createWithItems({
         direction: form.direction,
         customer_id: form.customer_id || null,
@@ -143,7 +163,7 @@ export default function JobworkPage() {
       toast.success(`Jobwork ${data.job_number} created`)
       setShowCreate(false)
       load()
-    } catch (err) {
+    } catch {
       toast.error('Jobwork creation failed — check connection')
     }
   }
@@ -172,6 +192,7 @@ export default function JobworkPage() {
       toast.error('Enter quantity'); return
     }
     try {
+      markSelfWrite('jobwork_items')
       const { error } = await jobworkJobs.addItem(payload)
       if (error) { toast.error(error.message || 'Failed to add item'); return }
       toast.success('Item added')
@@ -179,13 +200,14 @@ export default function JobworkPage() {
       const res = await jobworkJobs.get(detail.id)
       if (res?.data) setDetail(res.data)
       load()
-    } catch (err) {
+    } catch {
       toast.error('Add item failed — check connection')
     }
   }
 
   const markCompleted = async (job) => {
     try {
+      markSelfWrite('jobwork_jobs')
       const { error } = await jobworkJobs.markCompleted(job.id)
       if (error) { toast.error(error.message || 'Failed'); return }
       toast.success('Marked completed')
@@ -194,7 +216,7 @@ export default function JobworkPage() {
         if (res?.data) setDetail(res.data)
       }
       load()
-    } catch (err) {
+    } catch {
       toast.error('Mark completed failed — check connection')
     }
   }

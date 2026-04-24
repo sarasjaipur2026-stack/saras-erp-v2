@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { notifications as notifDb } from '../lib/db'
-import { Menu, Bell, LogOut, Search, ChevronDown, CheckCheck } from 'lucide-react'
+import { Menu, Bell, LogOut, Search, ChevronDown, CheckCheck, CloudOff, Cloud } from 'lucide-react'
+import { useOfflineQueue, flushQueue } from '../lib/offlineQueue'
 
 const fmtRel = (iso) => {
   if (!iso) return '—'
@@ -31,7 +32,7 @@ export default function Topbar({ onMenuClick }) {
     notifDb.getUnread(user.id).then(({ data }) => {
       if (data) setNotifications(data)
     }).catch(() => {})
-  }, [user?.id])
+  }, [user])
 
   useEffect(() => { loadNotifs() }, [loadNotifs])
 
@@ -40,7 +41,7 @@ export default function Topbar({ onMenuClick }) {
     if (!user?.id) return
     const int = setInterval(loadNotifs, 60_000)
     return () => clearInterval(int)
-  }, [user?.id, loadNotifs])
+  }, [user, loadNotifs])
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -79,6 +80,21 @@ export default function Topbar({ onMenuClick }) {
 
   const initials = (profile?.full_name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
 
+  const queuedWrites = useOfflineQueue()
+  const [flushing, setFlushing] = useState(false)
+  const handleFlush = async () => {
+    if (flushing) return
+    setFlushing(true)
+    try {
+      const { succeeded, remaining } = await flushQueue()
+      if (succeeded > 0) toast.success(`Synced ${succeeded} pending write${succeeded === 1 ? '' : 's'}`)
+      if (remaining > 0) toast.error(`${remaining} write${remaining === 1 ? '' : 's'} still pending — try again`)
+      else if (succeeded === 0) toast.info('Nothing to sync')
+    } finally {
+      setFlushing(false)
+    }
+  }
+
   return (
     <header className="h-16 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 flex items-center px-4 gap-3 sticky top-0 z-20">
       <button
@@ -101,6 +117,20 @@ export default function Topbar({ onMenuClick }) {
           />
         </div>
       </div>
+
+      {/* Offline queue indicator — only shows when there are pending writes */}
+      {queuedWrites.length > 0 && (
+        <button
+          type="button"
+          onClick={handleFlush}
+          disabled={flushing}
+          title={`${queuedWrites.length} write${queuedWrites.length === 1 ? '' : 's'} queued — click to retry sync`}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-[12px] font-semibold hover:bg-amber-100 transition-colors disabled:opacity-50"
+        >
+          {flushing ? <Cloud size={14} className="animate-pulse" /> : <CloudOff size={14} />}
+          {queuedWrites.length} pending
+        </button>
+      )}
 
       {/* Notifications */}
       <div className="relative" ref={notifRef}>

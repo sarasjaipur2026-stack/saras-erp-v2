@@ -6,6 +6,7 @@ export default function HsnCodesPage() {
     <SimpleMasterPage
       title="HSN Codes"
       subtitle="tax codes"
+      cacheKey="hsnCodes"
       api={hsnCodes}
       defaults={{ code: '', description: '', cgst_pct: 0, sgst_pct: 0, igst_pct: 0, cess_pct: 0, category: '', is_active: true }}
       fields={[

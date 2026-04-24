@@ -14,9 +14,10 @@ export default function BanksPage() {
   const [editingId, setEditingId] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [saving, setSaving] = useState(false)
-  const emptyForm = { name: '', account_number: '', ifsc_code: '', branch: '', account_type: 'current', is_active: true }
+  const emptyForm = { bank_name: '', account_number: '', ifsc_code: '', branch: '', account_type: 'current', is_active: true }
   const [form, setForm] = useState(emptyForm)
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (user?.id) fetchData() }, [user?.id])
 
   const fetchData = async () => {
@@ -34,7 +35,7 @@ export default function BanksPage() {
   }
 
   const handleSave = async () => {
-    if (!form.name || !form.account_number) { toast.error('Name and account number required'); return }
+    if (!form.bank_name || !form.account_number) { toast.error('Bank name and account number required'); return }
     setSaving(true)
     try {
       const { error } = editingId
@@ -47,21 +48,28 @@ export default function BanksPage() {
     setSaving(false)
   }
 
-  const handleDelete = async (e, id) => {
+  const handleDelete = async (e, id, row) => {
     e.stopPropagation()
-    if (!confirm('Delete this bank account?')) return
-    const { error } = await banks.delete(id)
-    if (error) toast.error('Failed to delete')
-    else { toast.success('Bank deleted'); fetchData() }
+    setList(prev => prev.filter(b => b.id !== id))
+    let cancelled = false
+    setTimeout(async () => {
+      if (cancelled) return
+      const { error } = await banks.delete(id)
+      if (error) { toast.error(error.message || 'Failed to delete'); fetchData() }
+    }, 6000)
+    toast.action(`${row?.bank_name || 'Bank'} removed`, {
+      label: 'Undo', duration: 6000,
+      onClick: () => { cancelled = true; setList(prev => [...prev, row]) },
+    })
   }
 
   const filtered = list.filter(b =>
-    (b.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (b.bank_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (b.account_number || '').toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const columns = [
-    { key: 'name', label: 'Name', render: v => <div className="font-medium text-slate-700 text-[13px]">{v}</div> },
+    { key: 'bank_name', label: 'Bank Name', render: v => <div className="font-medium text-slate-700 text-[13px]">{v}</div> },
     { key: 'account_number', label: 'Account No', render: v => <span className="font-mono text-[12px]">{v}</span> },
     { key: 'ifsc_code', label: 'IFSC', render: v => <span className="font-mono text-[12px] bg-slate-100 px-2 py-1 rounded">{v}</span> },
     { key: 'branch', label: 'Branch', render: v => v || <span className="text-slate-300">-</span> },
@@ -70,7 +78,7 @@ export default function BanksPage() {
     { key: 'actions', label: '', render: (_, r) => (
       <div className="flex gap-0.5">
         <button onClick={() => openModal(r)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors"><Edit2 size={14} /></button>
-        <button onClick={(e) => handleDelete(e, r.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+        <button onClick={(e) => handleDelete(e, r.id, r)} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
       </div>
     )},
   ]
@@ -97,7 +105,7 @@ export default function BanksPage() {
         footer={<><Button variant="secondary" size="sm" onClick={() => setShowModal(false)}>Cancel</Button><Button size="sm" onClick={handleSave} loading={saving}>{editingId ? 'Update' : 'Add'}</Button></>}
       >
         <div className="grid grid-cols-2 gap-4">
-          <Input label="Bank Name" required value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+          <Input label="Bank Name" required value={form.bank_name} onChange={e => setForm(p => ({ ...p, bank_name: e.target.value }))} />
           <Input label="Account Number" required value={form.account_number} onChange={e => setForm(p => ({ ...p, account_number: e.target.value }))} />
           <Input label="IFSC Code" value={form.ifsc_code || ''} onChange={e => setForm(p => ({ ...p, ifsc_code: e.target.value.toUpperCase() }))} />
           <Input label="Branch" value={form.branch || ''} onChange={e => setForm(p => ({ ...p, branch: e.target.value }))} />

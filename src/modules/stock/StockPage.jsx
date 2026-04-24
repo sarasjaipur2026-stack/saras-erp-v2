@@ -3,6 +3,8 @@ import { stockMovements } from '../../lib/db'
 import { useApp } from '../../contexts/AppContext'
 import { useToast } from '../../contexts/ToastContext'
 import { usePagination } from '../../hooks/usePagination'
+import { useRealtimeTable, markSelfWrite } from '../../hooks/useRealtimeTable'
+import { useStickyState } from '../../hooks/useStickyState'
 import { Button, Input, Modal, Badge, PaginationBar } from '../../components/ui'
 import { Package, Search, TrendingUp, TrendingDown, RotateCw, SlidersHorizontal, Plus, Minus } from 'lucide-react'
 import { fmt, fmtDate } from '../../lib/format'
@@ -13,7 +15,7 @@ export default function StockPage() {
   const [balances, setBalances] = useState([])
   const [movements, setMovements] = useState([])
   const [search, setSearch] = useState('')
-  const [view, setView] = useState('balances') // balances | movements
+  const [view, setView] = useStickyState('stock.view', 'balances') // balances | movements
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState(null)
 
@@ -49,6 +51,17 @@ export default function StockPage() {
     }
   }
   useEffect(() => { load() }, [])
+
+  // Live-refresh balances when production completes, dispatch fires, or a
+  // purchase is received — any of these push a stock_movements row that
+  // should immediately reflect in the operator's view.
+  useRealtimeTable('stock_movements', (payload) => {
+    load()
+    if (payload && !payload.isEcho) {
+      const kind = payload.new?.kind || payload.old?.kind || 'stock'
+      toast.info?.(`Stock ${kind} updated by another user`, { duration: 2500 })
+    }
+  }, { debounceMs: 1000 })
 
   const filteredBalances = useMemo(() => {
     if (!search.trim()) return balances
@@ -90,6 +103,7 @@ export default function StockPage() {
     // Create a stock_movements row of kind='adjustment' with a signed sign — we
     // model corrections by inserting either an `in` or `out` movement explicitly
     // so computeBalances picks it up without special-casing the 'adjustment' kind.
+    markSelfWrite('stock_movements')
     const { error } = await stockMovements.create({
       kind: direction, // 'in' or 'out'
       yarn_type_id: item_type === 'yarn' ? yarn_type_id : null,

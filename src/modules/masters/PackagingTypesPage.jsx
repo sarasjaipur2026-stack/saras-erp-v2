@@ -6,6 +6,7 @@ export default function PackagingTypesPage() {
     <SimpleMasterPage
       title="Packaging Types"
       subtitle="packaging"
+      cacheKey="packagingTypes"
       api={packagingTypes}
       defaults={{ name: '', is_active: true }}
       fields={[

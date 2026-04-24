@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
+import { useApp } from '../../contexts/AppContext'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, Input, Modal, PaginationBar } from '../../components/ui'
 import { usePagination } from '../../hooks/usePagination'
@@ -16,8 +17,9 @@ import { Plus, Pencil, Trash2 } from 'lucide-react'
  * @param {object} [props.defaults]
  * @param {function} [props.onChanged] - called after successful mutation
  */
-export default function SimpleMasterPage({ title, subtitle, api, fields, defaults = {}, onChanged }) {
+export default function SimpleMasterPage({ title, subtitle, api, fields, defaults = {}, onChanged, cacheKey }) {
   const { user } = useAuth()
+  const { invalidateMaster } = useApp()
   const toast = useToast()
   const [list, setList] = useState([])
   const [showModal, setShowModal] = useState(false)
@@ -69,16 +71,34 @@ export default function SimpleMasterPage({ title, subtitle, api, fields, default
     setForm(defaults)
     setEditing(null)
     loadData()
+    if (cacheKey) invalidateMaster(cacheKey).catch(() => {})
     onChanged?.()
   }
 
   const confirmDelete = async () => {
     if (!deleteTarget) return
+    // Linked-record check if the api exposes checkLinked (masters that
+    // explicitly declare their referrers — customers / suppliers / products).
+    if (typeof api.checkLinked === 'function') {
+      try {
+        const linked = await api.checkLinked(deleteTarget.id)
+        const linkedKeys = linked ? Object.keys(linked) : []
+        if (linkedKeys.length > 0) {
+          const summary = linkedKeys.map(k => `${linked[k]} ${k.replace(/_/g, ' ')}`).join(', ')
+          toast.error(`Cannot delete — still referenced by: ${summary}.`)
+          setDeleteTarget(null)
+          return
+        }
+      } catch {
+        // if the pre-check fails, fall through and let the DB FK raise
+      }
+    }
     const { error } = await api.delete(deleteTarget.id)
     if (error) { toast.error(error.message || 'Delete failed'); setDeleteTarget(null); return }
     toast.success('Deleted')
     setDeleteTarget(null)
     loadData()
+    if (cacheKey) invalidateMaster(cacheKey).catch(() => {})
     onChanged?.()
   }
 

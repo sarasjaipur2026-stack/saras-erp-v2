@@ -17,7 +17,7 @@ export default function ColorsPage() {
     if (!error) setList(data || [])
   }
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (user?.id) fetchData() }, [user?.id])
 
   const handleAdd = async () => {

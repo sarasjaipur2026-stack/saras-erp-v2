@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { payments, orders as ordersApi } from '../../lib/db'
 import { useApp } from '../../contexts/AppContext'
 import { useToast } from '../../contexts/ToastContext'
@@ -6,6 +7,7 @@ import { usePagination } from '../../hooks/usePagination'
 import { Button, Modal, Badge, Input, PaginationBar } from '../../components/ui'
 import { CreditCard, Plus, Search } from 'lucide-react'
 import { fmtMoney, fmtDate } from '../../lib/format'
+import { todayIST, toISTDate } from '../../lib/dates'
 
 // NOTE: must match DB constraint `payments_payment_mode_check`
 // Allowed: cash | cheque | upi | neft | rtgs | card | other
@@ -21,7 +23,7 @@ export default function PaymentsPage() {
   const [orderOptions, setOrderOptions] = useState([])
   const [form, setForm] = useState({
     order_id: '', amount: 0, payment_mode: 'neft',
-    payment_date: new Date().toISOString().slice(0, 10),
+    payment_date: todayIST(),
     reference_number: '', bank_id: '', notes: '',
   })
 
@@ -41,6 +43,18 @@ export default function PaymentsPage() {
     }
   }
   useEffect(() => { load() }, [])
+
+  // Honor ?new=1 from Ctrl+K palette — auto-open the record-payment flow.
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      openCreate()
+      const next = new URLSearchParams(searchParams)
+      next.delete('new')
+      setSearchParams(next, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const openCreate = async () => {
     try {
@@ -67,7 +81,7 @@ export default function PaymentsPage() {
       toast.success(`Payment of ${fmtMoney(form.amount)} recorded`)
       setShowCreate(false)
       load()
-    } catch (err) {
+    } catch {
       toast.error('Payment failed — check connection')
     } finally {
       setSaving(false)
@@ -180,9 +194,59 @@ export default function PaymentsPage() {
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Amount" type="number" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: parseFloat(e.target.value) || 0 }))} />
-            <Input label="Date" type="date" value={form.payment_date} onChange={e => setForm(f => ({ ...f, payment_date: e.target.value }))} />
+            <div>
+              <Input label="Amount" type="number" min="0" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: Math.max(0, parseFloat(e.target.value) || 0) }))} />
+              {/* Quick-chips: Full / Half / 25%. Fastest path for typical cases. */}
+              {selectedOrder && (
+                <div className="flex gap-1.5 mt-1.5">
+                  <button type="button" onClick={() => setForm(f => ({ ...f, amount: Number(selectedOrder.balance_due) || 0 }))}
+                    className="px-2 py-0.5 text-[11px] rounded-md bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 font-medium transition-colors">
+                    Full ({fmtMoney(selectedOrder.balance_due)})
+                  </button>
+                  <button type="button" onClick={() => setForm(f => ({ ...f, amount: Math.round((Number(selectedOrder.balance_due) || 0) / 2) }))}
+                    className="px-2 py-0.5 text-[11px] rounded-md bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-600 transition-colors">
+                    Half
+                  </button>
+                  <button type="button" onClick={() => setForm(f => ({ ...f, amount: Math.round((Number(selectedOrder.balance_due) || 0) / 4) }))}
+                    className="px-2 py-0.5 text-[11px] rounded-md bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-600 transition-colors">
+                    25%
+                  </button>
+                </div>
+              )}
+            </div>
+            <div>
+              <Input label="Date" type="date" value={form.payment_date} onChange={e => setForm(f => ({ ...f, payment_date: e.target.value }))} />
+              <div className="flex gap-1.5 mt-1.5">
+                <button type="button" onClick={() => setForm(f => ({ ...f, payment_date: todayIST() }))}
+                  className="px-2 py-0.5 text-[11px] rounded-md bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-600 transition-colors">
+                  Today
+                </button>
+                <button type="button" onClick={() => {
+                  const d = new Date(); d.setDate(d.getDate() - 1)
+                  setForm(f => ({ ...f, payment_date: toISTDate(d) }))
+                }}
+                  className="px-2 py-0.5 text-[11px] rounded-md bg-slate-100 hover:bg-indigo-600 hover:text-white text-slate-600 transition-colors">
+                  Yesterday
+                </button>
+              </div>
+            </div>
           </div>
+
+          {/* Post-payment balance preview so operator sees what happens before clicking Record */}
+          {selectedOrder && form.amount > 0 && (
+            <div className="bg-emerald-50/60 border border-emerald-100 rounded-lg p-2.5 text-[12px] font-mono">
+              <div className="flex justify-between">
+                <span className="text-slate-600">After this payment</span>
+                <span className={`font-semibold ${(selectedOrder.balance_due - form.amount) <= 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  Balance {fmtMoney(Math.max(0, selectedOrder.balance_due - form.amount))}
+                  {(selectedOrder.balance_due - form.amount) <= 0 && ' · PAID IN FULL'}
+                </span>
+              </div>
+              {form.amount > selectedOrder.balance_due && (
+                <p className="text-red-600 mt-1">⚠ Amount exceeds balance due by {fmtMoney(form.amount - selectedOrder.balance_due)}</p>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>

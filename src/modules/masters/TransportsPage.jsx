@@ -6,6 +6,7 @@ export default function TransportsPage() {
     <SimpleMasterPage
       title="Transports"
       subtitle="vehicles / transporters"
+      cacheKey="transports"
       api={transports}
       defaults={{ vehicle_type: 'tempo', is_active: true }}
       fields={[

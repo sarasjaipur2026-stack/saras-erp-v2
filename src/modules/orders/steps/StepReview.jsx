@@ -5,8 +5,6 @@ export function StepReview({
   selectedCustomer,
   orderTypes,
   paymentTerms,
-  chargeTypes,
-  currencies,
 }) {
   const getTypeLabel = (typeId, list) => list?.find((item) => item.id === typeId)?.name || 'N/A';
 
@@ -143,6 +141,15 @@ export function StepReview({
             <span className="text-slate-900">Balance Due</span>
             <Currency amount={formData.balance_due} />
           </div>
+          {Number(formData._customer_credit_preview || 0) > 0 && (
+            <div className="mt-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[12px] text-amber-800">
+              Advance exceeds the order total by{' '}
+              <strong><Currency amount={formData._customer_credit_preview} /></strong>.
+              Reduce the advance, or save the order and record the surplus as a
+              customer credit in the ledger after save — the order grand total
+              will not absorb it silently.
+            </div>
+          )}
         </div>
       </div>
 

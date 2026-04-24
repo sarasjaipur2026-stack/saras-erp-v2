@@ -6,6 +6,31 @@ import { supabase } from '../supabase'
 
 const REQUEST_TIMEOUT_MS = 30000
 
+// Safety cap — reports should warn beyond this and switch to server-side RPC
+const MAX_PAGED_ROWS = 50000
+const PAGE_SIZE = 1000
+
+/**
+ * Paginates through a Supabase query using .range() to bypass the 1000-row default.
+ * buildQuery(from, to) must return a chainable query with identical filters each call.
+ * Stops at MAX_PAGED_ROWS (50k) safety cap.
+ */
+export const fetchAllPaged = async (buildQuery) => {
+  const all = []
+  let from = 0
+  while (from < MAX_PAGED_ROWS) {
+    const to = from + PAGE_SIZE - 1
+    const { data, error } = await buildQuery(from, to)
+    if (error) return { data: null, error }
+    if (!data || data.length === 0) break
+    all.push(...data)
+    if (data.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
+  const truncated = all.length >= MAX_PAGED_ROWS
+  return { data: all, error: null, truncated }
+}
+
 export const safe = async (fn) => {
   let timeoutId
   try {

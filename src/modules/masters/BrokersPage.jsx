@@ -17,6 +17,7 @@ export default function BrokersPage() {
   const emptyForm = { name: '', phone: '', email: '', commission_rate: '', city: '', is_active: true }
   const [form, setForm] = useState(emptyForm)
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchData() }, [])
 
   const fetchData = async () => {
@@ -47,12 +48,20 @@ export default function BrokersPage() {
     setSaving(false)
   }
 
-  const handleDelete = async (e, id) => {
+  const handleDelete = async (e, id, row) => {
     e.stopPropagation()
-    if (!confirm('Delete this broker?')) return
-    const { error } = await brokers.delete(id)
-    if (error) toast.error('Failed to delete')
-    else { toast.success('Broker deleted'); fetchData() }
+    // Deferred-delete + undo: optimistic UI, commits to DB after 6s, undoable.
+    setList(prev => prev.filter(b => b.id !== id))
+    let cancelled = false
+    setTimeout(async () => {
+      if (cancelled) return
+      const { error } = await brokers.delete(id)
+      if (error) { toast.error(error.message || 'Failed to delete'); fetchData() }
+    }, 6000)
+    toast.action(`${row?.name || 'Broker'} removed`, {
+      label: 'Undo', duration: 6000,
+      onClick: () => { cancelled = true; setList(prev => [...prev, row]) },
+    })
   }
 
   const filtered = list.filter(b =>
@@ -69,7 +78,7 @@ export default function BrokersPage() {
     { key: 'actions', label: '', render: (_, r) => (
       <div className="flex gap-0.5">
         <button onClick={() => openModal(r)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors"><Edit2 size={14} /></button>
-        <button onClick={(e) => handleDelete(e, r.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+        <button onClick={(e) => handleDelete(e, r.id, r)} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
       </div>
     )},
   ]

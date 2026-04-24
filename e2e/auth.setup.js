@@ -1,3 +1,4 @@
+/* global process */
 import { test as setup, expect } from '@playwright/test'
 
 const EMAIL = process.env.TEST_EMAIL || 'rpk@saras.com'

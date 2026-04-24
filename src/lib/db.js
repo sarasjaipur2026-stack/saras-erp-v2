@@ -16,7 +16,8 @@ export {
   stockMovements, purchaseOrders, goodsReceipts,
   deliveries,
   productionPlans, jobworkJobs,
-  invoices, payments,
+  invoices, payments, customerLedger,
   appSettings, attachments, qualityInspections,
   reports, stats,
+  checkCustomerCredit, setCustomerCreditHold, logCreditOverride,
 } from './db/index'

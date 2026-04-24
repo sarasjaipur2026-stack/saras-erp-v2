@@ -21,9 +21,12 @@ export default function EnquiriesPage() {
     if (error) toast.error('Failed to load enquiries')
     else setList(data || [])
     setIsLoading(false)
-  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, toast])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial load uses async setter after network
+    fetchData()
+  }, [fetchData])
 
   // Re-fetch silently when tab regains focus after 5+ min idle
   useEffect(() => {

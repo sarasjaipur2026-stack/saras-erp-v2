@@ -3,12 +3,15 @@ import { reports } from '../../lib/db'
 import { Button, Input, Badge, PaginationBar } from '../../components/ui'
 import {
   BarChart3, Calendar, Download, RefreshCw, FileText,
-  TrendingUp, Receipt, Users, Package, ShoppingBag,
+  TrendingUp, Receipt, Users, Package, ShoppingBag, Clock,
+  Activity, Gauge,
 } from 'lucide-react'
 
 // ─── HELPERS ─────────────────────────────────────────────────
 import { fmt, fmtMoney, fmtDate } from '../../lib/format'
+import { todayIST, toISTDate, firstOfMonthIST, startOfFYIST } from '../../lib/dates'
 import { usePagination } from '../../hooks/usePagination'
+import { useStickyState } from '../../hooks/useStickyState'
 const fmtMonth = (m) => {
   if (!m) return '—'
   const [y, mm] = m.split('-')
@@ -20,22 +23,16 @@ const daysAgo = (iso) => {
   return Math.floor(ms / (1000 * 60 * 60 * 24))
 }
 
-// Date range presets
-const todayISO = () => new Date().toISOString().slice(0, 10)
+// Date range presets — all IST-based so the window aligns with the operator's
+// wall clock, not UTC.
+const todayISO = () => todayIST()
 const monthsAgo = (n) => {
   const d = new Date()
   d.setMonth(d.getMonth() - n)
-  return d.toISOString().slice(0, 10)
+  return toISTDate(d)
 }
-const startOfMonth = () => {
-  const d = new Date()
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10)
-}
-const startOfFy = () => {
-  const now = new Date()
-  const y = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1
-  return new Date(y, 3, 1).toISOString().slice(0, 10) // April 1
-}
+const startOfMonth = () => firstOfMonthIST()
+const startOfFy = () => startOfFYIST()
 
 const PRESETS = [
   { key: 'thisMonth', label: 'This Month', from: startOfMonth, to: todayISO },
@@ -72,14 +69,17 @@ const REPORT_TABS = [
   { key: 'sales', label: 'Sales Register', icon: Receipt, hasDateRange: true },
   { key: 'gst', label: 'GST Summary', icon: TrendingUp, hasDateRange: true },
   { key: 'outstanding', label: 'Customer Outstanding', icon: Users, hasDateRange: false },
+  { key: 'ageing', label: 'Ageing Analysis', icon: Clock, hasDateRange: false },
+  { key: 'yarn', label: 'Yarn Consumption', icon: Activity, hasDateRange: true },
+  { key: 'machine', label: 'Machine Utilisation', icon: Gauge, hasDateRange: true },
   { key: 'stock', label: 'Stock Register', icon: Package, hasDateRange: false },
   { key: 'purchase', label: 'Purchase Register', icon: ShoppingBag, hasDateRange: true },
 ]
 
 // ─── MAIN ────────────────────────────────────────────────────
 export default function ReportsPage() {
-  const [activeTab, setActiveTab] = useState('sales')
-  const [preset, setPreset] = useState('thisMonth')
+  const [activeTab, setActiveTab] = useStickyState('reports.activeTab', 'sales')
+  const [preset, setPreset] = useStickyState('reports.preset', 'thisMonth')
   const [from, setFrom] = useState(startOfMonth())
   const [to, setTo] = useState(todayISO())
   const [data, setData] = useState(null)
@@ -112,6 +112,12 @@ export default function ReportsPage() {
           result = await reports.gstSummary(range); break
         case 'outstanding':
           result = await reports.customerOutstanding(); break
+        case 'ageing':
+          result = await reports.ageing(); break
+        case 'yarn':
+          result = await reports.yarnConsumption(range); break
+        case 'machine':
+          result = await reports.machineUtilisation(range); break
         case 'stock':
           result = await reports.stockRegister(); break
         case 'purchase':
@@ -241,6 +247,9 @@ export default function ReportsPage() {
           {activeTab === 'sales' && <SalesRegister rows={Array.isArray(data) ? data : []} />}
           {activeTab === 'gst' && <GstSummary payload={data && !Array.isArray(data) ? data : null} />}
           {activeTab === 'outstanding' && <CustomerOutstanding rows={Array.isArray(data) ? data : []} />}
+          {activeTab === 'ageing' && <AgeingReport payload={data && !Array.isArray(data) ? data : null} />}
+          {activeTab === 'yarn' && <YarnConsumption payload={data && !Array.isArray(data) ? data : null} />}
+          {activeTab === 'machine' && <MachineUtilisation payload={data && !Array.isArray(data) ? data : null} />}
           {activeTab === 'stock' && <StockRegister rows={Array.isArray(data) ? data : []} />}
           {activeTab === 'purchase' && <PurchaseRegister rows={Array.isArray(data) ? data : []} />}
         </>
@@ -333,6 +342,10 @@ function SalesRegister({ rows }) {
 
 // ─── GST SUMMARY ─────────────────────────────────────────────
 function GstSummary({ payload }) {
+  // Hooks must run unconditionally — compute monthly with safe fallback first.
+  const monthly = payload?.monthly || []
+  const { pageData: gstPageData, currentPage: gstPage, totalPages: gstTotalPages, needsPagination: gstNeedsPagination, rangeLabel: gstRangeLabel, setCurrentPage: setGstPage } = usePagination(monthly)
+
   // Guard against stale data leaking from a previous tab (e.g. an empty array
   // from Sales Register before the GST fetch fires).
   if (!payload || !payload.summary) {
@@ -342,8 +355,7 @@ function GstSummary({ payload }) {
       </div>
     )
   }
-  const { summary, monthly } = payload
-  const { pageData: gstPageData, currentPage: gstPage, totalPages: gstTotalPages, needsPagination: gstNeedsPagination, rangeLabel: gstRangeLabel, setCurrentPage: setGstPage } = usePagination(monthly)
+  const { summary } = payload
 
   const exportCsv = () => {
     const csv = toCsv(monthly, [
@@ -627,6 +639,254 @@ function PurchaseRegister({ rows }) {
           </tbody>
         </table>
         {prNeedsPagination && <PaginationBar currentPage={prPage} totalPages={prTotalPages} rangeLabel={prRangeLabel} onPageChange={setPrPage} />}
+      </div>
+    </div>
+  )
+}
+
+// ─── AGEING REPORT ───────────────────────────────────────────
+function AgeingReport({ payload }) {
+  const rows = payload?.rows || []
+  const totals = payload?.totals || { total: 0, b0_30: 0, b31_60: 0, b61_90: 0, b90plus: 0 }
+  const asOf = payload?.asOf || todayIST()
+  const { pageData, currentPage, totalPages, needsPagination, rangeLabel, setCurrentPage } = usePagination(rows, 50)
+
+  const pct = (part) => totals.total > 0 ? Math.round((part / totals.total) * 100) : 0
+
+  const exportCsv = () => {
+    const csv = toCsv(rows, [
+      { label: 'Customer', value: r => r.firm_name },
+      { label: 'Phone', value: r => r.phone },
+      { label: 'Credit Limit', value: r => Number(r.credit_limit || 0).toFixed(2) },
+      { label: 'On Hold', value: r => r.credit_hold ? 'YES' : '' },
+      { label: 'Invoices', value: r => r.invoice_count },
+      { label: '0-30 days', value: r => Number(r.b0_30 || 0).toFixed(2) },
+      { label: '31-60 days', value: r => Number(r.b31_60 || 0).toFixed(2) },
+      { label: '61-90 days', value: r => Number(r.b61_90 || 0).toFixed(2) },
+      { label: '90+ days', value: r => Number(r.b90plus || 0).toFixed(2) },
+      { label: 'Total Outstanding', value: r => Number(r.total_outstanding || 0).toFixed(2) },
+      { label: 'Oldest (days)', value: r => r.oldest_days_past },
+    ])
+    downloadCsv(`ageing-${asOf}.csv`, csv)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="text-[12px] text-slate-500">
+          As of <span className="font-semibold text-slate-700">{asOf}</span> · {rows.length} customer{rows.length === 1 ? '' : 's'} with open balance
+        </div>
+        <Button variant="secondary" size="sm" onClick={exportCsv} disabled={!rows.length}>
+          <Download size={14} /> Export CSV
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <StatTile label="Total outstanding" value={fmtMoney(totals.total)} accent="indigo" />
+        <StatTile label={`0–30 days · ${pct(totals.b0_30)}%`} value={fmtMoney(totals.b0_30)} accent="info" />
+        <StatTile label={`31–60 days · ${pct(totals.b31_60)}%`} value={fmtMoney(totals.b31_60)} accent="info" />
+        <StatTile label={`61–90 days · ${pct(totals.b61_90)}%`} value={fmtMoney(totals.b61_90)} accent="amber" />
+        <StatTile label={`90+ days · ${pct(totals.b90plus)}%`} value={fmtMoney(totals.b90plus)} accent="amber" />
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200/80 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="text-left px-3 py-2">Customer</th>
+              <th className="text-right px-3 py-2">Invoices</th>
+              <th className="text-right px-3 py-2">0–30</th>
+              <th className="text-right px-3 py-2">31–60</th>
+              <th className="text-right px-3 py-2">61–90</th>
+              <th className="text-right px-3 py-2">90+</th>
+              <th className="text-right px-3 py-2">Total</th>
+              <th className="text-right px-3 py-2">Oldest</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pageData.length === 0 ? (
+              <tr><td colSpan={8} className="text-center py-10 text-slate-400">No outstanding invoices</td></tr>
+            ) : pageData.map((r) => (
+              <tr key={r.customer_id} className="border-t border-slate-100 hover:bg-slate-50">
+                <td className="px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <div className="font-medium text-slate-700 text-[13px]">{r.firm_name}</div>
+                    {r.credit_hold && <Badge variant="danger">HOLD</Badge>}
+                  </div>
+                  <div className="text-[11px] text-slate-400">{r.phone || ''}</div>
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">{r.invoice_count}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmtMoney(r.b0_30)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmtMoney(r.b31_60)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-amber-700">{fmtMoney(r.b61_90)}</td>
+                <td className="px-3 py-2 text-right tabular-nums font-semibold text-red-700">{fmtMoney(r.b90plus)}</td>
+                <td className="px-3 py-2 text-right tabular-nums font-semibold">{fmtMoney(r.total_outstanding)}</td>
+                <td className="px-3 py-2 text-right text-[12px] text-slate-500">{r.oldest_days_past}d</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {needsPagination && <PaginationBar currentPage={currentPage} totalPages={totalPages} rangeLabel={rangeLabel} onPageChange={setCurrentPage} />}
+      </div>
+    </div>
+  )
+}
+
+// ─── YARN CONSUMPTION ────────────────────────────────────────
+function YarnConsumption({ payload }) {
+  const rows = payload?.rows || []
+  const totals = payload?.totals || { actual: 0, std: 0, variance: 0, variance_pct: 0, value: 0 }
+  const { pageData, currentPage, totalPages, needsPagination, rangeLabel, setCurrentPage } = usePagination(rows, 50)
+
+  const exportCsv = () => {
+    const csv = toCsv(rows, [
+      { label: 'Yarn', value: r => r.yarn_name },
+      { label: 'Actual (kg)', value: r => Number(r.actual_qty || 0).toFixed(3) },
+      { label: 'Standard (kg)', value: r => Number(r.std_qty || 0).toFixed(3) },
+      { label: 'Variance (kg)', value: r => Number(r.variance_qty || 0).toFixed(3) },
+      { label: 'Variance %', value: r => Number(r.variance_pct || 0).toFixed(2) },
+      { label: 'Rate ₹/kg', value: r => Number(r.rate_per_kg || 0).toFixed(2) },
+      { label: 'Value ₹', value: r => Number(r.actual_value || 0).toFixed(2) },
+    ])
+    downloadCsv(`yarn-consumption-${todayIST()}.csv`, csv)
+  }
+
+  const varianceColor = (pct) => {
+    const a = Math.abs(pct || 0)
+    if (a > 15) return 'text-red-700'
+    if (a > 7) return 'text-amber-700'
+    return 'text-emerald-700'
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="text-[12px] text-slate-500">
+          Standard = production plans completed in period. Variance = actual consumption − standard.
+        </div>
+        <Button variant="secondary" size="sm" onClick={exportCsv} disabled={!rows.length}>
+          <Download size={14} /> Export CSV
+        </Button>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatTile label="Actual consumed" value={`${fmt(totals.actual)} kg`} accent="indigo" />
+        <StatTile label="Standard (expected)" value={`${fmt(totals.std)} kg`} accent="info" />
+        <StatTile label="Variance" value={`${totals.variance >= 0 ? '+' : ''}${fmt(totals.variance)} kg · ${(totals.variance_pct || 0).toFixed(1)}%`} accent="amber" />
+        <StatTile label="Value (actual)" value={fmtMoney(totals.value)} accent="indigo" />
+      </div>
+      <div className="bg-white rounded-2xl border border-slate-200/80 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="text-left px-3 py-2">Yarn</th>
+              <th className="text-right px-3 py-2">Actual (kg)</th>
+              <th className="text-right px-3 py-2">Std (kg)</th>
+              <th className="text-right px-3 py-2">Variance</th>
+              <th className="text-right px-3 py-2">Variance %</th>
+              <th className="text-right px-3 py-2">Rate ₹/kg</th>
+              <th className="text-right px-3 py-2">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pageData.length === 0 ? (
+              <tr><td colSpan={7} className="text-center py-10 text-slate-400">No consumption recorded in period</td></tr>
+            ) : pageData.map((r) => (
+              <tr key={r.yarn_type_id} className="border-t border-slate-100 hover:bg-slate-50">
+                <td className="px-3 py-2 text-[13px] text-slate-700">{r.yarn_name}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmt(r.actual_qty)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-slate-500">{fmt(r.std_qty)}</td>
+                <td className={`px-3 py-2 text-right tabular-nums font-semibold ${varianceColor(r.variance_pct)}`}>
+                  {r.variance_qty >= 0 ? '+' : ''}{fmt(r.variance_qty)}
+                </td>
+                <td className={`px-3 py-2 text-right tabular-nums font-semibold ${varianceColor(r.variance_pct)}`}>
+                  {(r.variance_pct || 0).toFixed(1)}%
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmtMoney(r.rate_per_kg)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{fmtMoney(r.actual_value)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {needsPagination && <PaginationBar currentPage={currentPage} totalPages={totalPages} rangeLabel={rangeLabel} onPageChange={setCurrentPage} />}
+      </div>
+    </div>
+  )
+}
+
+// ─── MACHINE UTILISATION ─────────────────────────────────────
+function MachineUtilisation({ payload }) {
+  const rows = payload?.rows || []
+  const { pageData, currentPage, totalPages, needsPagination, rangeLabel, setCurrentPage } = usePagination(rows, 50)
+
+  const exportCsv = () => {
+    const csv = toCsv(rows, [
+      { label: 'Machine', value: r => r.machine_name },
+      { label: 'Units', value: r => r.machine_count },
+      { label: 'Runs', value: r => r.runs },
+      { label: 'Hours run', value: r => Number(r.hours_run || 0).toFixed(1) },
+      { label: 'Hours available', value: r => Number(r.hours_available || 0).toFixed(1) },
+      { label: 'Util %', value: r => Number(r.util_pct || 0).toFixed(1) },
+      { label: 'Planned qty', value: r => Number(r.planned_qty || 0).toFixed(2) },
+      { label: 'Completed qty', value: r => Number(r.completed_qty || 0).toFixed(2) },
+      { label: 'Efficiency %', value: r => Number(r.efficiency_pct || 0).toFixed(1) },
+    ])
+    downloadCsv(`machine-utilisation-${todayIST()}.csv`, csv)
+  }
+
+  const utilColor = (pct) => {
+    if (pct >= 80) return 'bg-emerald-500'
+    if (pct >= 50) return 'bg-indigo-500'
+    if (pct >= 25) return 'bg-amber-500'
+    return 'bg-red-400'
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="text-[12px] text-slate-500">
+          Window: {payload?.from || '—'} → {payload?.to || '—'} · assumes 6-day week × 8h/day shift
+        </div>
+        <Button variant="secondary" size="sm" onClick={exportCsv} disabled={!rows.length}>
+          <Download size={14} /> Export CSV
+        </Button>
+      </div>
+      <div className="bg-white rounded-2xl border border-slate-200/80 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="text-left px-3 py-2">Machine</th>
+              <th className="text-right px-3 py-2">Units</th>
+              <th className="text-right px-3 py-2">Runs</th>
+              <th className="text-right px-3 py-2">Hours run</th>
+              <th className="text-right px-3 py-2">Available</th>
+              <th className="text-left px-3 py-2 w-40">Utilisation</th>
+              <th className="text-right px-3 py-2">Efficiency</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pageData.length === 0 ? (
+              <tr><td colSpan={7} className="text-center py-10 text-slate-400">No production runs in period</td></tr>
+            ) : pageData.map((r) => (
+              <tr key={r.machine_id} className="border-t border-slate-100 hover:bg-slate-50">
+                <td className="px-3 py-2 text-[13px] text-slate-700">{r.machine_name}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{r.machine_count}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{r.runs}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{Number(r.hours_run || 0).toFixed(1)}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-slate-500">{Number(r.hours_available || 0).toFixed(0)}</td>
+                <td className="px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div className={`h-full ${utilColor(r.util_pct)}`} style={{ width: `${Math.min(100, r.util_pct)}%` }} />
+                    </div>
+                    <span className="text-[11px] text-slate-500 tabular-nums w-10 text-right">{(r.util_pct || 0).toFixed(0)}%</span>
+                  </div>
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">{(r.efficiency_pct || 0).toFixed(0)}%</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {needsPagination && <PaginationBar currentPage={currentPage} totalPages={totalPages} rangeLabel={rangeLabel} onPageChange={setCurrentPage} />}
       </div>
     </div>
   )

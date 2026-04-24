@@ -7,3 +7,10 @@ _old_app_backup/
 .DS_Store
 e2e/.auth/
 .vercel
+.claude/
+playwright-report/
+test-results/
+test_screenshots/
+src/graphify-out/
+test_*.py
+tests/

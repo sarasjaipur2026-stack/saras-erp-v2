@@ -6,6 +6,7 @@ export default function UnitsPage() {
     <SimpleMasterPage
       title="Units"
       subtitle="units of measure"
+      cacheKey="units"
       api={units}
       defaults={{ name: '', symbol: '', unit_type: 'length', conversion_factor: 1, is_base_unit: false, is_active: true }}
       fields={[

@@ -134,6 +134,8 @@ async function fireWebhook(notification) {
     })
   } catch (err) {
     // Webhook failures must never break business flows, but log for debugging
-    console.warn('[fireWebhook] failed silently:', err?.message || err)
+    if (import.meta.env.DEV) {
+      console.warn('[fireWebhook] failed silently:', err?.message || err)
+    }
   }
 }

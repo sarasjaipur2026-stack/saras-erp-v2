@@ -6,6 +6,7 @@ export default function QualityParametersPage() {
     <SimpleMasterPage
       title="Quality Parameters"
       subtitle="QC checks"
+      cacheKey="qualityParameters"
       api={qualityParameters}
       defaults={{ name: '', is_mandatory: false, is_active: true }}
       fields={[

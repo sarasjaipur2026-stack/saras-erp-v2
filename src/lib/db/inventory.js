@@ -1,5 +1,7 @@
 import { supabase } from '../supabase'
-import { safe, createTable } from './core'
+import { safe, createTable, fetchAllPaged } from './core'
+import { toPaise, toRupees } from '../money'
+import { todayIST } from '../dates'
 
 // ─── STOCK MOVEMENTS ───────────────────────────────────────
 const stockMovementsBase = createTable('stock_movements', {
@@ -27,12 +29,38 @@ export const stockMovements = {
       .limit(500)
   ),
 
-  computeBalances: async () => {
-    const { data, error } = await supabase
-      .from('stock_movements')
-      .select('id, kind, quantity, unit, product_id, material_id, yarn_type_id, product_type_id, warehouse_id, created_at, products(name), materials(name), yarn_types(name), product_types(name), warehouses(name)')
-      .order('created_at', { ascending: true })
-      .limit(5000)
+  computeBalances: async ({ includeCustomerOwned = false } = {}) => {
+    // Ask Postgres to aggregate. Previous implementation paged through every
+    // movement and summed in JS — wire cost + latency scaled linearly with
+    // history. Server-side RPC returns final buckets in a single round trip.
+    // Default: exclude customer-owned inward-jobwork material so own-inventory
+    // reports don't inflate with material that belongs to a customer.
+    // Pass { includeCustomerOwned: true } for physical-warehouse views.
+    const { data, error } = await supabase.rpc('stock_balances', {
+      p_include_customer_owned: !!includeCustomerOwned,
+    })
+    if (error) {
+      // Fall back to client-side aggregation if the RPC is unavailable
+      // (e.g. stale schema, RLS issue) — keeps the UI working while alerting
+      // the operator instead of silently showing blank stock.
+      if (import.meta.env.DEV) console.error('[stockMovements.computeBalances] RPC failed, falling back', error)
+      return await stockMovementsFallback.computeBalances({ includeCustomerOwned })
+    }
+    return { data: data || [], error: null }
+  },
+}
+
+// Legacy paged fallback (only used if the RPC fails for some reason)
+const stockMovementsFallback = {
+  computeBalances: async ({ includeCustomerOwned = false } = {}) => {
+    const { data, error } = await fetchAllPaged((lo, hi) => {
+      let q = supabase
+        .from('stock_movements')
+        .select('id, kind, quantity, unit, product_id, material_id, yarn_type_id, product_type_id, warehouse_id, customer_owned, created_at, products(name), materials(name), yarn_types(name), product_types(name), warehouses(name)')
+        .order('created_at', { ascending: true })
+      if (!includeCustomerOwned) q = q.eq('customer_owned', false)
+      return q.range(lo, hi)
+    })
     if (error) return { data: null, error }
     const map = new Map()
     for (const m of data || []) {
@@ -89,31 +117,165 @@ export const purchaseOrders = {
       .limit(1000)
   ),
 
-  createWithItems: async ({ supplier_id, po_date, expected_date, notes, items }) => {
+  // PO line-level reconciliation — one row per outstanding PO item.
+  // Returns ordered / received / pending quantities so the purchase team can
+  // chase suppliers on what's still open. Closed (pending <= 0) lines are
+  // excluded unless includeClosed: true.
+  reconciliation: async ({ includeClosed = false } = {}) => {
+    try {
+      const { data, error } = await supabase
+        .from('purchase_order_items')
+        .select(
+          'id, quantity, quantity_received, unit, rate_per_unit, amount, yarn_types(name), purchase_orders!inner(id, po_number, po_date, expected_date, status, suppliers(firm, name))',
+        )
+        .limit(5000)
+      if (error) return { data: null, error }
+      const rows = (data || []).map((r) => {
+        const ordered = Number(r.quantity || 0)
+        const received = Number(r.quantity_received || 0)
+        const pending = Math.max(0, ordered - received)
+        const pct = ordered > 0 ? Math.round((received / ordered) * 100) : 0
+        const po = r.purchase_orders
+        return {
+          po_item_id: r.id,
+          po_id: po?.id,
+          po_number: po?.po_number,
+          po_date: po?.po_date,
+          expected_date: po?.expected_date,
+          po_status: po?.status,
+          supplier: po?.suppliers?.firm || po?.suppliers?.name || '—',
+          yarn: r.yarn_types?.name || '—',
+          unit: r.unit,
+          ordered,
+          received,
+          pending,
+          pct,
+          rate: Number(r.rate_per_unit || 0),
+          pending_value: pending * Number(r.rate_per_unit || 0),
+          overdue:
+            pending > 0 &&
+            po?.expected_date &&
+            new Date(po.expected_date) < new Date(),
+        }
+      })
+      const filtered = includeClosed ? rows : rows.filter((r) => r.pending > 0)
+      // Overdue first, then by expected_date asc, then by po_date desc
+      filtered.sort((a, b) => {
+        if (a.overdue !== b.overdue) return a.overdue ? -1 : 1
+        if (a.expected_date && b.expected_date) {
+          return new Date(a.expected_date) - new Date(b.expected_date)
+        }
+        return new Date(b.po_date || 0) - new Date(a.po_date || 0)
+      })
+      return { data: filtered, error: null }
+    } catch (error) {
+      return { data: null, error }
+    }
+  },
+
+  // gstType: 'intra_state' (CGST+SGST) or 'inter_state' (IGST). Derived from supplier.state_code if omitted.
+  // Per-item GST resolved from yarn_types.hsn_code_id → hsn_codes rates.
+  // HSN is MANDATORY — PO save is blocked if any yarn lacks an HSN mapping,
+  // preventing invoices from shipping with fallback-0% or wrong tax.
+  // Callers can set allowMissingHsn: true for legacy data migration only.
+  createWithItems: async ({ supplier_id, po_date, expected_date, notes, items, gstType, allowMissingHsn = false }) => {
     try {
       const { data: poNum, error: numErr } = await supabase.rpc('next_po_number')
       if (numErr) return { data: null, error: numErr }
 
-      const subtotal = (items || []).reduce(
-        (s, it) => s + Number(it.quantity || 0) * Number(it.rate_per_unit || 0),
-        0,
-      )
-      const gstRate = 12
-      const cgst = +(subtotal * (gstRate / 2) / 100).toFixed(2)
-      const sgst = +(subtotal * (gstRate / 2) / 100).toFixed(2)
-      const grand = +(subtotal + cgst + sgst).toFixed(2)
+      // Determine gstType from supplier state if caller didn't pass it
+      let resolvedGstType = gstType
+      if (!resolvedGstType && supplier_id) {
+        const { data: sup } = await supabase
+          .from('suppliers')
+          .select('state_code')
+          .eq('id', supplier_id)
+          .single()
+        if (sup?.state_code) {
+          resolvedGstType = sup.state_code === '08' ? 'intra_state' : 'inter_state'
+        }
+      }
+      const isIntra = resolvedGstType !== 'inter_state'
+
+      // Fetch per-yarn HSN rates in one shot
+      const yarnIds = (items || []).map(it => it.yarn_type_id).filter(Boolean)
+      const hsnRateByYarn = new Map()
+      const yarnNameById = new Map()
+      if (yarnIds.length) {
+        const { data: yarns } = await supabase
+          .from('yarn_types')
+          .select('id, name, hsn_code_id, hsn_codes(cgst_pct, sgst_pct, igst_pct)')
+          .in('id', yarnIds)
+        for (const y of yarns || []) {
+          yarnNameById.set(y.id, y.name)
+          const h = y.hsn_codes
+          if (h) {
+            hsnRateByYarn.set(y.id, {
+              cgst: Number(h.cgst_pct) || 0,
+              sgst: Number(h.sgst_pct) || 0,
+              igst: Number(h.igst_pct) || 0,
+            })
+          }
+        }
+      }
+
+      // Block PO save if any yarn is missing an HSN mapping
+      if (!allowMissingHsn) {
+        const missing = yarnIds.filter(id => !hsnRateByYarn.has(id))
+        if (missing.length > 0) {
+          const names = missing.map(id => yarnNameById.get(id) || id).join(', ')
+          return {
+            data: null,
+            error: new Error(`Cannot save PO — the following yarn(s) have no HSN code configured: ${names}. Set HSN on each yarn in Masters → Yarn Types before creating the PO.`),
+          }
+        }
+      }
+
+      // Compute per-line amounts + totals on the integer-paise grid so a 200-line PO
+      // reconciles exactly instead of drifting by ₹0.01 per row.
+      const DEFAULT_GST = 12 // legacy fallback only — allowMissingHsn=true path
+      let subtotalPaise = 0
+      let cgstPaise = 0
+      let sgstPaise = 0
+      let igstPaise = 0
+      const enrichedItems = (items || []).filter(it => it.yarn_type_id && Number(it.quantity) > 0).map(it => {
+        const qty = Number(it.quantity) || 0
+        const rate = Number(it.rate_per_unit) || 0
+        const amountPaise = toPaise(qty * rate)
+        const hsn = hsnRateByYarn.get(it.yarn_type_id)
+        const effectiveRate = hsn
+          ? (isIntra ? (hsn.cgst + hsn.sgst) : hsn.igst)
+          : DEFAULT_GST
+        const gstPaise = Math.round((amountPaise * effectiveRate) / 100)
+        subtotalPaise += amountPaise
+        if (isIntra) {
+          // Half-split in paise, remainder goes to SGST so cgst+sgst === total gst.
+          const half = Math.floor(gstPaise / 2)
+          cgstPaise += half
+          sgstPaise += gstPaise - half
+        } else {
+          igstPaise += gstPaise
+        }
+        return { it, amount: toRupees(amountPaise), gst_rate: effectiveRate, gst_amount: toRupees(gstPaise) }
+      })
+      const subtotal = toRupees(subtotalPaise)
+      const cgst = toRupees(cgstPaise)
+      const sgst = toRupees(sgstPaise)
+      const igst = toRupees(igstPaise)
+      const grand = toRupees(subtotalPaise + cgstPaise + sgstPaise + igstPaise)
 
       const { data: po, error: poErr } = await supabase
         .from('purchase_orders')
         .insert([{
           po_number: poNum,
           supplier_id,
-          po_date: po_date || new Date().toISOString().slice(0, 10),
+          po_date: po_date || todayIST(),
           expected_date: expected_date || null,
           status: 'issued',
           subtotal,
           cgst_amount: cgst,
           sgst_amount: sgst,
+          igst_amount: igst,
           grand_total: grand,
           notes: notes || null,
         }])
@@ -121,21 +283,21 @@ export const purchaseOrders = {
         .single()
       if (poErr) return { data: null, error: poErr }
 
-      if (items?.length) {
-        const rows = items
-          .filter(it => it.yarn_type_id && Number(it.quantity) > 0)
-          .map(it => ({
-            po_id: po.id,
-            yarn_type_id: it.yarn_type_id,
-            description: it.description || null,
-            quantity: Number(it.quantity) || 0,
-            unit: it.unit || 'kg',
-            rate_per_unit: Number(it.rate_per_unit) || 0,
-            amount: +(Number(it.quantity) * Number(it.rate_per_unit)).toFixed(2),
-          }))
-        if (rows.length) {
-          const { error: itemErr } = await supabase.from('purchase_order_items').insert(rows)
-          if (itemErr) return { data: po, error: itemErr }
+      if (enrichedItems.length) {
+        const rows = enrichedItems.map(({ it, amount }) => ({
+          po_id: po.id,
+          yarn_type_id: it.yarn_type_id,
+          description: it.description || null,
+          quantity: Number(it.quantity) || 0,
+          unit: it.unit || 'kg',
+          rate_per_unit: Number(it.rate_per_unit) || 0,
+          amount,
+        }))
+        const { error: itemErr } = await supabase.from('purchase_order_items').insert(rows)
+        if (itemErr) {
+          // Rollback header to avoid orphan
+          await supabase.from('purchase_orders').delete().eq('id', po.id)
+          return { data: null, error: itemErr }
         }
       }
       return { data: po, error: null }
@@ -179,7 +341,7 @@ export const goodsReceipts = {
       const { data: grnNum, error: numErr } = await supabase.rpc('next_grn_number')
       if (numErr) return { data: null, error: numErr }
 
-      const today = received_date || new Date().toISOString().slice(0, 10)
+      const today = received_date || todayIST()
       const { data: grn, error: grnErr } = await supabase
         .from('goods_receipts')
         .insert([{

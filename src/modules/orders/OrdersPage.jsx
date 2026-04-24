@@ -14,11 +14,15 @@ import {
   Trash2,
   Search,
   Loader,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { orders as ordersDb } from '../../lib/db';
+import { useRealtimeTable, markSelfWrite } from '../../hooks/useRealtimeTable';
+import { useStickyState } from '../../hooks/useStickyState';
 import {
   StatCard,
   DataTable,
@@ -37,28 +41,39 @@ const OrdersPage = () => {
   const { user } = useAuth();
   const toast = useToast();
 
+  // URL-driven filters — Dashboard StatCards + Ctrl+K palette deep-link here
+  // with ?status=<s>, ?filter=pending, or ?priority=urgent.
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('status') || 'all';
+  const virtualFilter = searchParams.get('filter'); // 'pending' = not draft/completed/cancelled
+  const priorityFilter = searchParams.get('priority'); // 'urgent' = overdue balance
   // State management
   const [ordersList, setOrdersList] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(0);
+  // Filters that persist across page reloads — per-user sticky state
+  const [pageSize, setPageSize] = useStickyState('orders.pageSize', 50);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ totalOrders: 0, activeOrders: 0, totalRevenue: 0, outstandingBalance: 0, overdue: 0 });
+  const [statusPipeline, setStatusPipeline] = useState({});
   const [selectedOrders, setSelectedOrders] = useState(new Set());
-  const [activeTab, setActiveTab] = useState('all');
-  const [dateRange, setDateRange] = useState('allTime');
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [dateRange, setDateRange] = useStickyState('orders.dateRange', 'allTime');
   const [customerFilter, setCustomerFilter] = useState('');
-  const [viewMode, setViewMode] = useState('allInfo');
+  const [viewMode, setViewMode] = useStickyState('orders.viewMode', 'allInfo');
   const [openMenuId, setOpenMenuId] = useState(null);
-  const statusPipeline = useMemo(() => {
-    const pipeline = {};
-    ordersList.forEach((order) => {
-      const status = (order.status || 'draft').toLowerCase();
-      pipeline[status] = (pipeline[status] || 0) + 1;
-    });
-    return pipeline;
-  }, [ordersList]);
   const [selectedStatus, setSelectedStatus] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [bulkStatusModal, setBulkStatusModal] = useState(false);
   const [bulkNewStatus, setBulkNewStatus] = useState('');
+
+  // Debounce the customer search input so each keystroke doesn't trigger a round trip
+  const [customerDebounced, setCustomerDebounced] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setCustomerDebounced(customerFilter), 300);
+    return () => clearTimeout(t);
+  }, [customerFilter]);
 
   const statuses = [
     'draft',
@@ -80,7 +95,7 @@ const OrdersPage = () => {
     { id: 'finance', label: 'Finance' },
   ];
 
-  // Calculate date range
+  // Calculate date range — returns ISO timestamps for server-side filter
   const getDateRange = (range) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -106,24 +121,83 @@ const OrdersPage = () => {
     }
   };
 
-  // Load orders
+  // Resolve the effective status to send to the server (tab OR pipeline chip)
+  const effectiveStatus = useMemo(() => {
+    if (selectedStatus) return selectedStatus;
+    return activeTab;
+  }, [activeTab, selectedStatus]);
+
+  // Load orders — server-side paginated + filtered
   const loadOrders = useCallback(async (showSpinner = true) => {
     if (!user?.id) return;
     try {
       if (showSpinner) setLoading(true);
-      const { data, error } = await ordersDb.list(user.id);
+      const { start, end } = getDateRange(dateRange);
+      const { data, count, error } = await ordersDb.listPaged({
+        page,
+        pageSize,
+        status: effectiveStatus,
+        customerTerm: customerDebounced,
+        dateFrom: start ? start.toISOString() : undefined,
+        dateTo: end ? end.toISOString() : undefined,
+        pending: virtualFilter === 'pending',
+        urgent: priorityFilter === 'urgent',
+      });
       if (error) throw error;
       setOrdersList(data || []);
+      setTotalCount(count || 0);
     } catch (error) {
       toast.error('Failed to load orders');
       if (import.meta.env.DEV) console.error('Error loading orders:', error);
     } finally {
       setLoading(false);
     }
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user?.id, page, pageSize, effectiveStatus, customerDebounced, dateRange, virtualFilter, priorityFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load on mount
+  // Summary stats + status pipeline counts — unaffected by current page
+  const loadSummary = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const [sRes, cRes] = await Promise.all([
+        ordersDb.summary(),
+        ordersDb.statusCounts(),
+      ]);
+      if (sRes?.data) setStats(sRes.data);
+      if (cRes?.data) setStatusPipeline(cRes.data);
+    } catch (error) {
+      if (import.meta.env.DEV) console.error('Error loading summary:', error);
+    }
+  }, [user?.id]);
+
+  // Reset to page 0 whenever any server-side filter changes
+  // (page stays stable when only ordersList refetches for the same filters).
+  const prevFilterKey = useRef('');
+  useEffect(() => {
+    const key = JSON.stringify({ effectiveStatus, customerDebounced, dateRange, virtualFilter, priorityFilter, pageSize });
+    if (prevFilterKey.current && prevFilterKey.current !== key && page !== 0) {
+      setPage(0);
+    }
+    prevFilterKey.current = key;
+  }, [effectiveStatus, customerDebounced, dateRange, virtualFilter, priorityFilter, pageSize, page]);
+
+  // Load on mount and whenever paged filters change
   useEffect(() => { loadOrders(); }, [loadOrders]);
+  useEffect(() => { loadSummary(); }, [loadSummary]);
+
+  // Live sync — another device creates/updates/deletes an order, this list
+  // refetches silently (debounced). Also catches status changes from the
+  // Kanban or detail page without needing a manual refresh. Summary too.
+  // If the change wasn't our own echo, show a toast so operators know the
+  // data updated under their feet.
+  useRealtimeTable('orders', (payload) => {
+    loadOrders(false);
+    loadSummary();
+    if (payload && !payload.isEcho) {
+      const evt = payload.eventType === 'DELETE' ? 'deleted' : payload.eventType === 'INSERT' ? 'created' : 'updated'
+      const num = payload.new?.order_number || payload.old?.order_number || ''
+      toast.info?.(`Order ${num} ${evt} by another user`, { duration: 3000 }) || toast.success(`Order ${num} ${evt}`)
+    }
+  });
 
   // Re-fetch silently when tab regains focus after 5+ min idle
   useEffect(() => {
@@ -141,51 +215,11 @@ const OrdersPage = () => {
     return () => document.removeEventListener('visibilitychange', handler);
   }, [loadOrders]);
 
-  // Derived: filtered orders (computed, not stored in state)
-  const filteredOrders = useMemo(() => {
-    let filtered = ordersList;
+  // Server already applied all filters — rendered rows = ordersList
+  const filteredOrders = ordersList;
 
-    if (activeTab !== 'all') {
-      filtered = filtered.filter((order) => (order.status || 'draft').toLowerCase() === activeTab);
-    }
-    if (selectedStatus) {
-      filtered = filtered.filter((order) => order.status === selectedStatus);
-    }
-    if (dateRange && dateRange !== 'custom') {
-      const { start, end } = getDateRange(dateRange);
-      if (start && end) {
-        filtered = filtered.filter((order) => {
-          const orderDate = new Date(order.created_at);
-          return orderDate >= start && orderDate <= end;
-        });
-      }
-    }
-    if (customerFilter) {
-      const term = customerFilter.toLowerCase();
-      filtered = filtered.filter(
-        (order) =>
-          order.customers?.contact_name?.toLowerCase().includes(term) ||
-          order.customers?.firm_name?.toLowerCase().includes(term)
-      );
-    }
-    return filtered;
-  }, [ordersList, activeTab, selectedStatus, dateRange, customerFilter]);
-
-  // Derived: statistics (computed from ordersList)
-  const stats = useMemo(() => {
-    const now = new Date();
-    const activeStatuses = new Set(['production', 'qc', 'dispatch']);
-    let activeOrders = 0, totalRevenue = 0, outstandingBalance = 0, overdue = 0;
-
-    for (const o of ordersList) {
-      const status = (o.status || 'draft').toLowerCase();
-      if (activeStatuses.has(status)) activeOrders++;
-      totalRevenue += o.grand_total || 0;
-      outstandingBalance += o.balance_due || 0;
-      if (o.delivery_date_1 && new Date(o.delivery_date_1) < now && status !== 'completed') overdue++;
-    }
-    return { totalOrders: ordersList.length, activeOrders, totalRevenue, outstandingBalance, overdue };
-  }, [ordersList]);
+  // Total pages from server count
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   // Handle bulk actions
   const [bulkUpdating, setBulkUpdating] = useState(false);
@@ -196,6 +230,7 @@ const OrdersPage = () => {
     setBulkUpdating(true);
     try {
       const orderIds = Array.from(selectedOrders);
+      markSelfWrite('orders');
       const results = await Promise.allSettled(orderIds.map(id => ordersDb.updateStatus(id, bulkNewStatus)));
       const failed = results.filter(r => r.status === 'rejected' || r.value?.error);
       if (failed.length > 0) {
@@ -205,8 +240,7 @@ const OrdersPage = () => {
       }
       setSelectedOrders(new Set());
       setBulkStatusModal(false);
-      const { data } = await ordersDb.list(user.id);
-      setOrdersList(data || []);
+      await Promise.all([loadOrders(false), loadSummary()]);
     } catch (error) {
       toast.error('Failed to update orders');
       if (import.meta.env.DEV) console.error('Error:', error);
@@ -265,14 +299,14 @@ const OrdersPage = () => {
 
     setDeleting(true);
     try {
+      markSelfWrite('orders');
       const { error } = await ordersDb.delete(deleteTarget);
       if (error) throw error;
       toast.success('Order deleted');
       setShowDeleteModal(false);
       setDeleteTarget(null);
       setDeleteWarnings([]);
-      const { data } = await ordersDb.list(user.id);
-      setOrdersList(data || []);
+      await Promise.all([loadOrders(false), loadSummary()]);
     } catch (error) {
       toast.error(error?.message || 'Failed to delete order');
       if (import.meta.env.DEV) console.error('Error:', error);
@@ -656,6 +690,65 @@ const OrdersPage = () => {
           data={filteredOrders}
           onRowClick={handleRowClick}
         />
+
+        {/* Pagination footer */}
+        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 text-sm">
+          <div className="flex items-center gap-3 text-slate-600">
+            <span>
+              {totalCount === 0
+                ? '0 results'
+                : `${page * pageSize + 1}–${Math.min((page + 1) * pageSize, totalCount)} of ${totalCount}`}
+            </span>
+            <Select
+              value={String(pageSize)}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value) || 50);
+                setPage(0);
+              }}
+              options={[
+                { value: '25', label: '25 / page' },
+                { value: '50', label: '50 / page' },
+                { value: '100', label: '100 / page' },
+                { value: '200', label: '200 / page' },
+              ]}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              disabled={page === 0}
+              onClick={() => setPage(0)}
+              className="px-2 py-1 rounded border border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+              title="First page"
+            >
+              «
+            </button>
+            <button
+              disabled={page === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              className="px-2 py-1 rounded border border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 inline-flex items-center gap-1"
+            >
+              <ChevronLeft size={14} /> Prev
+            </button>
+            <span className="px-2 text-slate-500">
+              Page {page + 1} of {totalPages}
+            </span>
+            <button
+              disabled={page + 1 >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              className="px-2 py-1 rounded border border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 inline-flex items-center gap-1"
+            >
+              Next <ChevronRight size={14} />
+            </button>
+            <button
+              disabled={page + 1 >= totalPages}
+              onClick={() => setPage(totalPages - 1)}
+              className="px-2 py-1 rounded border border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+              title="Last page"
+            >
+              »
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Delete Modal */}

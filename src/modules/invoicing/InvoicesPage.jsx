@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { invoices, orders as ordersApi } from '../../lib/db'
 import { useToast } from '../../contexts/ToastContext'
 import { usePagination } from '../../hooks/usePagination'
+import { useRealtimeTable, markSelfWrite } from '../../hooks/useRealtimeTable'
 import { Button, Modal, Badge, Input, PaginationBar } from '../../components/ui'
 import { FileText, Plus, Search } from 'lucide-react'
 import { fmtMoney, fmtDate } from '../../lib/format'
@@ -40,6 +42,28 @@ export default function InvoicesPage() {
   }
   useEffect(() => { load() }, [])
 
+  // Realtime: another tab created/issued an invoice — silent refresh + toast
+  useRealtimeTable('invoices', (payload) => {
+    load()
+    if (payload && !payload.isEcho) {
+      const evt = payload.eventType === 'INSERT' ? 'created' : payload.eventType === 'DELETE' ? 'deleted' : 'updated'
+      const num = payload.new?.invoice_number || payload.old?.invoice_number || ''
+      toast.info?.(`Invoice ${num} ${evt} by another user`, { duration: 2500 })
+    }
+  }, { debounceMs: 800 })
+
+  // Honor ?new=1 from Ctrl+K palette — auto-open the create-invoice flow.
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      openCreate()
+      const next = new URLSearchParams(searchParams)
+      next.delete('new')
+      setSearchParams(next, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const openCreate = async () => {
     try {
       const { data, error } = await ordersApi.getAll()
@@ -55,12 +79,13 @@ export default function InvoicesPage() {
   const create = async () => {
     if (!picked) return
     try {
+      markSelfWrite('invoices')
       const { data, error } = await invoices.createFromOrder(picked)
       if (error) { toast.error(error.message || 'Invoice creation failed'); return }
       toast.success(`Invoice ${data.invoice_number} created`)
       setShowCreate(false)
       load()
-    } catch (err) {
+    } catch {
       toast.error('Invoice creation failed — check connection')
     }
   }

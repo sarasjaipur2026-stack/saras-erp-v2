@@ -17,6 +17,7 @@ export default function ChargeTypesPage() {
   const emptyForm = { name: '', scope: 'per_order', default_amount: '', is_taxable: false, is_active: true }
   const [form, setForm] = useState(emptyForm)
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (user?.id) fetchData() }, [user?.id])
 
   const fetchData = async () => {
@@ -47,12 +48,19 @@ export default function ChargeTypesPage() {
     setSaving(false)
   }
 
-  const handleDelete = async (e, id) => {
+  const handleDelete = async (e, id, row) => {
     e.stopPropagation()
-    if (!confirm('Delete this charge type?')) return
-    const { error } = await chargeTypes.delete(id)
-    if (error) toast.error('Failed to delete')
-    else { toast.success('Charge type deleted'); fetchData() }
+    setList(prev => prev.filter(c => c.id !== id))
+    let cancelled = false
+    setTimeout(async () => {
+      if (cancelled) return
+      const { error } = await chargeTypes.delete(id)
+      if (error) { toast.error(error.message || 'Failed to delete'); fetchData() }
+    }, 6000)
+    toast.action(`${row?.name || 'Charge type'} removed`, {
+      label: 'Undo', duration: 6000,
+      onClick: () => { cancelled = true; setList(prev => [...prev, row]) },
+    })
   }
 
   const filtered = list.filter(c =>
@@ -68,7 +76,7 @@ export default function ChargeTypesPage() {
     { key: 'actions', label: '', render: (_, r) => (
       <div className="flex gap-0.5">
         <button onClick={() => openModal(r)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors"><Edit2 size={14} /></button>
-        <button onClick={(e) => handleDelete(e, r.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+        <button onClick={(e) => handleDelete(e, r.id, r)} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
       </div>
     )},
   ]

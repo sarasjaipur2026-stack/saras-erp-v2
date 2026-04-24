@@ -1,6 +1,7 @@
 import { supabase } from '../supabase'
 import { safe, createTable } from './core'
 import { notifications } from './notifications'
+import { todayIST } from '../dates'
 
 // ─── INVOICES ──────────────────────────────────────────────
 const invoicesBase = createTable('invoices', {
@@ -23,11 +24,19 @@ export const invoices = {
       const { data: numResult, error: numErr } = await supabase.rpc('next_invoice_number')
       if (numErr) return { data: null, error: numErr }
 
+      // Use server-side single-source-of-truth for paid/balance. The
+      // orders.advance_paid column has had drift issues when payments fail
+      // halfway; the view always derives from the payments table directly.
+      const { data: fin } = await supabase.rpc('order_financials', { p_order_id: order.id })
+      const finRow = Array.isArray(fin) ? fin[0] : fin
+      const totalPaid = Number(finRow?.total_paid || 0)
+      const balanceDue = Number(finRow?.balance_due || 0)
+
       const payload = {
         invoice_number: numResult,
         order_id: order.id,
         customer_id: order.customer_id,
-        invoice_date: new Date().toISOString().slice(0, 10),
+        invoice_date: todayIST(),
         due_date: order.payment_due_date,
         subtotal: order.taxable_amount || order.subtotal || 0,
         cgst_amount: order.cgst_amount || 0,
@@ -35,9 +44,9 @@ export const invoices = {
         igst_amount: order.igst_amount || 0,
         total_tax: (order.cgst_amount || 0) + (order.sgst_amount || 0) + (order.igst_amount || 0),
         grand_total: order.grand_total || 0,
-        amount_paid: order.advance_paid || 0,
-        balance_due: (order.grand_total || 0) - (order.advance_paid || 0),
-        status: 'issued',
+        amount_paid: totalPaid,
+        balance_due: balanceDue,
+        status: balanceDue <= 0 ? 'paid' : totalPaid > 0 ? 'partially_paid' : 'issued',
       }
       return await safe(() => supabase.from('invoices').insert([payload]).select().single())
     } catch (error) {
@@ -53,43 +62,44 @@ export const payments = {
     select: '*, orders(order_number, grand_total, customers(firm_name)), banks(bank_name)',
   }),
 
+  // Atomic payment recording via apply_payment_atomic RPC.
+  // Server acquires SELECT FOR UPDATE on the order row — eliminates the TOCTOU race
+  // that existed when two tellers recorded payments against the same order concurrently.
+  // The RPC inserts the payment, updates orders.advance_paid/balance_due/status,
+  // all in one transaction. Invoice-sync + notification stay client-side (non-critical).
   record: async ({ order_id, amount, payment_mode, payment_date, reference_number, bank_id, notes }) => {
     try {
-      // Validate amount
       const numAmount = Number(amount)
       if (!numAmount || numAmount <= 0) return { data: null, error: new Error('Amount must be greater than zero') }
 
-      // Re-read order state immediately before inserting to minimise race window
-      const { data: order, error: oErr } = await supabase
+      const { data: paymentRow, error: rpcErr } = await supabase.rpc('apply_payment_atomic', {
+        p_payment: {
+          order_id,
+          amount: numAmount,
+          payment_mode,
+          payment_date: payment_date || todayIST(),
+          reference_number: reference_number || null,
+          bank_id: bank_id || null,
+          notes: notes || null,
+        },
+      })
+      if (rpcErr) return { data: null, error: rpcErr }
+
+      // Post-payment: refresh invoice snapshot from the order_financials view
+      // so paid/balance always matches the authoritative payments table.
+      const { data: orderAfter } = await supabase
         .from('orders')
-        .select('grand_total, advance_paid, balance_due, status')
+        .select('order_number, customers(firm_name)')
         .eq('id', order_id)
         .single()
-      if (oErr) return { data: null, error: oErr }
 
-      // Guard: prevent overpayment
-      if (numAmount > Number(order.balance_due || 0) + 0.01) {
-        return { data: null, error: new Error(`Amount ₹${numAmount} exceeds balance due ₹${order.balance_due}`) }
-      }
-
-      const { data: inserted, error: pErr } = await supabase.from('payments').insert([{
-        order_id, amount: numAmount, payment_mode, payment_date, reference_number, bank_id, notes,
-      }]).select().single()
-      if (pErr) return { data: null, error: pErr }
-
-      // Recalculate from ALL payments (source-of-truth) to stay consistent even under concurrency
-      const { data: allPayments } = await supabase.from('payments').select('amount').eq('order_id', order_id).limit(500)
-      const totalPaid = (allPayments || []).reduce((s, p) => s + Number(p.amount || 0), 0)
-      const newBalance = Math.max(0, Number(order.grand_total || 0) - totalPaid)
-      const newStatus = newBalance <= 0 ? 'completed' : undefined
-      const updates = { advance_paid: totalPaid, balance_due: newBalance }
-      if (newStatus) updates.status = newStatus
-      const { error: orderUpdateErr } = await supabase.from('orders').update(updates).eq('id', order_id)
-      if (orderUpdateErr && import.meta.env.DEV) console.error('[payments.record] order update failed', orderUpdateErr)
+      const { data: fin } = await supabase.rpc('order_financials', { p_order_id: order_id })
+      const finRow = Array.isArray(fin) ? fin[0] : fin
+      const totalPaid = Number(finRow?.total_paid || 0)
+      const invBalance = Number(finRow?.balance_due || 0)
 
       const { data: inv } = await supabase.from('invoices').select('id, grand_total').eq('order_id', order_id).maybeSingle()
       if (inv) {
-        const invBalance = Math.max(0, Number(inv.grand_total || 0) - totalPaid)
         const invStatus = invBalance <= 0 ? 'paid' : totalPaid > 0 ? 'partially_paid' : 'issued'
         await supabase.from('invoices').update({
           amount_paid: totalPaid,
@@ -99,15 +109,10 @@ export const payments = {
       }
 
       try {
-        const { data: orderRow } = await supabase
-          .from('orders')
-          .select('order_number, customers(firm_name)')
-          .eq('id', order_id)
-          .single()
         notifications.emit({
           type: 'payment_received',
           title: `Payment received · ₹${numAmount.toLocaleString('en-IN')}`,
-          message: `${orderRow?.customers?.firm_name || 'Customer'} · ${orderRow?.order_number || ''} · balance ₹${newBalance.toLocaleString('en-IN')}`,
+          message: `${orderAfter?.customers?.firm_name || 'Customer'} · ${orderAfter?.order_number || ''} · balance ₹${invBalance.toLocaleString('en-IN')}`,
           entity_type: 'order',
           entity_id: order_id,
         }).catch(() => {})
@@ -115,7 +120,7 @@ export const payments = {
         // Notification failures must never break the payment flow
       }
 
-      return { data: inserted, error: null }
+      return { data: paymentRow, error: null }
     } catch (error) {
       return { data: null, error }
     }
@@ -130,32 +135,22 @@ export const payments = {
       .limit(200)
   ),
 
+  // Single source of truth for order balance — reads the server-side view
+  // that joins orders + payments. No longer uses orders.advance_paid (which
+  // had drift issues) or caps payments to 500 rows.
   getOrderBalance: async (orderId) => {
     try {
-      const { data: order, error: orderErr } = await supabase
-        .from('orders')
-        .select('grand_total, advance_paid, balance_due')
-        .eq('id', orderId)
-        .single()
-      if (orderErr || !order) return { data: null, error: orderErr }
-
-      const { data: pmts, error: paymentsErr } = await supabase
-        .from('payments')
-        .select('amount')
-        .eq('order_id', orderId)
-        .limit(500)
-      if (paymentsErr) return { data: null, error: paymentsErr }
-
-      const totalPaid = (pmts || []).reduce((sum, p) => sum + (p.amount || 0), 0)
-      const balance = (order.grand_total || 0) - totalPaid
-
+      const { data, error } = await supabase.rpc('order_financials', { p_order_id: orderId })
+      if (error) return { data: null, error }
+      const row = Array.isArray(data) ? data[0] : data
+      if (!row) return { data: null, error: new Error('Order not found') }
       return {
         data: {
-          grandTotal: order.grand_total,
-          advancePaid: order.advance_paid,
-          totalPayments: totalPaid,
-          balance,
-          balanceDue: order.balance_due,
+          grandTotal: Number(row.grand_total || 0),
+          totalPayments: Number(row.total_paid || 0),
+          balance: Number(row.balance_due || 0),
+          balanceDue: Number(row.balance_due || 0),
+          customerCredit: Number(row.customer_credit || 0),
         },
         error: null,
       }

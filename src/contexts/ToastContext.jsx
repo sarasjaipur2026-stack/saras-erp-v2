@@ -1,14 +1,14 @@
 import { createContext, useContext, useState, useCallback, useMemo } from 'react'
-import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react'
+import { X, CheckCircle, AlertCircle, Info, AlertTriangle, Undo2 } from 'lucide-react'
 
 const ToastContext = createContext()
 
 export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([])
 
-  const addToast = useCallback((message, type = 'info', duration = 3500) => {
+  const addToast = useCallback((message, type = 'info', duration = 3500, action = null) => {
     const id = crypto.randomUUID()
-    setToasts(prev => [...prev, { id, message, type }])
+    setToasts(prev => [...prev, { id, message, type, action }])
     if (duration > 0) {
       setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), duration)
     }
@@ -24,8 +24,21 @@ export const ToastProvider = ({ children }) => {
   const error = useCallback((msg) => addToast(msg, 'error'), [addToast])
   const warning = useCallback((msg) => addToast(msg, 'warning'), [addToast])
   const info = useCallback((msg) => addToast(msg, 'info'), [addToast])
+  // Toast with an inline Undo button — preferred over confirm() for destructive
+  // actions. Operator can "un-delete" for `duration` ms after the action fires.
+  // Usage: toast.action('Customer removed', { label: 'Undo', onClick: restoreFn })
+  const action = useCallback((msg, opts = {}) => {
+    const duration = opts.duration ?? 6000
+    return addToast(msg, opts.type || 'info', duration, {
+      label: opts.label || 'Undo',
+      onClick: opts.onClick,
+    })
+  }, [addToast])
 
-  const value = useMemo(() => ({ addToast, removeToast, success, error, warning, info }), [addToast, removeToast, success, error, warning, info])
+  const value = useMemo(
+    () => ({ addToast, removeToast, success, error, warning, info, action }),
+    [addToast, removeToast, success, error, warning, info, action],
+  )
 
   return (
     <ToastContext.Provider value={value}>
@@ -54,6 +67,15 @@ const ToastContainer = ({ toasts, onRemove }) => (
         >
           <Icon size={18} className={style.text} />
           <span className={`text-sm font-medium flex-1 ${style.text}`}>{toast.message}</span>
+          {toast.action && (
+            <button
+              onClick={() => { toast.action.onClick?.(); onRemove(toast.id) }}
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold hover:bg-black/5 transition-colors ${style.text}`}
+            >
+              <Undo2 size={12} />
+              {toast.action.label}
+            </button>
+          )}
           <button
             onClick={() => onRemove(toast.id)}
             className="p-0.5 rounded hover:bg-black/5 transition-colors"
@@ -66,6 +88,7 @@ const ToastContainer = ({ toasts, onRemove }) => (
   </div>
 )
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useToast = () => {
   const ctx = useContext(ToastContext)
   if (!ctx) throw new Error('useToast must be used within ToastProvider')

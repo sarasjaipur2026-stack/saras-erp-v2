@@ -69,7 +69,8 @@ const defaultState = () => ({
 })
 
 // ─── CALCULATION ─────────────────────────────────────────────
-function calculate(state, masters) {
+function calculate(state, _masters) {
+  void _masters
   const { sample, waste_pct, order_meters, order_kgs, covering_yarns, filler_yarns,
     labor_per_kg, overhead_per_kg, profit_pct, speed_m_per_min, machines_count,
     efficiency_pct, actual_sell_per_kg } = state
@@ -307,7 +308,6 @@ export default function CalculatorPage() {
         .slice(0, 4) // max 4 default steps
       return { ...s, processes: defaults.map(p => emptyProcessRow(p)) }
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- functional setState reads current state
   }, [processTypes])
 
   // Auto-fill carriers when machine selected
@@ -366,9 +366,15 @@ export default function CalculatorPage() {
   }))
 
   const reset = () => {
-    if (!confirm('Clear all inputs and start fresh?')) return
+    // Snapshot-and-undo: no modal confirm. User can restore previous state
+    // from the toast within 6s. Preferred over confirm() — one click to reset,
+    // one click to undo if mistaken.
+    const prev = state
     setState(defaultState())
-    toast.success('Calculator reset')
+    toast.action('Calculator reset', {
+      label: 'Undo', duration: 6000,
+      onClick: () => setState(prev),
+    })
   }
 
   const saveProfile = async () => {

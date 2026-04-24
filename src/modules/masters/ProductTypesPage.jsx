@@ -8,6 +8,7 @@ export default function ProductTypesPage() {
     <SimpleMasterPage
       title="Product Types"
       subtitle="product types"
+      cacheKey="productTypes"
       api={productTypes}
       defaults={{ name: '', code: '', category: 'round_cord', requires_filler: false, default_waste_pct: 5, is_active: true }}
       fields={[

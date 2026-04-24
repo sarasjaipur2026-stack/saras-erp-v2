@@ -59,7 +59,6 @@ export function AuthProvider({ children }) {
         setLoading(false)
       }
     }).catch((err) => {
-      // eslint-disable-next-line no-console -- visible in production for debugging auth issues
       console.warn('Auth init failed, falling back to unauthenticated:', err?.message)
       if (mounted) setLoading(false)
     })
@@ -103,31 +102,35 @@ export function AuthProvider({ children }) {
     }
   }, [fetchProfile])
 
-  const signIn = async (email, password) => {
+  const signIn = useCallback(async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) return { error }
     setUser(data.user)
     await fetchProfile(data.user.id)
     return { data }
-  }
+  }, [fetchProfile])
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut()
     setUser(null)
     setProfile(null)
-  }
+  }, [])
 
-  const createUser = async (email, password, fullName, role = 'staff') => {
+  const createUser = useCallback(async (email, password, fullName, role = 'staff') => {
     const { data, error } = await supabase.auth.signUp({
       email, password,
       options: { data: { full_name: fullName, role } }
     })
     return { data, error }
-  }
+  }, [])
 
   const isAdmin = profile?.role === 'admin'
-  const isStaff = profile?.role === 'staff' || isAdmin
+  const isManager = profile?.role === 'manager' || isAdmin
+  const isStaff = profile?.role === 'staff' || isManager
   const isViewer = profile?.role === 'viewer'
+  // Can manage = admin + manager — the set that can override credit blocks,
+  // toggle credit hold, delete, etc. Mirrors can_manage() RLS helper.
+  const canManage = isManager
 
   // hasPermission(module)           -> true if the user can access the module at all (for sidebar filtering)
   // hasPermission(module, action)   -> true if the user can perform that specific action
@@ -165,9 +168,9 @@ export function AuthProvider({ children }) {
   const value = useMemo(() => ({
     user, profile, loading,
     signIn, signOut, createUser,
-    isAdmin, isStaff, isViewer,
+    isAdmin, isManager, isStaff, isViewer, canManage,
     hasPermission, fetchProfile
-  }), [user, profile, loading, signIn, signOut, createUser, isAdmin, isStaff, isViewer, hasPermission, fetchProfile])
+  }), [user, profile, loading, signIn, signOut, createUser, isAdmin, isManager, isStaff, isViewer, canManage, hasPermission, fetchProfile])
 
   return (
     <AuthContext.Provider value={value}>
@@ -176,6 +179,7 @@ export function AuthProvider({ children }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be used within AuthProvider')
