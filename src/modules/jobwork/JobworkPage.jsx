@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { jobworkJobs } from '../../lib/db'
 import { useApp } from '../../contexts/AppContext'
 import { useToast } from '../../contexts/ToastContext'
@@ -11,6 +11,8 @@ import { fmt, fmtMoney, fmtDate } from '../../lib/format'
 import { todayIST } from '../../lib/dates'
 import { usePagination } from '../../hooks/usePagination'
 import { useRealtimeTable, markSelfWrite } from '../../hooks/useRealtimeTable'
+import { useSWRList, invalidateSWR } from '../../hooks/useSWRList'
+import { perfMark } from '../../lib/perfMark'
 
 const STATUS = {
   pending: { variant: 'default', label: 'Pending' },
@@ -40,35 +42,25 @@ export default function JobworkPage() {
   const toast = useToast()
   const { customers, suppliers, yarnTypes, productTypes } = useApp()
   const [direction, setDirection] = useState('inward')
-  const [list, setList] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [loadError, setLoadError] = useState(null)
   const [search, setSearch] = useState('')
-
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState(null)
-
   const [detail, setDetail] = useState(null)
   const [addItemKind, setAddItemKind] = useState(null)
   const [addItemForm, setAddItemForm] = useState({ yarn_type_id: '', product_type_id: '', quantity: 0, unit: 'kg' })
 
-  const load = async () => {
-    setLoading(true)
-    setLoadError(null)
-    try {
-      const res = await jobworkJobs.getAll()
+  const { data: list = [], loading, error: loadError, refetch: load } = useSWRList(
+    'jobwork.getAll',
+    async () => {
+      const res = await perfMark('jobworkJobs.getAll', () => jobworkJobs.getAll())
       if (res?.error) throw res.error
-      setList(res?.data || [])
-    } catch (err) {
-      setLoadError(err?.message || String(err))
-    } finally {
-      setLoading(false)
-    }
-  }
-  useEffect(() => { load() }, [])
+      return res?.data || []
+    },
+  )
 
   // Realtime: another device posted yarn in / finished out — refresh live + toast
   useRealtimeTable('jobwork_jobs', (payload) => {
+    invalidateSWR("jobwork.getAll");
     load()
     if (payload && !payload.isEcho) {
       const num = payload.new?.job_number || payload.old?.job_number || ''
@@ -77,6 +69,7 @@ export default function JobworkPage() {
     }
   }, { debounceMs: 800 })
   useRealtimeTable('jobwork_items', (payload) => {
+    invalidateSWR("jobwork.getAll");
     load()
     if (payload && !payload.isEcho) {
       toast.info?.('Jobwork item posted by another user', { duration: 2000 })
@@ -162,6 +155,7 @@ export default function JobworkPage() {
       }
       toast.success(`Jobwork ${data.job_number} created`)
       setShowCreate(false)
+    invalidateSWR("jobwork.getAll");
       load()
     } catch {
       toast.error('Jobwork creation failed — check connection')
@@ -199,6 +193,7 @@ export default function JobworkPage() {
       setAddItemKind(null)
       const res = await jobworkJobs.get(detail.id)
       if (res?.data) setDetail(res.data)
+    invalidateSWR("jobwork.getAll");
       load()
     } catch {
       toast.error('Add item failed — check connection')
@@ -215,6 +210,7 @@ export default function JobworkPage() {
         const res = await jobworkJobs.get(job.id)
         if (res?.data) setDetail(res.data)
       }
+    invalidateSWR("jobwork.getAll");
       load()
     } catch {
       toast.error('Mark completed failed — check connection')
@@ -239,7 +235,7 @@ export default function JobworkPage() {
 
       {loadError && (
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-[13px] text-red-700">
-          <strong>Failed to load:</strong> {loadError}
+          <strong>Failed to load:</strong> {loadError?.message || String(loadError)}
         </div>
       )}
 

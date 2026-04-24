@@ -4,6 +4,8 @@ import { payments, orders as ordersApi } from '../../lib/db'
 import { useApp } from '../../contexts/AppContext'
 import { useToast } from '../../contexts/ToastContext'
 import { usePagination } from '../../hooks/usePagination'
+import { useSWRList, invalidateSWR } from '../../hooks/useSWRList'
+import { perfMark } from '../../lib/perfMark'
 import { Button, Modal, Badge, Input, PaginationBar } from '../../components/ui'
 import { CreditCard, Plus, Search } from 'lucide-react'
 import { fmtMoney, fmtDate } from '../../lib/format'
@@ -16,8 +18,6 @@ const MODES = ['cash', 'neft', 'rtgs', 'upi', 'cheque', 'card', 'other']
 export default function PaymentsPage() {
   const toast = useToast()
   const { banks } = useApp()
-  const [list, setList] = useState([])
-  const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [orderOptions, setOrderOptions] = useState([])
@@ -27,22 +27,14 @@ export default function PaymentsPage() {
     reference_number: '', bank_id: '', notes: '',
   })
 
-  const [loadError, setLoadError] = useState(null)
-
-  const load = async () => {
-    setLoading(true)
-    setLoadError(null)
-    try {
-      const result = await payments.getAll()
+  const { data: list = [], loading, error: loadError, refetch: load } = useSWRList(
+    'payments.getAll',
+    async () => {
+      const result = await perfMark('payments.getAll', () => payments.getAll())
       if (result?.error) throw result.error
-      setList(result?.data || [])
-    } catch (err) {
-      setLoadError(err?.message || String(err))
-    } finally {
-      setLoading(false)
-    }
-  }
-  useEffect(() => { load() }, [])
+      return result?.data || []
+    },
+  )
 
   // Honor ?new=1 from Ctrl+K palette — auto-open the record-payment flow.
   const [searchParams, setSearchParams] = useSearchParams()
@@ -80,6 +72,7 @@ export default function PaymentsPage() {
       if (error) { toast.error(error.message || 'Save failed'); return }
       toast.success(`Payment of ${fmtMoney(form.amount)} recorded`)
       setShowCreate(false)
+      invalidateSWR('payments.getAll')
       load()
     } catch {
       toast.error('Payment failed — check connection')
@@ -119,7 +112,7 @@ export default function PaymentsPage() {
 
       {loadError && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-sm text-red-700">
-          <strong>Failed to load:</strong> {loadError}
+          <strong>Failed to load:</strong> {loadError?.message || String(loadError)}
           <button onClick={load} className="ml-auto text-red-600 hover:text-red-800 font-semibold text-[12px]">Retry</button>
         </div>
       )}

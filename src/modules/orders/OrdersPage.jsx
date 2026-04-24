@@ -23,6 +23,8 @@ import { useToast } from '../../contexts/ToastContext';
 import { orders as ordersDb } from '../../lib/db';
 import { useRealtimeTable, markSelfWrite } from '../../hooks/useRealtimeTable';
 import { useStickyState } from '../../hooks/useStickyState';
+import { useSWRList, invalidateSWR } from '../../hooks/useSWRList';
+import { perfMark } from '../../lib/perfMark';
 import {
   StatCard,
   DataTable,
@@ -47,15 +49,13 @@ const OrdersPage = () => {
   const initialTab = searchParams.get('status') || 'all';
   const virtualFilter = searchParams.get('filter'); // 'pending' = not draft/completed/cancelled
   const priorityFilter = searchParams.get('priority'); // 'urgent' = overdue balance
-  // State management
-  const [ordersList, setOrdersList] = useState([]);
-  const [totalCount, setTotalCount] = useState(0);
+
+  // State management — paged-list state is wrapped in useSWRList below so
+  // it paints instantly from sessionStorage cache. Summary + statusPipeline
+  // have their own SWR caches (independent of the current page/filter).
   const [page, setPage] = useState(0);
   // Filters that persist across page reloads — per-user sticky state
   const [pageSize, setPageSize] = useStickyState('orders.pageSize', 50);
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ totalOrders: 0, activeOrders: 0, totalRevenue: 0, outstandingBalance: 0, overdue: 0 });
-  const [statusPipeline, setStatusPipeline] = useState({});
   const [selectedOrders, setSelectedOrders] = useState(new Set());
   const [activeTab, setActiveTab] = useState(initialTab);
   const [dateRange, setDateRange] = useStickyState('orders.dateRange', 'allTime');
@@ -127,47 +127,77 @@ const OrdersPage = () => {
     return activeTab;
   }, [activeTab, selectedStatus]);
 
-  // Load orders — server-side paginated + filtered
-  const loadOrders = useCallback(async (showSpinner = true) => {
-    if (!user?.id) return;
-    try {
-      if (showSpinner) setLoading(true);
-      const { start, end } = getDateRange(dateRange);
-      const { data, count, error } = await ordersDb.listPaged({
-        page,
-        pageSize,
-        status: effectiveStatus,
-        customerTerm: customerDebounced,
-        dateFrom: start ? start.toISOString() : undefined,
-        dateTo: end ? end.toISOString() : undefined,
-        pending: virtualFilter === 'pending',
-        urgent: priorityFilter === 'urgent',
-      });
-      if (error) throw error;
-      setOrdersList(data || []);
-      setTotalCount(count || 0);
-    } catch (error) {
-      toast.error('Failed to load orders');
-      if (import.meta.env.DEV) console.error('Error loading orders:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [user?.id, page, pageSize, effectiveStatus, customerDebounced, dateRange, virtualFilter, priorityFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ─── SWR: PAGED LIST ─────────────────────────────────────
+  // Key includes every filter input so each filter combo has its own cache
+  // slot. Cache hit → instant paint, silent refetch. Cache miss → spinner.
+  const listKey = useMemo(() => {
+    const { start, end } = getDateRange(dateRange)
+    return `orders.listPaged:${user?.id || 'anon'}:${JSON.stringify({
+      page, pageSize, status: effectiveStatus, customer: customerDebounced,
+      dateFrom: start?.toISOString(), dateTo: end?.toISOString(),
+      pending: virtualFilter === 'pending',
+      urgent: priorityFilter === 'urgent',
+    })}`
+     
+  }, [user?.id, page, pageSize, effectiveStatus, customerDebounced, dateRange, virtualFilter, priorityFilter])
 
-  // Summary stats + status pipeline counts — unaffected by current page
+  const listFetcher = useCallback(async () => {
+    if (!user?.id) return { data: [], count: 0 }
+    const { start, end } = getDateRange(dateRange)
+    const res = await perfMark('orders.listPaged', () => ordersDb.listPaged({
+      page,
+      pageSize,
+      status: effectiveStatus,
+      customerTerm: customerDebounced,
+      dateFrom: start ? start.toISOString() : undefined,
+      dateTo: end ? end.toISOString() : undefined,
+      pending: virtualFilter === 'pending',
+      urgent: priorityFilter === 'urgent',
+    }))
+    if (res?.error) throw res.error
+    return { data: res?.data || [], count: res?.count || 0 }
+   
+  }, [user?.id, page, pageSize, effectiveStatus, customerDebounced, dateRange, virtualFilter, priorityFilter])
+
+  const { data: listResult, loading: listLoading, refetch: refetchList } = useSWRList(
+    listKey, listFetcher, { enabled: !!user?.id },
+  )
+  const ordersList = listResult?.data || []
+  const totalCount = listResult?.count || 0
+  const loading = listLoading
+
+  // ─── SWR: SUMMARY + STATUS PIPELINE ──────────────────────
+  // Both are global aggregates — same cache slot across every filter combo.
+  const summaryKey = `orders.summary:${user?.id || 'anon'}`
+  const pipelineKey = `orders.statusCounts:${user?.id || 'anon'}`
+
+  const { data: stats, refetch: refetchSummary } = useSWRList(
+    summaryKey,
+    async () => {
+      const res = await perfMark('orders.summary', () => ordersDb.summary())
+      if (res?.error) throw res.error
+      return res?.data || { totalOrders: 0, activeOrders: 0, totalRevenue: 0, outstandingBalance: 0, overdue: 0 }
+    },
+    { enabled: !!user?.id },
+  )
+  const statsSafe = stats || { totalOrders: 0, activeOrders: 0, totalRevenue: 0, outstandingBalance: 0, overdue: 0 }
+
+  const { data: statusPipeline, refetch: refetchPipeline } = useSWRList(
+    pipelineKey,
+    async () => {
+      const res = await perfMark('orders.statusCounts', () => ordersDb.statusCounts())
+      if (res?.error) throw res.error
+      return res?.data || {}
+    },
+    { enabled: !!user?.id },
+  )
+  const pipelineSafe = statusPipeline || {}
+
+  // Backwards-compat shims for existing call sites that used loadOrders / loadSummary
+  const loadOrders = useCallback(async () => { await refetchList() }, [refetchList])
   const loadSummary = useCallback(async () => {
-    if (!user?.id) return;
-    try {
-      const [sRes, cRes] = await Promise.all([
-        ordersDb.summary(),
-        ordersDb.statusCounts(),
-      ]);
-      if (sRes?.data) setStats(sRes.data);
-      if (cRes?.data) setStatusPipeline(cRes.data);
-    } catch (error) {
-      if (import.meta.env.DEV) console.error('Error loading summary:', error);
-    }
-  }, [user?.id]);
+    await Promise.all([refetchSummary(), refetchPipeline()])
+  }, [refetchSummary, refetchPipeline])
 
   // Reset to page 0 whenever a server-side filter (not page itself) changes.
   // Using sync-state-during-render avoids the extra render + double fetch
@@ -180,17 +210,22 @@ const OrdersPage = () => {
     if (page !== 0) setPage(0);
   }
 
-  // Load on mount and whenever paged filters change
-  useEffect(() => { loadOrders(); }, [loadOrders]);
-  useEffect(() => { loadSummary(); }, [loadSummary]);
+  // Note: no more useEffect(loadOrders) / useEffect(loadSummary) — useSWRList
+  // handles fetching on mount and whenever its key changes. Filter change →
+  // listKey change → auto-refetch.
 
   // Live sync. Echoes from our own writes only refresh the visible list
   // (cheap, paged). Foreign writes additionally refresh stats + pipeline
   // and show a toast.
   useRealtimeTable('orders', (payload) => {
-    loadOrders(false);
+    // Invalidate caches so the next refetch hits the server
+    invalidateSWR('orders.listPaged:*')
+    refetchList()
     if (payload && !payload.isEcho) {
-      loadSummary();
+      invalidateSWR(summaryKey)
+      invalidateSWR(pipelineKey)
+      refetchSummary()
+      refetchPipeline()
       const evt = payload.eventType === 'DELETE' ? 'deleted' : payload.eventType === 'INSERT' ? 'created' : 'updated'
       const num = payload.new?.order_number || payload.old?.order_number || ''
       toast.info?.(`Order ${num} ${evt} by another user`, { duration: 3000 }) || toast.success(`Order ${num} ${evt}`)
@@ -205,13 +240,13 @@ const OrdersPage = () => {
         lastHidden = Date.now();
       } else if (document.visibilityState === 'visible' && lastHidden > 0) {
         if (Date.now() - lastHidden > 5 * 60 * 1000) {
-          loadOrders(false);
+          refetchList();
         }
       }
     };
     document.addEventListener('visibilitychange', handler);
     return () => document.removeEventListener('visibilitychange', handler);
-  }, [loadOrders]);
+  }, [refetchList]);
 
   // Server already applied all filters — rendered rows = ordersList
   const filteredOrders = ordersList;
@@ -555,33 +590,33 @@ const OrdersPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <StatCard
           label="Total Orders"
-          value={stats.totalOrders}
+          value={statsSafe.totalOrders}
           icon={ShoppingCart}
           color="indigo"
         />
         <StatCard
           label="Active"
-          value={stats.activeOrders}
+          value={statsSafe.activeOrders}
           icon={TrendingUp}
           color="blue"
         />
         <StatCard
           label="Revenue"
-          value={<Currency amount={stats.totalRevenue} />}
+          value={<Currency amount={statsSafe.totalRevenue} />}
           icon={ShoppingCart}
           color="green"
         />
         <StatCard
           label="Outstanding"
-          value={<Currency amount={stats.outstandingBalance} />}
+          value={<Currency amount={statsSafe.outstandingBalance} />}
           icon={AlertCircle}
           color="amber"
         />
         <StatCard
           label="Overdue"
-          value={stats.overdue}
+          value={statsSafe.overdue}
           icon={Calendar}
-          color={stats.overdue > 0 ? 'red' : 'indigo'}
+          color={statsSafe.overdue > 0 ? 'red' : 'indigo'}
         />
       </div>
 
@@ -601,7 +636,7 @@ const OrdersPage = () => {
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              {statusLabel(status)} ({statusPipeline[status] || 0})
+              {statusLabel(status)} ({pipelineSafe[status] || 0})
             </button>
           ))}
         </div>

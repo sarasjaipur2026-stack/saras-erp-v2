@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { purchaseOrders, goodsReceipts } from '../../lib/db'
 import { useApp } from '../../contexts/AppContext'
 import { useToast } from '../../contexts/ToastContext'
@@ -11,6 +11,8 @@ import { fmt, fmtMoney, fmtDate } from '../../lib/format'
 import { todayIST } from '../../lib/dates'
 import { usePagination } from '../../hooks/usePagination'
 import { useStickyState } from '../../hooks/useStickyState'
+import { useSWRList, invalidateSWR } from '../../hooks/useSWRList'
+import { perfMark } from '../../lib/perfMark'
 
 const PO_STATUS = {
   draft: { variant: 'default', label: 'Draft' },
@@ -33,11 +35,7 @@ export default function PurchasePage() {
   const toast = useToast()
   const { suppliers, yarnTypes, warehouses } = useApp()
   const [view, setView] = useStickyState('purchase.view', 'pos') // pos | grns
-  const [poList, setPoList] = useState([])
-  const [grnList, setGrnList] = useState([])
   const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [loadError, setLoadError] = useState(null)
 
   // Create PO state
   const [showCreatePo, setShowCreatePo] = useState(false)
@@ -62,25 +60,29 @@ export default function PurchasePage() {
   // Detail modal
   const [detail, setDetail] = useState(null)
 
+  const { data: poList = [], loading: poLoading, error: poErr, refetch: refetchPo } = useSWRList(
+    'purchase.pos',
+    async () => {
+      const res = await perfMark('purchaseOrders.getAll', () => purchaseOrders.getAll())
+      if (res?.error) throw res.error
+      return res?.data || []
+    },
+  )
+  const { data: grnList = [], loading: grnLoading, error: grnErr, refetch: refetchGrn } = useSWRList(
+    'purchase.grns',
+    async () => {
+      const res = await perfMark('goodsReceipts.getAll', () => goodsReceipts.getAll())
+      if (res?.error) throw res.error
+      return res?.data || []
+    },
+  )
+  const loading = poLoading || grnLoading
+  const loadError = poErr || grnErr
   const load = async () => {
-    setLoading(true)
-    setLoadError(null)
-    try {
-      const [poRes, grnRes] = await Promise.all([
-        purchaseOrders.getAll(),
-        goodsReceipts.getAll(),
-      ])
-      if (poRes?.error) throw poRes.error
-      if (grnRes?.error) throw grnRes.error
-      setPoList(poRes?.data || [])
-      setGrnList(grnRes?.data || [])
-    } catch (err) {
-      setLoadError(err?.message || String(err))
-    } finally {
-      setLoading(false)
-    }
+    invalidateSWR('purchase.pos')
+    invalidateSWR('purchase.grns')
+    await Promise.all([refetchPo(), refetchGrn()])
   }
-  useEffect(() => { load() }, [])
 
   // ─── PO CREATE ──────────────────────────────────────────
   const openCreatePo = () => {
@@ -233,7 +235,7 @@ export default function PurchasePage() {
 
       {loadError && (
         <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-[13px] text-red-700">
-          <strong>Failed to load:</strong> {loadError}
+          <strong>Failed to load:</strong> {loadError?.message || String(loadError)}
         </div>
       )}
 

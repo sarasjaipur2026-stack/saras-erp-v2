@@ -4,6 +4,8 @@ import { invoices, orders as ordersApi } from '../../lib/db'
 import { useToast } from '../../contexts/ToastContext'
 import { usePagination } from '../../hooks/usePagination'
 import { useRealtimeTable, markSelfWrite } from '../../hooks/useRealtimeTable'
+import { useSWRList, invalidateSWR } from '../../hooks/useSWRList'
+import { perfMark } from '../../lib/perfMark'
 import { Button, Modal, Badge, Input, PaginationBar } from '../../components/ui'
 import { FileText, Plus, Search } from 'lucide-react'
 import { fmtMoney, fmtDate } from '../../lib/format'
@@ -18,32 +20,25 @@ const STATUS = {
 
 export default function InvoicesPage() {
   const toast = useToast()
-  const [list, setList] = useState([])
-  const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [availableOrders, setAvailableOrders] = useState([])
   const [picked, setPicked] = useState('')
   const [detail, setDetail] = useState(null)
-  const [loadError, setLoadError] = useState(null)
 
-  const load = async () => {
-    setLoading(true)
-    setLoadError(null)
-    try {
-      const result = await invoices.getAll()
+  // SWR-backed list: instant paint from sessionStorage, silent refetch
+  const { data: list = [], loading, error: loadError, refetch: load } = useSWRList(
+    'invoices.getAll',
+    async () => {
+      const result = await perfMark('invoices.getAll', () => invoices.getAll())
       if (result?.error) throw result.error
-      setList(result?.data || [])
-    } catch (err) {
-      setLoadError(err?.message || String(err))
-    } finally {
-      setLoading(false)
-    }
-  }
-  useEffect(() => { load() }, [])
+      return result?.data || []
+    },
+  )
 
   // Realtime: another tab created/issued an invoice — silent refresh + toast
   useRealtimeTable('invoices', (payload) => {
+    invalidateSWR('invoices.getAll')
     load()
     if (payload && !payload.isEcho) {
       const evt = payload.eventType === 'INSERT' ? 'created' : payload.eventType === 'DELETE' ? 'deleted' : 'updated'
@@ -139,7 +134,7 @@ export default function InvoicesPage() {
 
       {loadError && (
         <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-sm text-red-700">
-          <strong>Failed to load:</strong> {loadError}
+          <strong>Failed to load:</strong> {loadError?.message || String(loadError)}
           <button onClick={load} className="ml-auto text-red-600 hover:text-red-800 font-semibold text-[12px]">Retry</button>
         </div>
       )}
