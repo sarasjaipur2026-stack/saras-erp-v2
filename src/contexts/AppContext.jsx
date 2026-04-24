@@ -177,21 +177,23 @@ export function AppProvider({ children }) {
     await loadMasterData()
   }, [loadMasterData])
 
-  // On mount: if cache hit, skip loading spinner entirely; else defer load
+  // On mount:
+  // - Cache hit → use it. Do NOT refetch in background. Firing 10 parallel
+  //   master requests on every page visit saturates HTTP/2 (6 streams per
+  //   origin) and pushes the actual page query (e.g. orders.listPaged) to
+  //   the back of the queue — the single biggest cause of "modules feel
+  //   laggy" on post-idle return. Masters are invalidated explicitly when
+  //   a master page writes (via invalidateMaster), which is the only time
+  //   we actually need fresh data.
+  // - Cache miss → defer to idle, load critical first, then deferred.
   useEffect(() => {
     let cancelled = false
 
     if (loaded.current) {
-      // Cache hit — still refresh in background silently
-      whenIdle(() => {
-        if (!cancelled) loadCritical().then(() => {
-          if (!cancelled) loadDeferred()
-        })
-      }, 500)
+      // Cache hit — trust it. No background thrash.
       return () => { cancelled = true }
     }
 
-    // No cache — load critical first, then deferred
     whenIdle(async () => {
       if (cancelled) return
       setLoading(true)
@@ -199,30 +201,16 @@ export function AppProvider({ children }) {
       if (cancelled) return
       setLoading(false)
       loaded.current = true
-      // Phase 2 loads silently in background
       whenIdle(() => { if (!cancelled) loadDeferred() }, 200)
     })
     return () => { cancelled = true }
   }, [loadCritical, loadDeferred])
 
-  // Re-fetch critical masters when tab regains focus after being idle
-  useEffect(() => {
-    let lastHidden = 0
-    const STALE_THRESHOLD = 5 * 60 * 1000 // 5 minutes
-
-    const handleVisibility = () => {
-      if (document.visibilityState === 'hidden') {
-        lastHidden = Date.now()
-      } else if (document.visibilityState === 'visible' && loaded.current) {
-        const idleTime = Date.now() - lastHidden
-        if (lastHidden > 0 && idleTime > STALE_THRESHOLD) {
-          loadCritical().catch(() => {})
-        }
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibility)
-    return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [loadCritical])
+  // Tab re-focus: DO NOT refetch masters. They rarely change during an
+  // operator's session — an order form's stale dropdown is much less bad
+  // than a 10-request HTTP/2 stampede making every subsequent page click
+  // wait 500-1000ms. Refresh only when the user explicitly navigates to a
+  // master page, or when a master write triggers invalidateMaster().
 
   // O(1) lookup maps — rebuilt only when underlying arrays change
   const machinesByCode = useMemo(() => new Map(masters.machines.map(m => [m.code, m])), [masters.machines])

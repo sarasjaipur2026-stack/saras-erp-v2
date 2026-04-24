@@ -357,7 +357,35 @@ export const reports = {
 export const stats = {
   getDashboard: async () => {
     try {
-      // Race against a 12s timeout so the dashboard never shows an infinite spinner
+      // Single-RPC dashboard stats. Replaces 4 parallel fetchAllPaged round
+      // trips with ONE round trip — massively reduces HTTP/2 stream pressure
+      // during the critical post-login window.
+      const { data: rpcData, error: rpcErr } = await supabase.rpc('dashboard_stats')
+      if (rpcErr) throw rpcErr
+      if (rpcData) {
+        const s = rpcData
+        const statusCounts = {
+          draft: Number(s.status_counts?.draft || 0),
+          booking: Number(s.status_counts?.booking || 0),
+          approved: Number(s.status_counts?.approved || 0),
+          production: Number(s.status_counts?.production || 0),
+          qc: Number(s.status_counts?.qc || 0),
+          dispatch: Number(s.status_counts?.dispatch || 0),
+          completed: Number(s.status_counts?.completed || 0),
+          cancelled: Number(s.status_counts?.cancelled || 0),
+        }
+        return {
+          totalOrders: Number(s.total_orders || 0),
+          totalRevenue: Number(s.total_revenue || 0),
+          outstandingBalance: Number(s.outstanding || 0),
+          totalPayments: Number(s.total_payments || 0),
+          overdueCount: Number(s.overdue || 0),
+          newEnquiries: Number(s.new_enquiries || 0),
+          totalCustomers: Number(s.total_customers || 0),
+          statusCounts,
+        }
+      }
+      // Fallback path (kept for compatibility if RPC is missing on older DBs)
       const queries = Promise.all([
         fetchAllPaged((lo, hi) => supabase.from('orders').select('id, status, grand_total, balance_due, payment_due_date, created_at').range(lo, hi)),
         supabase.from('enquiries').select('id, status', { count: 'exact' }).eq('status', 'new').limit(1000),
