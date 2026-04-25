@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation, Outlet } from 'react-router-dom'
 import { lazy, Suspense, Component, useEffect } from 'react'
 import { useAuth } from './contexts/AuthContext'
 import Layout from './components/Layout'
@@ -147,14 +147,6 @@ const QualityParametersPage = lazy(() => import('./modules/masters/QualityParame
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const ImportPage = lazy(() => import('./pages/ImportPage'))
 
-// Placeholder components for pages that don't exist yet
-const PlaceholderPage = ({ name }) => (
-  <div style={{ padding: '2rem', textAlign: 'center' }}>
-    <h1>{name}</h1>
-    <p>This page is coming soon.</p>
-  </div>
-)
-
 // Access-denied fallback for permission-gated routes
 const AccessDenied = () => (
   <div className="fade-in max-w-md mx-auto py-16 px-4 text-center">
@@ -165,12 +157,29 @@ const AccessDenied = () => (
   </div>
 )
 
-function ProtectedRoute({ children, perm, action }) {
-  const { user, loading, hasPermission } = useAuth()
+// Layout shell — mounts ONCE per session, then Outlet swaps page content on
+// navigation. Previously each ProtectedRoute wrapped its own Layout, which
+// meant Topbar, Sidebar, and CommandPalette unmounted/remounted on every
+// route change → notification fetch stampede + masters re-init.
+function LayoutShell() {
+  const { user, loading } = useAuth()
   if (loading) return <PageLoader />
   if (!user) return <Navigate to="/login" replace />
-  if (perm && !hasPermission(perm, action)) return <Layout><RouteShell><AccessDenied /></RouteShell></Layout>
-  return <Layout><RouteShell>{children}</RouteShell></Layout>
+  return (
+    <Layout>
+      <RouteShell>
+        <Outlet />
+      </RouteShell>
+    </Layout>
+  )
+}
+
+// Permission gate — runs INSIDE the persistent Layout, so denied access shows
+// the AccessDenied panel without remounting Topbar/Sidebar.
+function PermissionGate({ perm, action, children }) {
+  const { hasPermission } = useAuth()
+  if (perm && !hasPermission(perm, action)) return <AccessDenied />
+  return children
 }
 
 export default function App() {
@@ -185,65 +194,67 @@ export default function App() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
 
-      {/* Dashboard */}
-      <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      {/* All authenticated routes share a single persistent Layout. */}
+      <Route element={<LayoutShell />}>
+        <Route path="/" element={<Dashboard />} />
 
-      {/* Orders */}
-      <Route path="/orders" element={<ProtectedRoute perm="orders"><OrdersPage /></ProtectedRoute>} />
-      <Route path="/orders/new" element={<ProtectedRoute perm="orders" action="create"><OrderForm /></ProtectedRoute>} />
-      <Route path="/orders/:id" element={<ProtectedRoute perm="orders" action="view"><OrderDetail /></ProtectedRoute>} />
-      <Route path="/orders/:id/edit" element={<ProtectedRoute perm="orders" action="edit"><OrderForm /></ProtectedRoute>} />
+        {/* Orders */}
+        <Route path="/orders" element={<PermissionGate perm="orders"><OrdersPage /></PermissionGate>} />
+        <Route path="/orders/new" element={<PermissionGate perm="orders" action="create"><OrderForm /></PermissionGate>} />
+        <Route path="/orders/:id" element={<PermissionGate perm="orders" action="view"><OrderDetail /></PermissionGate>} />
+        <Route path="/orders/:id/edit" element={<PermissionGate perm="orders" action="edit"><OrderForm /></PermissionGate>} />
 
-      {/* Enquiries */}
-      <Route path="/enquiries" element={<ProtectedRoute perm="enquiries"><EnquiriesPage /></ProtectedRoute>} />
-      <Route path="/enquiries/new" element={<ProtectedRoute perm="enquiries" action="create"><EnquiryForm /></ProtectedRoute>} />
-      <Route path="/enquiries/:id" element={<ProtectedRoute perm="enquiries"><EnquiryForm /></ProtectedRoute>} />
+        {/* Enquiries */}
+        <Route path="/enquiries" element={<PermissionGate perm="enquiries"><EnquiriesPage /></PermissionGate>} />
+        <Route path="/enquiries/new" element={<PermissionGate perm="enquiries" action="create"><EnquiryForm /></PermissionGate>} />
+        <Route path="/enquiries/:id" element={<PermissionGate perm="enquiries"><EnquiryForm /></PermissionGate>} />
 
-      {/* Calculator */}
-      <Route path="/calculator" element={<ProtectedRoute perm="calculator"><CalculatorPage /></ProtectedRoute>} />
-      <Route path="/production" element={<ProtectedRoute perm="production"><ProductionPage /></ProtectedRoute>} />
-      <Route path="/stock" element={<ProtectedRoute perm="stock"><StockPage /></ProtectedRoute>} />
-      <Route path="/dispatch" element={<ProtectedRoute perm="dispatch"><DispatchPage /></ProtectedRoute>} />
-      <Route path="/invoices" element={<ProtectedRoute perm="invoices"><InvoicesPage /></ProtectedRoute>} />
-      <Route path="/payments" element={<ProtectedRoute perm="payments"><PaymentsPage /></ProtectedRoute>} />
-      <Route path="/purchase" element={<ProtectedRoute perm="purchase"><PurchasePage /></ProtectedRoute>} />
-      <Route path="/purchase/reconcile" element={<ProtectedRoute perm="purchase"><PurchaseReconcilePage /></ProtectedRoute>} />
-      <Route path="/reports" element={<ProtectedRoute perm="reports"><ReportsPage /></ProtectedRoute>} />
-      <Route path="/jobwork" element={<ProtectedRoute perm="jobwork"><JobworkPage /></ProtectedRoute>} />
-      <Route path="/jobwork/balance" element={<ProtectedRoute perm="jobwork"><JobworkBalancePage /></ProtectedRoute>} />
-      <Route path="/quality" element={<ProtectedRoute perm="quality"><QualityPage /></ProtectedRoute>} />
-      <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
-      <Route path="/settings/users" element={<ProtectedRoute perm="settings"><UsersPage /></ProtectedRoute>} />
+        {/* Modules */}
+        <Route path="/calculator" element={<PermissionGate perm="calculator"><CalculatorPage /></PermissionGate>} />
+        <Route path="/production" element={<PermissionGate perm="production"><ProductionPage /></PermissionGate>} />
+        <Route path="/stock" element={<PermissionGate perm="stock"><StockPage /></PermissionGate>} />
+        <Route path="/dispatch" element={<PermissionGate perm="dispatch"><DispatchPage /></PermissionGate>} />
+        <Route path="/invoices" element={<PermissionGate perm="invoices"><InvoicesPage /></PermissionGate>} />
+        <Route path="/payments" element={<PermissionGate perm="payments"><PaymentsPage /></PermissionGate>} />
+        <Route path="/purchase" element={<PermissionGate perm="purchase"><PurchasePage /></PermissionGate>} />
+        <Route path="/purchase/reconcile" element={<PermissionGate perm="purchase"><PurchaseReconcilePage /></PermissionGate>} />
+        <Route path="/reports" element={<PermissionGate perm="reports"><ReportsPage /></PermissionGate>} />
+        <Route path="/jobwork" element={<PermissionGate perm="jobwork"><JobworkPage /></PermissionGate>} />
+        <Route path="/jobwork/balance" element={<PermissionGate perm="jobwork"><JobworkBalancePage /></PermissionGate>} />
+        <Route path="/quality" element={<PermissionGate perm="quality"><QualityPage /></PermissionGate>} />
+        <Route path="/notifications" element={<NotificationsPage />} />
+        <Route path="/settings/users" element={<PermissionGate perm="settings"><UsersPage /></PermissionGate>} />
 
-      {/* Masters */}
-      <Route path="/masters/customers" element={<ProtectedRoute perm="masters"><CustomersPage /></ProtectedRoute>} />
-      <Route path="/masters/products" element={<ProtectedRoute perm="masters"><ProductsPage /></ProtectedRoute>} />
-      <Route path="/masters/materials" element={<ProtectedRoute perm="masters"><MaterialsPage /></ProtectedRoute>} />
-      <Route path="/masters/machines" element={<ProtectedRoute perm="masters"><MachinesPage /></ProtectedRoute>} />
-      <Route path="/masters/colors" element={<ProtectedRoute perm="masters"><ColorsPage /></ProtectedRoute>} />
-      <Route path="/masters/suppliers" element={<ProtectedRoute perm="masters"><SuppliersPage /></ProtectedRoute>} />
-      <Route path="/masters/brokers" element={<ProtectedRoute perm="masters"><BrokersPage /></ProtectedRoute>} />
-      <Route path="/masters/charge-types" element={<ProtectedRoute perm="masters"><ChargeTypesPage /></ProtectedRoute>} />
-      <Route path="/masters/order-types" element={<ProtectedRoute perm="masters"><OrderTypesPage /></ProtectedRoute>} />
-      <Route path="/masters/payment-terms" element={<ProtectedRoute perm="masters"><PaymentTermsPage /></ProtectedRoute>} />
-      <Route path="/masters/warehouses" element={<ProtectedRoute perm="masters"><WarehousesPage /></ProtectedRoute>} />
-      <Route path="/masters/banks" element={<ProtectedRoute perm="masters"><BanksPage /></ProtectedRoute>} />
-      <Route path="/masters/staff" element={<ProtectedRoute perm="masters"><StaffPage /></ProtectedRoute>} />
-      <Route path="/masters/hsn-codes" element={<ProtectedRoute perm="masters"><HsnCodesPage /></ProtectedRoute>} />
-      <Route path="/masters/units" element={<ProtectedRoute perm="masters"><UnitsPage /></ProtectedRoute>} />
-      <Route path="/masters/machine-types" element={<ProtectedRoute perm="masters"><MachineTypesPage /></ProtectedRoute>} />
-      <Route path="/masters/product-types" element={<ProtectedRoute perm="masters"><ProductTypesPage /></ProtectedRoute>} />
-      <Route path="/masters/yarn-types" element={<ProtectedRoute perm="masters"><YarnTypesPage /></ProtectedRoute>} />
-      <Route path="/masters/process-types" element={<ProtectedRoute perm="masters"><ProcessTypesPage /></ProtectedRoute>} />
-      <Route path="/masters/operators" element={<ProtectedRoute perm="masters"><OperatorsPage /></ProtectedRoute>} />
-      <Route path="/masters/chaal-types" element={<ProtectedRoute perm="masters"><ChaalTypesPage /></ProtectedRoute>} />
-      <Route path="/masters/packaging-types" element={<ProtectedRoute perm="masters"><PackagingTypesPage /></ProtectedRoute>} />
-      <Route path="/masters/transports" element={<ProtectedRoute perm="masters"><TransportsPage /></ProtectedRoute>} />
-      <Route path="/masters/quality-parameters" element={<ProtectedRoute perm="masters"><QualityParametersPage /></ProtectedRoute>} />
+        {/* Masters */}
+        <Route path="/masters/customers" element={<PermissionGate perm="masters"><CustomersPage /></PermissionGate>} />
+        <Route path="/masters/products" element={<PermissionGate perm="masters"><ProductsPage /></PermissionGate>} />
+        <Route path="/masters/materials" element={<PermissionGate perm="masters"><MaterialsPage /></PermissionGate>} />
+        <Route path="/masters/machines" element={<PermissionGate perm="masters"><MachinesPage /></PermissionGate>} />
+        <Route path="/masters/colors" element={<PermissionGate perm="masters"><ColorsPage /></PermissionGate>} />
+        <Route path="/masters/suppliers" element={<PermissionGate perm="masters"><SuppliersPage /></PermissionGate>} />
+        <Route path="/masters/brokers" element={<PermissionGate perm="masters"><BrokersPage /></PermissionGate>} />
+        <Route path="/masters/charge-types" element={<PermissionGate perm="masters"><ChargeTypesPage /></PermissionGate>} />
+        <Route path="/masters/order-types" element={<PermissionGate perm="masters"><OrderTypesPage /></PermissionGate>} />
+        <Route path="/masters/payment-terms" element={<PermissionGate perm="masters"><PaymentTermsPage /></PermissionGate>} />
+        <Route path="/masters/warehouses" element={<PermissionGate perm="masters"><WarehousesPage /></PermissionGate>} />
+        <Route path="/masters/banks" element={<PermissionGate perm="masters"><BanksPage /></PermissionGate>} />
+        <Route path="/masters/staff" element={<PermissionGate perm="masters"><StaffPage /></PermissionGate>} />
+        <Route path="/masters/hsn-codes" element={<PermissionGate perm="masters"><HsnCodesPage /></PermissionGate>} />
+        <Route path="/masters/units" element={<PermissionGate perm="masters"><UnitsPage /></PermissionGate>} />
+        <Route path="/masters/machine-types" element={<PermissionGate perm="masters"><MachineTypesPage /></PermissionGate>} />
+        <Route path="/masters/product-types" element={<PermissionGate perm="masters"><ProductTypesPage /></PermissionGate>} />
+        <Route path="/masters/yarn-types" element={<PermissionGate perm="masters"><YarnTypesPage /></PermissionGate>} />
+        <Route path="/masters/process-types" element={<PermissionGate perm="masters"><ProcessTypesPage /></PermissionGate>} />
+        <Route path="/masters/operators" element={<PermissionGate perm="masters"><OperatorsPage /></PermissionGate>} />
+        <Route path="/masters/chaal-types" element={<PermissionGate perm="masters"><ChaalTypesPage /></PermissionGate>} />
+        <Route path="/masters/packaging-types" element={<PermissionGate perm="masters"><PackagingTypesPage /></PermissionGate>} />
+        <Route path="/masters/transports" element={<PermissionGate perm="masters"><TransportsPage /></PermissionGate>} />
+        <Route path="/masters/quality-parameters" element={<PermissionGate perm="masters"><QualityParametersPage /></PermissionGate>} />
 
-      {/* Settings & Import */}
-      <Route path="/settings" element={<ProtectedRoute perm="settings"><SettingsPage /></ProtectedRoute>} />
-      <Route path="/import" element={<ProtectedRoute perm="settings"><ImportPage /></ProtectedRoute>} />
+        {/* Settings & Import */}
+        <Route path="/settings" element={<PermissionGate perm="settings"><SettingsPage /></PermissionGate>} />
+        <Route path="/import" element={<PermissionGate perm="settings"><ImportPage /></PermissionGate>} />
+      </Route>
 
       {/* Catch all */}
       <Route path="*" element={<Navigate to="/" replace />} />

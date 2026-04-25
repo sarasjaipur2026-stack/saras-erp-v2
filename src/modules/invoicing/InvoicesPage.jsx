@@ -37,7 +37,7 @@ export default function InvoicesPage() {
       return result?.data || []
     },
   )
-  const list = data ?? []
+  const list = useMemo(() => data ?? [], [data])
 
   // Realtime: another tab created/issued an invoice — silent refresh + toast
   useRealtimeTable('invoices', (payload) => {

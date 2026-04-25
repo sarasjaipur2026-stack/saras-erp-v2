@@ -57,7 +57,7 @@ export default function JobworkPage() {
       return res?.data || []
     },
   )
-  const list = data ?? []
+  const list = useMemo(() => data ?? [], [data])
 
   // Realtime: another device posted yarn in / finished out — refresh live + toast
   useRealtimeTable('jobwork_jobs', (payload) => {

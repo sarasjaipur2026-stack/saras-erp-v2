@@ -68,7 +68,7 @@ export default function PurchasePage() {
       return res?.data || []
     },
   )
-  const poList = poData ?? []
+  const poList = useMemo(() => poData ?? [], [poData])
   const { data: grnData, loading: grnLoading, error: grnErr, refetch: refetchGrn } = useSWRList(
     'purchase.grns',
     async () => {
@@ -77,7 +77,7 @@ export default function PurchasePage() {
       return res?.data || []
     },
   )
-  const grnList = grnData ?? []
+  const grnList = useMemo(() => grnData ?? [], [grnData])
   const loading = poLoading || grnLoading
   const loadError = poErr || grnErr
   const load = async () => {

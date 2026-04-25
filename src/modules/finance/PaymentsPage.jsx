@@ -35,7 +35,7 @@ export default function PaymentsPage() {
       return result?.data || []
     },
   )
-  const list = data ?? []
+  const list = useMemo(() => data ?? [], [data])
 
   // Honor ?new=1 from Ctrl+K palette — auto-open the record-payment flow.
   const [searchParams, setSearchParams] = useSearchParams()
