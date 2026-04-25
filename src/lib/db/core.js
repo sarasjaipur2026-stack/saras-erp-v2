@@ -15,13 +15,38 @@ const PAGE_SIZE = 1000
  * Paginates through a Supabase query using .range() to bypass the 1000-row default.
  * buildQuery(from, to) must return a chainable query with identical filters each call.
  * Stops at MAX_PAGED_ROWS (50k) safety cap.
+ *
+ * CRIT-4 fix: pre-warm the auth gate once per call so the in-loop queries don't
+ * silently stall in supabase-js's auth-refresh queue after idle. Each page fetch
+ * is also raced against a 30s timeout so a hung PostgREST request can never
+ * deadlock the SWR layer (the bug behind "click Suppliers after idle = empty
+ * skeleton with 0 fetches"). Auth-gate failure is non-fatal — the actual error
+ * still bubbles from the query for accurate diagnostics.
  */
 export const fetchAllPaged = async (buildQuery) => {
+  try { await ensureFreshSession() } catch { /* non-fatal */ }
   const all = []
   let from = 0
   while (from < MAX_PAGED_ROWS) {
     const to = from + PAGE_SIZE - 1
-    const { data, error } = await buildQuery(from, to)
+    let timer
+    let result
+    try {
+      result = await Promise.race([
+        buildQuery(from, to),
+        new Promise((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('fetchAllPaged page timeout after 30s')),
+            REQUEST_TIMEOUT_MS,
+          )
+        }),
+      ])
+    } catch (error) {
+      return { data: null, error }
+    } finally {
+      if (timer) clearTimeout(timer)
+    }
+    const { data, error } = result || {}
     if (error) return { data: null, error }
     if (!data || data.length === 0) break
     all.push(...data)

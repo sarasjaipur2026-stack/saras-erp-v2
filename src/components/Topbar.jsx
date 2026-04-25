@@ -27,21 +27,25 @@ export default function Topbar({ onMenuClick }) {
   const notifRef = useRef(null)
   const profileRef = useRef(null)
 
+  // CRIT-3: previously two useEffects shared `[loadNotifs]` as a dep. Because
+  // loadNotifs was rebuilt every time `user` changed identity, both effects
+  // fired on every cold mount → two /rest/v1/notifications GETs per mount.
+  // Stable callback (deps `[user?.id]`) + single useEffect = exactly one fetch
+  // on mount, one interval. Visibility check keeps the poll honest when tab
+  // returns from background.
   const loadNotifs = useCallback(() => {
     if (!user?.id) return
     notifDb.getUnread(user.id).then(({ data }) => {
       if (data) setNotifications(data)
     }).catch(() => {})
-  }, [user])
+  }, [user?.id])
 
-  useEffect(() => { loadNotifs() }, [loadNotifs])
-
-  // Poll every 60 seconds while the tab is open
   useEffect(() => {
     if (!user?.id) return
+    loadNotifs()
     const int = setInterval(loadNotifs, 60_000)
     return () => clearInterval(int)
-  }, [user, loadNotifs])
+  }, [user?.id, loadNotifs])
 
   // Close dropdowns on outside click
   useEffect(() => {

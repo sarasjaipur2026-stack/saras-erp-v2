@@ -10,6 +10,28 @@ const whenIdle = (fn, timeout = 100) =>
     ? requestIdleCallback(fn, { timeout })
     : setTimeout(fn, timeout)
 
+// CRIT-1: HTTP/2 caps concurrent streams per origin at 6. Firing 10 critical
+// + 15 deferred master fetches via Promise.allSettled means 25 in queue.
+// OrderForm / OrdersPage queries land at position 20+. Limit our master pool
+// to 4 concurrent so the user's actual page query has room to overtake.
+async function runWithLimit(limit, items, mapFn) {
+  const results = new Array(items.length)
+  let idx = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const i = idx++
+      if (i >= items.length) return
+      try {
+        results[i] = { status: 'fulfilled', value: await mapFn(items[i], i) }
+      } catch (reason) {
+        results[i] = { status: 'rejected', reason }
+      }
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
 // ─── sessionStorage cache for master data ─────────────────
 const CACHE_KEY = 'saras_masters_v2'
 const CACHE_TTL = 10 * 60 * 1000 // 10 minutes
@@ -113,12 +135,14 @@ export function AppProvider({ children }) {
   const [loading, setLoading] = useState(() => !readCache())
   const loaded = useRef(!!readCache())
 
-  // Phase 1: Core masters needed by order forms and most pages
+  // Phase 1: Core masters needed by order forms and most pages.
+  // Concurrency capped at 4 to avoid HTTP/2 stream contention with the user's
+  // own page-level queries (CRIT-1).
   const loadCritical = useCallback(async () => {
     const results = await perfMark('appContext.critical', () =>
-      Promise.allSettled(CRITICAL_FNS.map((fn, i) =>
+      runWithLimit(4, CRITICAL_FNS, (fn, i) =>
         perfMark(`master.${CRITICAL_KEYS[i]}`, () => fn.getAll())
-      ))
+      )
     )
     setMasters(prev => {
       const next = { ...prev }
@@ -131,11 +155,12 @@ export function AppProvider({ children }) {
   }, [])
 
   // Phase 2: Secondary masters — loaded in background after first paint
+  // (also concurrency-capped per CRIT-1).
   const loadDeferred = useCallback(async () => {
     const results = await perfMark('appContext.deferred', () =>
-      Promise.allSettled(DEFERRED_FNS.map((fn, i) =>
+      runWithLimit(4, DEFERRED_FNS, (fn, i) =>
         perfMark(`master.${DEFERRED_KEYS[i]}`, () => fn.getAll())
-      ))
+      )
     )
     setMasters(prev => {
       const next = { ...prev }

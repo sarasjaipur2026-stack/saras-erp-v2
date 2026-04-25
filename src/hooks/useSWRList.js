@@ -29,6 +29,14 @@ const CACHE_PREFIX = 'saras.swr.v1.'
 // Module-level in-flight coalescing. Key → Promise. Shared across all mounts.
 const inFlight = new Map()
 
+// CRIT-4: hard cap on how long a single in-flight fetch can hold the slot.
+// Without this, if a fetcher's promise hangs forever (e.g. supabase-js stuck
+// in an auth-refresh queue after idle), the inFlight entry never clears and
+// every subsequent mount coalesces onto the same dead promise — the page sits
+// on its skeleton forever with zero network activity. 35s lets a slow paginated
+// fetch through but unblocks any genuine deadlock.
+const INFLIGHT_TIMEOUT_MS = 35_000
+
 function readCache(key) {
   try {
     const raw = typeof window === 'undefined' ? null : sessionStorage.getItem(CACHE_PREFIX + key)
@@ -92,18 +100,30 @@ export function useSWRList(key, fetcher, { enabled = true, staleAfterMs = 30_000
   }, [])
 
   // Coalesce concurrent refetches for the same key. Returns the shared promise.
+  // The pending promise is RACED against a 35s deadline so a hung fetcher can
+  // never wedge the inFlight slot for the lifetime of the tab.
   const refetch = useCallback(async () => {
     if (!enabled) return null
     let pending = inFlight.get(key)
     if (!pending) {
       pending = (async () => {
+        let timer
         try {
-          const fresh = await fetcherRef.current()
+          const fresh = await Promise.race([
+            fetcherRef.current(),
+            new Promise((_, reject) => {
+              timer = setTimeout(
+                () => reject(new Error(`useSWRList timeout for ${key}`)),
+                INFLIGHT_TIMEOUT_MS,
+              )
+            }),
+          ])
           writeCache(key, fresh)
           return { fresh, error: null }
         } catch (e) {
           return { fresh: null, error: e }
         } finally {
+          if (timer) clearTimeout(timer)
           inFlight.delete(key)
         }
       })()
