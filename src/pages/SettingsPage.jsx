@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { Button, Input, Select, Textarea, PhotoUpload, Tabs } from '../components/ui'
 import { supabase, uploadPhoto, deletePhoto } from '../lib/supabase'
+import { safe } from '../lib/db'
 import { Settings, Building2, Package, Printer, Percent } from 'lucide-react'
 
 export default function SettingsPage() {
@@ -62,11 +63,12 @@ export default function SettingsPage() {
   const fetchProfile = async () => {
     setIsLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
+      // Wrap with safe() so this respects the 30s timeout + authGate
+      // pre-warm. Without it, a stalled Postgres connection blocks the
+      // entire page on Loading… forever.
+      const { data, error } = await safe(() =>
+        supabase.from('profiles').select('*').eq('id', user.id).single()
+      )
 
       if (error) throw error
 
@@ -123,9 +125,8 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setIsSaving(true)
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
+      const { error } = await safe(() =>
+        supabase.from('profiles').update({
           company_name: companyName,
           gstin,
           pan,
@@ -147,8 +148,8 @@ export default function SettingsPage() {
           default_sgst_rate: defaultSgstRate,
           default_igst_rate: defaultIgstRate,
           auto_split_gst: autoSplitGst,
-        })
-        .eq('id', user.id)
+        }).eq('id', user.id)
+      )
 
       if (error) throw error
       toast.success('Settings saved')

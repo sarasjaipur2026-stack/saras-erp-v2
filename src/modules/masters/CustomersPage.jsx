@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { customers, setCustomerCreditHold } from '../../lib/db'
+import { customers, setCustomerCreditHold, safe } from '../../lib/db'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
@@ -112,9 +112,9 @@ export default function CustomersPage() {
     e.stopPropagation()
     // Referential integrity pre-check — prevent FK crash or silent cascade
     const [oc, ic, ec] = await Promise.all([
-      supabase.from('orders').select('id', { count: 'exact', head: true }).eq('customer_id', id),
-      supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('customer_id', id),
-      supabase.from('enquiries').select('id', { count: 'exact', head: true }).eq('customer_id', id),
+      safe(() => supabase.from('orders').select('id', { count: 'exact', head: true }).eq('customer_id', id)),
+      safe(() => supabase.from('invoices').select('id', { count: 'exact', head: true }).eq('customer_id', id)),
+      safe(() => supabase.from('enquiries').select('id', { count: 'exact', head: true }).eq('customer_id', id)),
     ])
     const total = (oc.count || 0) + (ic.count || 0) + (ec.count || 0)
     if (total > 0) {
