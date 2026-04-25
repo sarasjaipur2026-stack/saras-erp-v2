@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, Package, Download, RefreshCcw, CheckCircle2 } from 'lucide-react'
 import { purchaseOrders } from '../../lib/db'
 import { useToast } from '../../contexts/ToastContext'
-import { Button, Input, Spinner, StatCard, Currency } from '../../components/ui'
+import { Button, Input, StatCard, Currency } from '../../components/ui'
 import { useRealtimeTable } from '../../hooks/useRealtimeTable'
+import { useSWRList, invalidateSWR } from '../../hooks/useSWRList'
+import { perfMark } from '../../lib/perfMark'
 
 /**
  * PO reconciliation — one row per outstanding PO line.
@@ -19,28 +21,25 @@ import { useRealtimeTable } from '../../hooks/useRealtimeTable'
 export default function PurchaseReconcilePage() {
   const navigate = useNavigate()
   const toast = useToast()
-  const [rows, setRows] = useState([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [showClosed, setShowClosed] = useState(false)
 
-  const load = useCallback(async (showSpinner = true) => {
-    try {
-      if (showSpinner) setLoading(true)
-      const { data, error } = await purchaseOrders.reconciliation({ includeClosed: showClosed })
-      if (error) throw error
-      setRows(data || [])
-    } catch (err) {
-      toast.error('Failed to load reconciliation')
-      if (import.meta.env.DEV) console.error('[po-recon]', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [showClosed, toast])
+  const cacheKey = `purchase.reconciliation:${showClosed ? 'all' : 'open'}`
+  const { data: rowsData, error: loadError, refetch: load } = useSWRList(
+    cacheKey,
+    async () => {
+      const res = await perfMark('purchaseOrders.reconciliation', () =>
+        purchaseOrders.reconciliation({ includeClosed: showClosed }))
+      if (res?.error) throw res.error
+      return res?.data || []
+    },
+  )
+  // useMemo so referential identity is stable when SWR returns the same array
+  const rows = useMemo(() => rowsData || [], [rowsData])
 
-  useEffect(() => { load() }, [load])
-  useRealtimeTable('purchase_order_items', () => load(false), { debounceMs: 500 })
-  useRealtimeTable('goods_receipt_items', () => load(false), { debounceMs: 500 })
+  // Realtime: silent refetch on PO / GRN changes — no spinner.
+  useRealtimeTable('purchase_order_items', () => { invalidateSWR('purchase.reconciliation:*'); load() }, { debounceMs: 500 })
+  useRealtimeTable('goods_receipt_items', () => { invalidateSWR('purchase.reconciliation:*'); load() }, { debounceMs: 500 })
 
   const filtered = useMemo(() => {
     if (!search.trim()) return rows
@@ -98,8 +97,16 @@ export default function PurchaseReconcilePage() {
     URL.revokeObjectURL(url)
   }
 
-  if (loading) {
-    return <div className="flex items-center justify-center min-h-[60vh]"><Spinner /></div>
+  // No blocking spinner — paint instantly from cache or zero-state, refetch silently.
+  if (loadError && !rowsData) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
+          <p className="text-sm text-red-700">{loadError?.message || String(loadError)}</p>
+          <button onClick={load} className="mt-2 text-sm text-red-600 underline">Retry</button>
+        </div>
+      </div>
+    )
   }
 
   return (

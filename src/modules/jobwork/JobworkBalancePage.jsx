@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, Scissors, Download, RefreshCcw, CheckCircle2, ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 import { jobworkJobs } from '../../lib/db'
 import { useToast } from '../../contexts/ToastContext'
-import { Button, Input, Spinner, StatCard, Badge } from '../../components/ui'
+import { Button, Input, StatCard, Badge } from '../../components/ui'
 import { useRealtimeTable } from '../../hooks/useRealtimeTable'
+import { useSWRList, invalidateSWR } from '../../hooks/useSWRList'
+import { perfMark } from '../../lib/perfMark'
 
 /**
  * Jobwork return-balance. For every open job (inward / outward), shows how much
@@ -15,31 +17,26 @@ import { useRealtimeTable } from '../../hooks/useRealtimeTable'
 export default function JobworkBalancePage() {
   const navigate = useNavigate()
   const toast = useToast()
-  const [rows, setRows] = useState([])
-  const [totals, setTotals] = useState({ openJobs: 0, overdueJobs: 0, outstandingQty: 0 })
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [direction, setDirection] = useState('all') // all | inward | outward
   const [showClosed, setShowClosed] = useState(false)
 
-  const load = useCallback(async (showSpinner = true) => {
-    try {
-      if (showSpinner) setLoading(true)
-      const { data, error } = await jobworkJobs.returnBalance({ includeClosed: showClosed })
-      if (error) throw error
-      setRows(data?.rows || [])
-      setTotals(data?.totals || { openJobs: 0, overdueJobs: 0, outstandingQty: 0 })
-    } catch (err) {
-      toast.error('Failed to load jobwork balances')
-      if (import.meta.env.DEV) console.error('[jobwork-balance]', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [showClosed, toast])
+  const cacheKey = `jobwork.returnBalance:${showClosed ? 'all' : 'open'}`
+  const { data, error: loadError, refetch: load } = useSWRList(
+    cacheKey,
+    async () => {
+      const res = await perfMark('jobworkJobs.returnBalance', () =>
+        jobworkJobs.returnBalance({ includeClosed: showClosed }))
+      if (res?.error) throw res.error
+      return res?.data || { rows: [], totals: { openJobs: 0, overdueJobs: 0, outstandingQty: 0 } }
+    },
+  )
+  const rows = useMemo(() => data?.rows || [], [data])
+  const totals = data?.totals || { openJobs: 0, overdueJobs: 0, outstandingQty: 0 }
 
-  useEffect(() => { load() }, [load])
-  useRealtimeTable('jobwork_items', () => load(false), { debounceMs: 500 })
-  useRealtimeTable('jobwork_jobs', () => load(false), { debounceMs: 500 })
+  // Realtime: silent refetch (no spinner) on jobwork mutations
+  useRealtimeTable('jobwork_items', () => { invalidateSWR('jobwork.returnBalance:*'); load() }, { debounceMs: 500 })
+  useRealtimeTable('jobwork_jobs', () => { invalidateSWR('jobwork.returnBalance:*'); load() }, { debounceMs: 500 })
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -72,7 +69,19 @@ export default function JobworkBalancePage() {
     URL.revokeObjectURL(url)
   }
 
-  if (loading) return <div className="flex items-center justify-center min-h-[60vh]"><Spinner /></div>
+  // No blocking spinner — always paint instantly from cache or zero-state.
+  // Background refetch updates the UI when fresh data arrives.
+
+  if (loadError && !data) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
+          <p className="text-sm text-red-700">{loadError?.message || String(loadError)}</p>
+          <button onClick={load} className="mt-2 text-sm text-red-600 underline">Retry</button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 space-y-6 fade-in">
