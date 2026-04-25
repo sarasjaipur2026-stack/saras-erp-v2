@@ -1,104 +1,64 @@
-import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { stats } from '../lib/db'
-import { StatCard, Spinner } from '../components/ui'
+import { StatCard } from '../components/ui'
 import { useRealtimeTable } from '../hooks/useRealtimeTable'
+import { useSWRList, invalidateSWR } from '../hooks/useSWRList'
+import { perfMark } from '../lib/perfMark'
 import {
   ShoppingCart, MessageSquare, Users, AlertTriangle,
   Clock, Plus, ArrowRight, TrendingUp
 } from 'lucide-react'
 
-// ─── Stale-while-revalidate for dashboard stats ──────────
-const DASH_CACHE_KEY = 'saras_dash_v1'
-const DASH_CACHE_TTL = 3 * 60 * 1000 // 3 min
-
-function readDashCache() {
-  try {
-    const raw = sessionStorage.getItem(DASH_CACHE_KEY)
-    if (!raw) return null
-    const { ts, data } = JSON.parse(raw)
-    if (Date.now() - ts > DASH_CACHE_TTL) return null
-    return data
-  } catch { return null }
-}
-
-function writeDashCache(data) {
-  try { sessionStorage.setItem(DASH_CACHE_KEY, JSON.stringify({ ts: Date.now(), data })) } catch { /* sessionStorage full/unavailable */ }
-}
-
 export default function Dashboard() {
   const { profile } = useAuth()
   const navigate = useNavigate()
-  const cached = readDashCache()
-  const [data, setData] = useState(cached)
-  const [loading, setLoading] = useState(!cached)
-  const [loadError, setLoadError] = useState(null)
 
-  const loadDashboard = useCallback(async (showSpinner = true) => {
-    try {
-      if (showSpinner) setLoading(true)
-      setLoadError(null)
-      const d = await stats.getDashboard()
-      setData(d)
-      writeDashCache(d)
-    } catch (err) {
-      setLoadError(err?.message || 'Failed to load dashboard')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
+  // Always-show-stale SWR. Previous Dashboard used a 3-minute TTL that
+  // returned null on expiry → forced full-page spinner on every post-idle
+  // visit. This was the exact anti-pattern that re-introduced the lag
+  // every time the codebase was refactored. Now: cache renders instantly
+  // regardless of age, refetch happens silently in background.
+  const { data, error: loadError, refetch: loadDashboard } = useSWRList(
+    `dashboard.stats:${profile?.id || 'anon'}`,
+    async () => {
+      const d = await perfMark('dashboard.stats', () => stats.getDashboard())
+      return d
+    },
+  )
 
-  useEffect(() => {
-    if (cached) {
-      // Show cached data instantly, revalidate in background
-      loadDashboard(false)
-    } else {
-      loadDashboard()
-    }
-  }, [loadDashboard]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Live-update KPIs when orders/payments/enquiries change.
+  // Debounced silent refetch — never shows a spinner.
+  useRealtimeTable('orders', () => {
+    invalidateSWR(`dashboard.stats:${profile?.id || 'anon'}`)
+    loadDashboard()
+  }, { debounceMs: 1500 })
+  useRealtimeTable('payments', () => {
+    invalidateSWR(`dashboard.stats:${profile?.id || 'anon'}`)
+    loadDashboard()
+  }, { debounceMs: 1500 })
+  useRealtimeTable('enquiries', () => {
+    invalidateSWR(`dashboard.stats:${profile?.id || 'anon'}`)
+    loadDashboard()
+  }, { debounceMs: 1500 })
 
-  // Live-update KPIs when orders/payments/enquiries change elsewhere in the
-  // system. Debounced silent refetch — the dashboard stays current without
-  // the operator having to reload.
-  useRealtimeTable('orders', () => loadDashboard(false), { debounceMs: 1500 })
-  useRealtimeTable('payments', () => loadDashboard(false), { debounceMs: 1500 })
-  useRealtimeTable('enquiries', () => loadDashboard(false), { debounceMs: 1500 })
-
-  // Re-fetch silently when tab regains focus after 5+ min idle
-  useEffect(() => {
-    let lastHidden = 0
-    const handler = () => {
-      if (document.visibilityState === 'hidden') {
-        lastHidden = Date.now()
-      } else if (document.visibilityState === 'visible' && lastHidden > 0) {
-        if (Date.now() - lastHidden > 5 * 60 * 1000) {
-          loadDashboard(false)
-        }
-      }
-    }
-    document.addEventListener('visibilitychange', handler)
-    return () => document.removeEventListener('visibilitychange', handler)
-  }, [loadDashboard])
+  // useSWRList already wires a visibilitychange refetch (after ≥30s hidden);
+  // no need for a duplicate handler here.
 
   const firstName = profile?.full_name?.split(' ')[0] || 'User'
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-32">
-        <Spinner size="lg" />
-      </div>
-    )
-  }
+  // Block the page only on TRUE first visit (no cache, no data yet).
+  // Stale cache renders instantly while the silent refetch runs in background.
+  // This kills the "loading circle after 3 minutes" anti-pattern that the
+  // old DASH_CACHE_TTL = 3min introduced.
 
-  if (loadError) {
+  if (loadError && !data) {
     return (
       <div className="max-w-md mx-auto py-16 px-4 text-center">
         <div className="bg-red-50 border border-red-200 rounded-2xl p-8">
           <h2 className="text-lg font-bold text-red-900 mb-2">Failed to load dashboard</h2>
-          <p className="text-sm text-red-700 mb-4">{loadError}</p>
-          <button onClick={() => { setLoadError(null); setLoading(true); stats.getDashboard().then(d => { setData(d); setLoading(false) }).catch(err => { setLoadError(err?.message || 'Failed'); setLoading(false) }) }}
-            className="text-sm text-red-600 underline">Retry</button>
+          <p className="text-sm text-red-700 mb-4">{loadError?.message || String(loadError)}</p>
+          <button onClick={loadDashboard} className="text-sm text-red-600 underline">Retry</button>
         </div>
       </div>
     )
