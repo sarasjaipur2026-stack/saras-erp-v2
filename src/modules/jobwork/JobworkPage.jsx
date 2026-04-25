@@ -49,7 +49,7 @@ export default function JobworkPage() {
   const [addItemKind, setAddItemKind] = useState(null)
   const [addItemForm, setAddItemForm] = useState({ yarn_type_id: '', product_type_id: '', quantity: 0, unit: 'kg' })
 
-  const { data: list = [], loading, error: loadError, refetch: load } = useSWRList(
+  const { data, loading, error: loadError, refetch: load } = useSWRList(
     'jobwork.getAll',
     async () => {
       const res = await perfMark('jobworkJobs.getAll', () => jobworkJobs.getAll())
@@ -57,6 +57,7 @@ export default function JobworkPage() {
       return res?.data || []
     },
   )
+  const list = data ?? []
 
   // Realtime: another device posted yarn in / finished out — refresh live + toast
   useRealtimeTable('jobwork_jobs', (payload) => {

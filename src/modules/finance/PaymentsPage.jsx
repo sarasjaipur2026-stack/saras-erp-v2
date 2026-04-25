@@ -27,7 +27,7 @@ export default function PaymentsPage() {
     reference_number: '', bank_id: '', notes: '',
   })
 
-  const { data: list = [], loading, error: loadError, refetch: load } = useSWRList(
+  const { data, loading, error: loadError, refetch: load } = useSWRList(
     'payments.getAll',
     async () => {
       const result = await perfMark('payments.getAll', () => payments.getAll())
@@ -35,6 +35,7 @@ export default function PaymentsPage() {
       return result?.data || []
     },
   )
+  const list = data ?? []
 
   // Honor ?new=1 from Ctrl+K palette — auto-open the record-payment flow.
   const [searchParams, setSearchParams] = useSearchParams()

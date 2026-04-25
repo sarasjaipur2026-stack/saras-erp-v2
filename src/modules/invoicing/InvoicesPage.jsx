@@ -27,7 +27,9 @@ export default function InvoicesPage() {
   const [detail, setDetail] = useState(null)
 
   // SWR-backed list: instant paint from sessionStorage, silent refetch
-  const { data: list = [], loading, error: loadError, refetch: load } = useSWRList(
+  // Note: destructure default `= []` only kicks in for undefined, not null.
+  // useSWRList returns null on cold first paint, so fall back via ?? after.
+  const { data, loading, error: loadError, refetch: load } = useSWRList(
     'invoices.getAll',
     async () => {
       const result = await perfMark('invoices.getAll', () => invoices.getAll())
@@ -35,6 +37,7 @@ export default function InvoicesPage() {
       return result?.data || []
     },
   )
+  const list = data ?? []
 
   // Realtime: another tab created/issued an invoice — silent refresh + toast
   useRealtimeTable('invoices', (payload) => {

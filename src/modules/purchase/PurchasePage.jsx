@@ -60,7 +60,7 @@ export default function PurchasePage() {
   // Detail modal
   const [detail, setDetail] = useState(null)
 
-  const { data: poList = [], loading: poLoading, error: poErr, refetch: refetchPo } = useSWRList(
+  const { data: poData, loading: poLoading, error: poErr, refetch: refetchPo } = useSWRList(
     'purchase.pos',
     async () => {
       const res = await perfMark('purchaseOrders.getAll', () => purchaseOrders.getAll())
@@ -68,7 +68,8 @@ export default function PurchasePage() {
       return res?.data || []
     },
   )
-  const { data: grnList = [], loading: grnLoading, error: grnErr, refetch: refetchGrn } = useSWRList(
+  const poList = poData ?? []
+  const { data: grnData, loading: grnLoading, error: grnErr, refetch: refetchGrn } = useSWRList(
     'purchase.grns',
     async () => {
       const res = await perfMark('goodsReceipts.getAll', () => goodsReceipts.getAll())
@@ -76,6 +77,7 @@ export default function PurchasePage() {
       return res?.data || []
     },
   )
+  const grnList = grnData ?? []
   const loading = poLoading || grnLoading
   const loadError = poErr || grnErr
   const load = async () => {
