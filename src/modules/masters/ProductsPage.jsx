@@ -1,27 +1,58 @@
-import { useState } from 'react'
-import { useApp } from '../../contexts/AppContext'
+import { useState, useMemo } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { products as productDb } from '../../lib/db'
 import { useToast } from '../../contexts/ToastContext'
+import { useSWRList, invalidateSWR } from '../../hooks/useSWRList'
 import { Button, Input, Select, Modal, DataTable, Badge } from '../../components/ui'
-import { Plus, Edit2 } from 'lucide-react'
+import { Plus, Edit2, Search } from 'lucide-react'
 
 export default function ProductsPage() {
-  const { products, loadMasterData } = useApp()
   const { user } = useAuth()
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const emptyForm = { code: '', name: '', name_hi: '', uses_filler: false, hsn_code: '5607', gst_rate: 12, default_rate_unit: 'per_meter' }
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
   const toast = useToast()
+
+  // SWR cache: instant paint on revisit, background refresh on stale.
+  // Previously this page read from useApp().products — which is empty until
+  // primeMasters() runs. Direct visits to /masters/products therefore showed
+  // "0 products" until the user opened a form. Now it fetches directly.
+  const { data, loading, refetch } = useSWRList(
+    'products.getAll',
+    async () => {
+      const { data, error } = await productDb.getAll()
+      if (error) throw error
+      return data || []
+    },
+  )
+  const products = useMemo(() => data ?? [], [data])
+
+  // Client-side filter — 2310 rows is well within JS-filter range
+  const filtered = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase()
+    if (!q) return products
+    return products.filter(p =>
+      (p.code || '').toLowerCase().includes(q) ||
+      (p.name || '').toLowerCase().includes(q) ||
+      (p.name_hi || '').toLowerCase().includes(q) ||
+      (p.hsn_code || '').toLowerCase().includes(q)
+    )
+  }, [products, searchTerm])
 
   const handleSave = async () => {
     if (!form.code || !form.name) { toast.error('Code and Name required'); return }
     setSaving(true)
     const { error } = editing ? await productDb.update(editing.id, form) : await productDb.create({ ...form, user_id: user.id })
     if (error) toast.error(error.message)
-    else { toast.success(editing ? 'Updated' : 'Created'); setShowForm(false); loadMasterData() }
+    else {
+      toast.success(editing ? 'Updated' : 'Created')
+      setShowForm(false)
+      invalidateSWR('products.getAll')
+      refetch()
+    }
     setSaving(false)
   }
 
@@ -42,14 +73,27 @@ export default function ProductsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">Products</h1>
-          <p className="text-[13px] text-slate-400 mt-0.5">{products.length} {products.length === 1 ? 'product' : 'products'}</p>
+          <p className="text-[13px] text-slate-400 mt-0.5">
+            {products.length} {products.length === 1 ? 'product' : 'products'}
+            {searchTerm && filtered.length !== products.length && ` · ${filtered.length} matching`}
+          </p>
         </div>
         <Button onClick={() => { setEditing(null); setForm(emptyForm); setShowForm(true) }}>
           <Plus size={15} /> Add Product
         </Button>
       </div>
 
-      <DataTable columns={columns} data={products} emptyMessage="No products" />
+      {/* Search bar */}
+      <div className="mb-4">
+        <Input
+          icon={Search}
+          placeholder="Search by code, name, HSN..."
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+        />
+      </div>
+
+      <DataTable columns={columns} data={filtered} isLoading={loading} emptyMessage={searchTerm ? 'No matching products' : 'No products'} />
 
       <Modal isOpen={showForm} onClose={() => setShowForm(false)} title={editing ? 'Edit Product' : 'New Product'} size="md"
         footer={<><Button variant="secondary" size="sm" onClick={() => setShowForm(false)}>Cancel</Button><Button size="sm" onClick={handleSave} loading={saving}>Save</Button></>}

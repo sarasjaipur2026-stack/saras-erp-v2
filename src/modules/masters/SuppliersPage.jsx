@@ -1,36 +1,60 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { suppliers as supplierDb } from '../../lib/db'
 import { useToast } from '../../contexts/ToastContext'
+import { useSWRList, invalidateSWR } from '../../hooks/useSWRList'
 import { Button, Input, Modal, DataTable } from '../../components/ui'
-import { Plus, Edit2 } from 'lucide-react'
+import { Plus, Edit2, Search } from 'lucide-react'
 
 export default function SuppliersPage() {
   const { user } = useAuth()
-  const [suppliers, setSuppliers] = useState([])
-  const [isLoading, setIsLoading] = useState(true) // true on mount — load starts immediately
+  const toast = useToast()
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const emptyForm = { name: '', phone: '', firm: '', gstin: '', address: '', city: '', state: '' }
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
-  const toast = useToast()
+  const [searchTerm, setSearchTerm] = useState('')
 
-  const load = useCallback(async () => {
-    const { data } = await supplierDb.getAll()
-    setSuppliers(data || [])
-    setIsLoading(false)
-  }, [])
+  // SWR cache: instant paint on revisit. Background refresh on stale.
+  // Same contract as CustomersPage — never blocks the table on a spinner once
+  // the user has visited the page in this session.
+  const { data, loading, refetch } = useSWRList(
+    'suppliers.getAll',
+    async () => {
+      const { data, error } = await supplierDb.getAll()
+      if (error) throw error
+      return data || []
+    },
+  )
+  const list = useMemo(() => data ?? [], [data])
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { load() }, [load])
+  // Client-side search across name/firm/phone/city/gstin. 829 rows is small
+  // enough to filter in JS without paying a round trip per keystroke.
+  const filtered = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase()
+    if (!q) return list
+    return list.filter(s =>
+      (s.name || '').toLowerCase().includes(q) ||
+      (s.firm || '').toLowerCase().includes(q) ||
+      (s.phone || '').includes(q) ||
+      (s.city || '').toLowerCase().includes(q) ||
+      (s.gstin || '').toLowerCase().includes(q)
+    )
+  }, [list, searchTerm])
 
   const handleSave = async () => {
     if (!form.name) { toast.error('Name required'); return }
     setSaving(true)
     const { error } = editing ? await supplierDb.update(editing.id, form) : await supplierDb.create({ ...form, user_id: user.id })
     if (error) toast.error(error.message)
-    else { toast.success('Saved'); setShowForm(false); load() }
+    else {
+      toast.success('Saved')
+      setShowForm(false)
+      // Invalidate cache so the new/updated row shows immediately
+      invalidateSWR('suppliers.getAll')
+      refetch()
+    }
     setSaving(false)
   }
 
@@ -49,14 +73,27 @@ export default function SuppliersPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">Suppliers</h1>
-          <p className="text-[13px] text-slate-400 mt-0.5">{suppliers.length} suppliers</p>
+          <p className="text-[13px] text-slate-400 mt-0.5">
+            {list.length} suppliers
+            {searchTerm && filtered.length !== list.length && ` · ${filtered.length} matching`}
+          </p>
         </div>
         <Button onClick={() => { setEditing(null); setForm(emptyForm); setShowForm(true) }}>
           <Plus size={15} /> Add Supplier
         </Button>
       </div>
 
-      <DataTable columns={columns} data={suppliers} isLoading={isLoading} emptyMessage="No suppliers" />
+      {/* Search bar — same pattern as CustomersPage */}
+      <div className="mb-4">
+        <Input
+          icon={Search}
+          placeholder="Search by name, firm, phone, city, GSTIN..."
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+        />
+      </div>
+
+      <DataTable columns={columns} data={filtered} isLoading={loading} emptyMessage={searchTerm ? 'No matching suppliers' : 'No suppliers'} />
 
       <Modal isOpen={showForm} onClose={() => setShowForm(false)} title={editing ? 'Edit Supplier' : 'New Supplier'} size="md"
         footer={<><Button variant="secondary" size="sm" onClick={() => setShowForm(false)}>Cancel</Button><Button size="sm" onClick={handleSave} loading={saving}>Save</Button></>}

@@ -4,6 +4,7 @@ import { customers, setCustomerCreditHold, safe } from '../../lib/db'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
+import { useSWRList, invalidateSWR } from '../../hooks/useSWRList'
 import { Button, Input, DataTable, Modal } from '../../components/ui'
 import { Plus, Edit2, Trash2, Search, Lock, Unlock } from 'lucide-react'
 
@@ -33,8 +34,6 @@ const validatePhone = (v) => {
 export default function CustomersPage() {
   const { user, canManage } = useAuth()
   const toast = useToast()
-  const [list, setList] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -49,8 +48,35 @@ export default function CustomersPage() {
   const emptyForm = { firm_name: '', contact_name: '', phone: '', email: '', city: '', address: '', gstin: '', pan: '' }
   const [form, setForm] = useState(emptyForm)
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (user?.id) fetchData() }, [user?.id])
+  // SWR cache: 3446 customers paint instantly from sessionStorage on revisit.
+  // Background refresh on stale. We keep `list` as local state so optimistic
+  // delete/undo + credit-hold patches work; the SWR fetch primes it on mount.
+  const { data: swrData, loading: swrLoading, refetch: swrRefetch } = useSWRList(
+    `customers.list:${user?.id || 'anon'}`,
+    async () => {
+      if (!user?.id) return []
+      const { data, error } = await customers.list(user.id)
+      if (error) throw error
+      return data || []
+    },
+    { enabled: !!user?.id },
+  )
+  const [list, setList] = useState([])
+  const [primed, setPrimed] = useState(false)
+  // Sync SWR data → local list whenever fresh data arrives.
+  useEffect(() => {
+    if (swrData) {
+      setList(swrData)
+      setPrimed(true)
+    }
+  }, [swrData])
+  // isLoading only reflects the genuine first-paint state; subsequent visits
+  // hit cache and never block.
+  const isLoading = swrLoading && !primed
+  const fetchData = async () => {
+    invalidateSWR(`customers.list:${user?.id || 'anon'}`)
+    await swrRefetch()
+  }
 
   // Honor ?new=1 from Ctrl+K palette quick-action — auto-open the Add modal
   // on first mount when the param is present.
@@ -65,14 +91,6 @@ export default function CustomersPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  const fetchData = async () => {
-    setIsLoading(true)
-    const { data, error } = await customers.list(user.id)
-    if (error) toast.error('Failed to load customers')
-    else setList(data || [])
-    setIsLoading(false)
-  }
 
   const openModal = (customer = null) => {
     if (customer) { setEditingId(customer.id); setForm({ ...customer }) }
