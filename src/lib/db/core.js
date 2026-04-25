@@ -64,15 +64,20 @@ export function createTable(table, opts = {}) {
   const { orderBy = 'created_at', orderAsc = false, select = '*', ownerFilter = true } = opts
 
   return {
-    list: async (userId) => safe(() => {
-      let q = supabase.from(table).select(select)
-      if (ownerFilter && userId) q = q.eq('user_id', userId)
-      return q.order(orderBy, { ascending: orderAsc }).limit(1000)
-    }),
+    // Hard 1000-row cap is what was hiding 2449 of 3449 customers from the
+    // master page. Page through with fetchAllPaged (50k-row safety cap) so
+    // master pages and dropdowns see the full dataset.
+    list: async (userId) =>
+      fetchAllPaged((lo, hi) => {
+        let q = supabase.from(table).select(select)
+        if (ownerFilter && userId) q = q.eq('user_id', userId)
+        return q.order(orderBy, { ascending: orderAsc }).range(lo, hi)
+      }),
 
-    getAll: async () => safe(() =>
-      supabase.from(table).select(select).order(orderBy, { ascending: orderAsc }).limit(1000)
-    ),
+    getAll: async () =>
+      fetchAllPaged((lo, hi) =>
+        supabase.from(table).select(select).order(orderBy, { ascending: orderAsc }).range(lo, hi),
+      ),
 
     get: async (id) => safe(() =>
       supabase.from(table).select(select).eq('id', id).single()
