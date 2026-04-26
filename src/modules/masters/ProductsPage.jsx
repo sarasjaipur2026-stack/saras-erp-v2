@@ -27,6 +27,7 @@ export default function ProductsPage() {
       if (error) throw error
       return data || []
     },
+    { expectsData: true },
   )
   const products = useMemo(() => data ?? [], [data])
 

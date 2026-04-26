@@ -59,7 +59,7 @@ export default function CustomersPage() {
       if (error) throw error
       return data || []
     },
-    { enabled: !!user?.id },
+    { enabled: !!user?.id, expectsData: true },
   )
   const [list, setList] = useState([])
   const [primed, setPrimed] = useState(false)

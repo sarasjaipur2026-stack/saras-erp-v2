@@ -37,6 +37,16 @@ const inFlight = new Map()
 // fetch through but unblocks any genuine deadlock.
 const INFLIGHT_TIMEOUT_MS = 35_000
 
+// CRIT-4 (silent-fail variant, observed in the 10× cycle audit on production):
+// after extended idle + tab discard + sidebar SPA-nav with cache evicted, the
+// fetcher resolves WITHOUT throwing and WITHOUT issuing a network request,
+// returning an empty array. Page renders the empty-state ("No suppliers" /
+// "0 customers"). Hard reload always fixes. To catch this without papering
+// over genuinely-empty tables, the consumer opts in via `expectsData: true`.
+// On empty result for an opt-in key, we wait the gap and retry once — if it
+// still returns empty, we accept (table really is empty).
+const EMPTY_RETRY_GAP_MS = 1500
+
 function readCache(key) {
   try {
     const raw = typeof window === 'undefined' ? null : sessionStorage.getItem(CACHE_PREFIX + key)
@@ -79,8 +89,13 @@ function cacheAge(key) {
  * @param {boolean} [opts.enabled=true]
  * @param {number}  [opts.staleAfterMs]  Skip background revalidation if cache is
  *                                       newer than this. Default 30s.
+ * @param {boolean} [opts.expectsData=false]  If true and the fetcher resolves
+ *                                       with an empty array, retry silently
+ *                                       once after EMPTY_RETRY_GAP_MS. Use for
+ *                                       master pages whose tables always have
+ *                                       rows (suppliers, customers, products).
  */
-export function useSWRList(key, fetcher, { enabled = true, staleAfterMs = 30_000 } = {}) {
+export function useSWRList(key, fetcher, { enabled = true, staleAfterMs = 30_000, expectsData = false } = {}) {
   const cached = enabled ? readCache(key) : null
   const [data, setData] = useState(cached)
   const [loading, setLoading] = useState(enabled && !cached)
@@ -109,7 +124,7 @@ export function useSWRList(key, fetcher, { enabled = true, staleAfterMs = 30_000
       pending = (async () => {
         let timer
         try {
-          const fresh = await Promise.race([
+          const runOnce = () => Promise.race([
             fetcherRef.current(),
             new Promise((_, reject) => {
               timer = setTimeout(
@@ -118,6 +133,20 @@ export function useSWRList(key, fetcher, { enabled = true, staleAfterMs = 30_000
               )
             }),
           ])
+          let fresh = await runOnce()
+          // Silent-retry for the CRIT-4 silent-empty variant. Only fires when
+          // the consumer opted in via expectsData. We accept fresh=empty as a
+          // genuine result if the retry also returns empty.
+          if (expectsData && Array.isArray(fresh) && fresh.length === 0) {
+            if (timer) { clearTimeout(timer); timer = null }
+            await new Promise(r => setTimeout(r, EMPTY_RETRY_GAP_MS))
+            try {
+              const retry = await runOnce()
+              if (Array.isArray(retry) && retry.length > 0) fresh = retry
+            } catch {
+              // Retry failure is non-fatal — keep original empty result.
+            }
+          }
           writeCache(key, fresh)
           return { fresh, error: null }
         } catch (e) {
@@ -139,7 +168,7 @@ export function useSWRList(key, fetcher, { enabled = true, staleAfterMs = 30_000
     }
     setLoading(false)
     return fresh
-  }, [key, enabled])
+  }, [key, enabled, expectsData])
 
   // Mount / key change: fire a refetch if we don't have cache OR cache is stale
   useEffect(() => {

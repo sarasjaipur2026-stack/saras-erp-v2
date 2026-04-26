@@ -26,6 +26,7 @@ export default function SuppliersPage() {
       if (error) throw error
       return data || []
     },
+    { expectsData: true },
   )
   const list = useMemo(() => data ?? [], [data])
 
