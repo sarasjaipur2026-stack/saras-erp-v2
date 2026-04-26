@@ -31,6 +31,23 @@ const validatePhone = (v) => {
   return null
 }
 
+// VAL-1: tightened validation. Catches the silent-garbage paths the deep
+// audit found:
+//   - whitespace-only firm/contact names slipping past the truthy check
+//   - emails with no @
+//   - free-text fields with 5000+ chars (max-length skipped at HTML layer)
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const validateEmail = (v) => {
+  if (!v) return null
+  if (v.length > 254) return 'Email is too long'
+  if (!EMAIL_RE.test(v.trim())) return 'Invalid email format'
+  return null
+}
+const validateLength = (label, v, max) => {
+  if (v && v.length > max) return `${label} cannot exceed ${max} characters`
+  return null
+}
+
 export default function CustomersPage() {
   const { user, canManage } = useAuth()
   const toast = useToast()
@@ -99,18 +116,43 @@ export default function CustomersPage() {
   }
 
   const handleSave = async () => {
-    if (!form.firm_name || !form.contact_name) { toast.error('Firm name and contact name required'); return }
+    // VAL-1: trim free-text required fields BEFORE truthy check so
+    // whitespace-only values don't slip through.
+    const firmName = (form.firm_name || '').trim()
+    const contactName = (form.contact_name || '').trim()
+    if (!firmName || !contactName) { toast.error('Firm name and contact name required'); return }
+
+    // Length caps for free-text fields. Matches reasonable UI display widths
+    // and protects from accidental paste of huge content.
+    const lenErr =
+      validateLength('Firm name', firmName, 200) ||
+      validateLength('Contact name', contactName, 100) ||
+      validateLength('City', (form.city || '').trim(), 100) ||
+      validateLength('Address', (form.address || '').trim(), 500)
+    if (lenErr) { toast.error(lenErr); return }
+
     // Soft-validate optional fields — block on malformed not missing
+    const emailErr = validateEmail(form.email)
     const gstinErr = validateGstin(form.gstin)
     const panErr = validatePan(form.pan)
     const phoneErr = validatePhone(form.phone)
+    if (emailErr) { toast.error(emailErr); return }
     if (gstinErr) { toast.error(gstinErr); return }
     if (panErr) { toast.error(panErr); return }
     if (phoneErr) { toast.error(phoneErr); return }
 
     setSaving(true)
     try {
-      const payload = { ...form }
+      // VAL-1: send TRIMMED versions to DB so leading/trailing whitespace
+      // doesn't pollute searches and dropdown lookups.
+      const payload = {
+        ...form,
+        firm_name: firmName,
+        contact_name: contactName,
+        email: (form.email || '').trim(),
+        city: (form.city || '').trim(),
+        address: (form.address || '').trim(),
+      }
       // GSTIN first 2 digits = state code. Keep state_code in sync automatically
       // so intra/inter-state GST split in orders uses the right rate.
       if (form.gstin && form.gstin.length >= 2) {
@@ -261,14 +303,14 @@ export default function CustomersPage() {
         footer={<><Button variant="secondary" size="sm" onClick={() => setShowModal(false)}>Cancel</Button><Button size="sm" onClick={handleSave} loading={saving}>{editingId ? 'Update' : 'Add'}</Button></>}
       >
         <div className="grid grid-cols-2 gap-4">
-          <Input label="Firm Name" required value={form.firm_name} onChange={e => setForm(p => ({ ...p, firm_name: e.target.value }))} />
-          <Input label="Contact Person" required value={form.contact_name} onChange={e => setForm(p => ({ ...p, contact_name: e.target.value }))} />
+          <Input label="Firm Name" required maxLength={200} value={form.firm_name} onChange={e => setForm(p => ({ ...p, firm_name: e.target.value }))} />
+          <Input label="Contact Person" required maxLength={100} value={form.contact_name} onChange={e => setForm(p => ({ ...p, contact_name: e.target.value }))} />
           <Input label="Phone" placeholder="10-digit mobile" value={form.phone || ''} error={validatePhone(form.phone)} onChange={e => setForm(p => ({ ...p, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))} />
-          <Input label="Email" type="email" value={form.email || ''} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
-          <Input label="City" value={form.city || ''} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} />
+          <Input label="Email" type="email" maxLength={254} value={form.email || ''} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
+          <Input label="City" maxLength={100} value={form.city || ''} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} />
           <Input label="GSTIN" placeholder="22AAAAA0000A1Z5" value={form.gstin || ''} error={validateGstin(form.gstin)} onChange={e => setForm(p => ({ ...p, gstin: e.target.value.toUpperCase().slice(0, 15) }))} />
           <Input label="PAN" placeholder="AAAAA0000A" value={form.pan || ''} error={validatePan(form.pan)} onChange={e => setForm(p => ({ ...p, pan: e.target.value.toUpperCase().slice(0, 10) }))} className="col-span-2" />
-          <Input label="Address" value={form.address || ''} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} className="col-span-2" />
+          <Input label="Address" maxLength={500} value={form.address || ''} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} className="col-span-2" />
         </div>
       </Modal>
 
