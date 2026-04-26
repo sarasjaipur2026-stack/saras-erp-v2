@@ -1,64 +1,69 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { enquiries } from '../../lib/db'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
+import { useSWRList, invalidateSWR } from '../../hooks/useSWRList'
 import { Button, DataTable, Tabs, StatusBadge } from '../../components/ui'
-import { Plus, CheckCircle, XCircle, MessageSquare } from 'lucide-react'
+import { Plus, CheckCircle, XCircle } from 'lucide-react'
 
 export default function EnquiriesPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const toast = useToast()
-  const [list, setList] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('all')
 
-  const fetchData = useCallback(async (showSpinner = true) => {
-    if (!user?.id) return
-    if (showSpinner) setIsLoading(true)
-    const { data, error } = await enquiries.list(user.id)
-    if (error) toast.error('Failed to load enquiries')
-    else setList(data || [])
-    setIsLoading(false)
-  }, [user, toast])
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial load uses async setter after network
-    fetchData()
-  }, [fetchData])
-
-  // Re-fetch silently when tab regains focus after 5+ min idle
-  useEffect(() => {
-    let lastHidden = 0
-    const handler = () => {
-      if (document.visibilityState === 'hidden') {
-        lastHidden = Date.now()
-      } else if (document.visibilityState === 'visible' && lastHidden > 0) {
-        if (Date.now() - lastHidden > 5 * 60 * 1000) {
-          fetchData(false)
-        }
-      }
-    }
-    document.addEventListener('visibilitychange', handler)
-    return () => document.removeEventListener('visibilitychange', handler)
-  }, [fetchData])
+  // CRIT-4 follow-up (2026-04-26 audit): EnquiriesPage previously used a raw
+  // useState/useEffect with `enquiries.list()` and `setIsLoading(true)`. On
+  // SPA-nav from another page, the fetcher could silently resolve empty
+  // (same root cause as Suppliers/Products before commit 7abbc1d). Result:
+  // 8 skeleton rows stuck on screen forever until a hard reload.
+  // Routing through useSWRList puts this page on the same always-show-stale
+  // contract as the rest of the app: cache renders synchronously, background
+  // refresh on focus/stale, single coalesced inFlight slot with 35s grace.
+  // We do NOT pass expectsData=true because an empty enquiries table is a
+  // valid steady state (the user might genuinely have zero enquiries).
+  const swrKey = `enquiries.list:${user?.id || 'anon'}`
+  const { data, loading, refetch } = useSWRList(
+    swrKey,
+    async () => {
+      if (!user?.id) return []
+      const { data, error } = await enquiries.list(user.id)
+      if (error) throw error
+      return data || []
+    },
+    { enabled: !!user?.id },
+  )
+  const list = useMemo(() => data ?? [], [data])
 
   const handleConvert = async (e, row) => {
     e.stopPropagation()
     const { error } = await enquiries.convertToOrder(row.id)
-    if (error) toast.error('Failed to convert')
-    else { toast.success('Converted to order'); fetchData() }
+    if (error) {
+      toast.error('Failed to convert')
+      return
+    }
+    toast.success('Converted to order')
+    invalidateSWR(swrKey)
+    refetch()
   }
 
   const handleMarkLost = async (e, id) => {
     e.stopPropagation()
     const { error } = await enquiries.update(id, { status: 'lost' })
-    if (error) toast.error('Failed to update')
-    else { toast.success('Marked as lost'); fetchData() }
+    if (error) {
+      toast.error('Failed to update')
+      return
+    }
+    toast.success('Marked as lost')
+    invalidateSWR(swrKey)
+    refetch()
   }
 
-  const filtered = statusFilter === 'all' ? list : list.filter(e => e.status === statusFilter)
+  const filtered = useMemo(
+    () => statusFilter === 'all' ? list : list.filter(e => e.status === statusFilter),
+    [list, statusFilter],
+  )
 
   const columns = [
     { key: 'enquiry_number', label: 'Enquiry #', render: v => <span className="font-mono font-semibold text-indigo-600">{v || '-'}</span> },
@@ -104,7 +109,7 @@ export default function EnquiriesPage() {
       />
 
       <div className="mt-4">
-        <DataTable columns={columns} data={filtered} isLoading={isLoading} emptyMessage="No enquiries found" />
+        <DataTable columns={columns} data={filtered} isLoading={loading} emptyMessage="No enquiries found" />
       </div>
     </div>
   )
