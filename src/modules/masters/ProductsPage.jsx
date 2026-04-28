@@ -5,6 +5,7 @@ import { useToast } from '../../contexts/ToastContext'
 import { useSWRList, invalidateSWR } from '../../hooks/useSWRList'
 import { Button, Input, Select, Modal, DataTable, Badge } from '../../components/ui'
 import { Plus, Edit2, Search } from 'lucide-react'
+import ProductImagesPanel from './components/ProductImagesPanel'
 
 export default function ProductsPage() {
   const { user } = useAuth()
@@ -111,6 +112,7 @@ export default function ProductsPage() {
             <span className="text-sm text-slate-700">Uses Filler Yarn</span>
           </label>
         </div>
+        {editing?.id && <ProductImagesPanel productId={editing.id} />}
       </Modal>
     </div>
   )
