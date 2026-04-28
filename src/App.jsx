@@ -146,6 +146,11 @@ const TransportsPage = lazy(() => import('./modules/masters/TransportsPage'))
 const QualityParametersPage = lazy(() => import('./modules/masters/QualityParametersPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const ImportPage = lazy(() => import('./pages/ImportPage'))
+// POS — separate full-screen shell (no Topbar/Sidebar). See PosLayout.
+const PosLayout = lazy(() => import('./modules/pos/PosLayout'))
+const PosRegisterPage = lazy(() => import('./modules/pos/PosRegisterPage'))
+const PosSessionPage = lazy(() => import('./modules/pos/PosSessionPage'))
+const PosHistoryPage = lazy(() => import('./modules/pos/PosHistoryPage'))
 
 // Access-denied fallback for permission-gated routes
 const AccessDenied = () => (
@@ -180,6 +185,20 @@ function PermissionGate({ perm, action, children }) {
   const { hasPermission } = useAuth()
   if (perm && !hasPermission(perm, action)) return <AccessDenied />
   return children
+}
+
+// POS shell — separate from LayoutShell because POS has no Topbar/Sidebar
+// and is full-screen. Same auth gate applies. PermissionGate inside POS
+// routes catches users without the pos.view permission.
+function PosShell() {
+  const { user, loading } = useAuth()
+  if (loading) return <PageLoader />
+  if (!user) return <Navigate to="/login" replace />
+  return (
+    <RouteShell>
+      <PosLayout />
+    </RouteShell>
+  )
 }
 
 export default function App() {
@@ -254,6 +273,14 @@ export default function App() {
         {/* Settings & Import */}
         <Route path="/settings" element={<PermissionGate perm="settings"><SettingsPage /></PermissionGate>} />
         <Route path="/import" element={<PermissionGate perm="settings"><ImportPage /></PermissionGate>} />
+      </Route>
+
+      {/* POS — separate full-screen shell (no Topbar/Sidebar). */}
+      <Route element={<PosShell />}>
+        <Route path="/pos" element={<PermissionGate perm="pos"><PosRegisterPage mode="counter" /></PermissionGate>} />
+        <Route path="/pos/field" element={<PermissionGate perm="pos"><PosRegisterPage mode="field" /></PermissionGate>} />
+        <Route path="/pos/session" element={<PermissionGate perm="pos_session"><PosSessionPage /></PermissionGate>} />
+        <Route path="/pos/history" element={<PermissionGate perm="pos"><PosHistoryPage /></PermissionGate>} />
       </Route>
 
       {/* Catch all */}
