@@ -20,4 +20,5 @@ export {
   appSettings, attachments, qualityInspections,
   reports, stats,
   checkCustomerCredit, setCustomerCreditHold, logCreditOverride,
+  posTerminals, posSessions, posTenders, posPrintJobs, productImages, invoiceLines,
 } from './db/index'
