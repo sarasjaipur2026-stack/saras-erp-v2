@@ -142,6 +142,13 @@ export function usePosCart({ sessionId, ourStateCode = '08' } = {}) {
     }
   }, [state.lines, state.customer, state.billDiscount, ourStateCode])
 
+  // Stable `clear` — top-level useCallback (must NOT be nested inside another
+  // hook's factory; doing so violates Rules of Hooks and triggers React #311).
+  const clear = useCallback(() => {
+    dispatch({ type: 'CLEAR' })
+    if (storageKey) localStorage.removeItem(storageKey)
+  }, [storageKey])
+
   const api = useMemo(() => ({
     state,
     totals,
@@ -152,11 +159,8 @@ export function usePosCart({ sessionId, ourStateCode = '08' } = {}) {
     removeLine: (id) => dispatch({ type: 'REMOVE_LINE', id }),
     setBillDiscount: (patch) => dispatch({ type: 'SET_BILL_DISCOUNT', patch }),
     setNotes: (notes) => dispatch({ type: 'SET_NOTES', notes }),
-    clear: useCallback(() => {
-      dispatch({ type: 'CLEAR' })
-      if (storageKey) localStorage.removeItem(storageKey)
-    }, [storageKey]),
-  }), [state, totals, storageKey])
+    clear,
+  }), [state, totals, clear])
 
   return api
 }
