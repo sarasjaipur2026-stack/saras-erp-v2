@@ -4,7 +4,8 @@ import { products as productDb } from '../../lib/db'
 import { useToast } from '../../contexts/ToastContext'
 import { useSWRList, invalidateSWR } from '../../hooks/useSWRList'
 import { Button, Input, Select, Modal, DataTable, Badge } from '../../components/ui'
-import { Plus, Edit2, Search } from 'lucide-react'
+import { Plus, Edit2, Search, Camera } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import ProductImagesPanel from './components/ProductImagesPanel'
 
 export default function ProductsPage() {
@@ -80,9 +81,14 @@ export default function ProductsPage() {
             {searchTerm && filtered.length !== products.length && ` · ${filtered.length} matching`}
           </p>
         </div>
-        <Button onClick={() => { setEditing(null); setForm(emptyForm); setShowForm(true) }}>
-          <Plus size={15} /> Add Product
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link to="/pos/photo-wizard" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-50">
+            <Camera size={14} /> Photo Wizard
+          </Link>
+          <Button onClick={() => { setEditing(null); setForm(emptyForm); setShowForm(true) }}>
+            <Plus size={15} /> Add Product
+          </Button>
+        </div>
       </div>
 
       {/* Search bar */}

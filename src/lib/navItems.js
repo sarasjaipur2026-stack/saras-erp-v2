@@ -7,12 +7,13 @@ import {
   Package, Settings, Truck, Box, Palette, BarChart3, FileText,
   CreditCard, Briefcase, DollarSign, Building2, Archive,
   Hash, Ruler, Cog, Layers, Workflow, UserCog, Sparkles, PackageOpen,
-  ShieldCheck, Factory, ShoppingBag, Bell, Store,
+  ShieldCheck, Factory, ShoppingBag, Bell, Store, Camera,
 } from 'lucide-react'
 
 export const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard, category: 'main' },
   { path: '/pos', label: 'POS', icon: Store, category: 'main', perm: 'pos' },
+  { path: '/pos/photo-wizard', label: 'Photo Wizard', icon: Camera, category: 'main', perm: 'masters' },
   { path: '/orders', label: 'Orders', icon: ShoppingCart, category: 'main', badge: true, perm: 'orders' },
   { path: '/enquiries', label: 'Enquiries', icon: MessageSquare, category: 'main', perm: 'orders' },
   { path: '/calculator', label: 'Calculator', icon: Calculator, category: 'production', perm: 'calculator' },

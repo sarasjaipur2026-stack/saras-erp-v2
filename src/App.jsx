@@ -151,6 +151,7 @@ const PosLayout = lazy(() => import('./modules/pos/PosLayout'))
 const PosRegisterPage = lazy(() => import('./modules/pos/PosRegisterPage'))
 const PosSessionPage = lazy(() => import('./modules/pos/PosSessionPage'))
 const PosHistoryPage = lazy(() => import('./modules/pos/PosHistoryPage'))
+const ProductPhotoWizard = lazy(() => import('./modules/pos/ProductPhotoWizard'))
 
 // Access-denied fallback for permission-gated routes
 const AccessDenied = () => (
@@ -281,6 +282,7 @@ export default function App() {
         <Route path="/pos/field" element={<PermissionGate perm="pos"><PosRegisterPage mode="field" /></PermissionGate>} />
         <Route path="/pos/session" element={<PermissionGate perm="pos_session"><PosSessionPage /></PermissionGate>} />
         <Route path="/pos/history" element={<PermissionGate perm="pos"><PosHistoryPage /></PermissionGate>} />
+        <Route path="/pos/photo-wizard" element={<PermissionGate perm="masters"><ProductPhotoWizard /></PermissionGate>} />
       </Route>
 
       {/* Catch all */}
