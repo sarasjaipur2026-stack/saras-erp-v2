@@ -10,6 +10,7 @@ import { Modal, Button } from '../../../components/ui'
 import { Banknote, Smartphone, CreditCard, Wallet, Plus, X } from 'lucide-react'
 import { validateTenders } from '../lib/tenderRules'
 import { createSale } from '../lib/posDb'
+import { buildThermalReceipt } from '../print/thermalReceipt80'
 
 const TENDER_TYPES = [
   { key: 'cash', label: 'Cash', icon: Banknote, color: 'emerald' },
@@ -102,6 +103,20 @@ export default function CheckoutDrawer({ open, onClose, cart, terminal, session,
         // Front-end-derived snapshot for the print-bridge (Phase 10)
         customer_label: state.customer?.firm_name || 'Walk-in',
         line_count: totals.lines.length,
+        receipt_text: outputs.includes('thermal') ? buildThermalReceipt({
+          shop: { name: 'SARAS' },
+          invoice: { invoice_number: '(pending)', invoice_date: new Date().toISOString().slice(0, 10), doc_type: state.docType },
+          customer: state.customer ? { firm_name: state.customer.firm_name, phone: state.customer.phone } : null,
+          lines: totals.lines.map(l => ({ description: l.description, qty: l.qty, unit: l.unit, rate: l.rate, line_total: l.line_total })),
+          totals: {
+            subtotal: totals.subtotal,
+            cgst_amount: totals.cgst_amount,
+            sgst_amount: totals.sgst_amount,
+            igst_amount: totals.igst_amount,
+            grand_total: totals.grand_total_after_discount,
+          },
+          tenders,
+        }) : null,
       },
     }
 

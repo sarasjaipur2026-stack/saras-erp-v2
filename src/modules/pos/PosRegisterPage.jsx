@@ -16,6 +16,7 @@ import { supabase } from '../../lib/supabase'
 import { defaultTerminal, currentSession, holdSale } from './lib/posDb'
 import { usePosCart } from './hooks/usePosCart'
 import { usePosShortcuts } from './hooks/usePosShortcuts'
+import { usePrintBridge } from './hooks/usePrintBridge'
 
 import CategoryRail from './components/CategoryRail'
 import ProductGrid from './components/ProductGrid'
@@ -58,6 +59,9 @@ export default function PosRegisterPage({ mode = 'counter' }) {
   // Cart — keyed by session_id (or 'no_session' so the cart still works for
   // browsing before drawer is opened, but persists separately)
   const cart = usePosCart({ sessionId: session?.id || 'no_session' })
+
+  // Print bridge health (green dot if local thermal printer service is up)
+  const { status: bridgeStatus } = usePrintBridge()
 
   // Product images — primary only, all SKUs (one query)
   const { data: imagesRaw } = useSWRList(
@@ -208,13 +212,23 @@ export default function PosRegisterPage({ mode = 'counter' }) {
       <div className="bg-white border-b border-slate-200 px-3 py-2 flex items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-3">
           <div className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-[12px] font-bold">SARAS POS</div>
-          <div className="text-[11px] text-slate-500">
-            <b>{profile?.full_name || user?.email}</b> · {terminal.name}
+          <div className="text-[11px] text-slate-500 flex items-center gap-2">
+            <span><b>{profile?.full_name || user?.email}</b> · {terminal.name}</span>
             {session ? (
-              <> · <span className="text-emerald-600 font-semibold">Drawer open</span> ₹{Number(session.opened_with).toFixed(0)}</>
+              <span className="text-emerald-600 font-semibold">· Drawer open ₹{Number(session.opened_with).toFixed(0)}</span>
             ) : (
-              <> · <span className="text-amber-600 font-semibold">No drawer open</span></>
+              <span className="text-amber-600 font-semibold">· No drawer open</span>
             )}
+            <span
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${
+                bridgeStatus === 'online' ? 'bg-emerald-50 text-emerald-700' :
+                bridgeStatus === 'offline' ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-500'
+              }`}
+              title={bridgeStatus === 'online' ? 'Thermal printer ready' : bridgeStatus === 'offline' ? 'Print bridge offline — bills will queue' : 'Checking…'}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${bridgeStatus === 'online' ? 'bg-emerald-500' : bridgeStatus === 'offline' ? 'bg-red-500' : 'bg-slate-400'}`} />
+              Printer
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-2">
