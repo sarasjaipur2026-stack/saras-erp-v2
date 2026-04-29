@@ -27,6 +27,8 @@ import { orders, deliveries, activityLog, attachments } from '../../lib/db';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { Button, Modal, Input, StatusBadge, Badge, Currency, Spinner } from '../../components/ui';
+import QuickInvoiceModal from '../pos/components/QuickInvoiceModal';
+import { Zap } from 'lucide-react';
 
 export default function OrderDetail() {
   const { id: orderId } = useParams();
@@ -43,6 +45,7 @@ export default function OrderDetail() {
   const [showAddDelivery, setShowAddDelivery] = useState(false);
   const [showAddComment, setShowAddComment] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showQuickInvoice, setShowQuickInvoice] = useState(false);
   const [deliveryForm, setDeliveryForm] = useState({ lineId: '', date: '', qty: '', note: '', challan: '', vehicle: '' });
   const [commentText, setCommentText] = useState('');
   const [cancelReason, setCancelReason] = useState('');
@@ -287,6 +290,10 @@ export default function OrderDetail() {
 
             <Button variant="secondary" size="sm" onClick={() => navigate(`/orders/${orderId}/edit`)}>
               <Edit size={16} /> Edit
+            </Button>
+
+            <Button variant="secondary" size="sm" onClick={() => setShowQuickInvoice(true)} title="Skip production/dispatch — emit GST invoice now">
+              <Zap size={16} /> Quick Invoice
             </Button>
 
             {progression && (
@@ -600,6 +607,18 @@ export default function OrderDetail() {
           </div>
         </div>
       </Modal>
+
+      <QuickInvoiceModal
+        open={showQuickInvoice}
+        onClose={() => setShowQuickInvoice(false)}
+        order={order}
+        customer={order?.customers}
+        onSuccess={(invoiceId) => {
+          toast.success('Quick invoice created');
+          setShowQuickInvoice(false);
+          if (import.meta.env.DEV) console.log('Quick invoice', invoiceId);
+        }}
+      />
     </div>
   );
 }
