@@ -20,6 +20,7 @@ import CategoryRail from './components/CategoryRail'
 import ProductGrid from './components/ProductGrid'
 import SearchBar from './components/SearchBar'
 import BillPanel from './components/BillPanel'
+import CheckoutDrawer from './components/CheckoutDrawer'
 
 import { LogOut, History as HistoryIcon, DollarSign } from 'lucide-react'
 
@@ -107,10 +108,19 @@ export default function PosRegisterPage({ mode = 'counter' }) {
     cart.addProduct(product)
   }
 
+  const [checkoutOpen, setCheckoutOpen] = useState(false)
+
   const onCheckout = () => {
     if (!session) { toast.info('Open a drawer session first'); return }
-    // Phase 7 lands the actual CheckoutDrawer. For now, give a toast.
-    toast.info('CheckoutDrawer ships in Phase 7')
+    if (cart.totals.lines.length === 0) return
+    setCheckoutOpen(true)
+  }
+
+  const onCheckoutSuccess = (invoiceId) => {
+    toast.success('Bill created')
+    setCheckoutOpen(false)
+    cart.clear()
+    if (import.meta.env.DEV) console.log('Created invoice', invoiceId)
   }
 
   const onHold = () => {
@@ -187,6 +197,15 @@ export default function PosRegisterPage({ mode = 'counter' }) {
           onClear={cart.clear}
         />
       </div>
+
+      <CheckoutDrawer
+        open={checkoutOpen}
+        onClose={() => setCheckoutOpen(false)}
+        cart={cart}
+        terminal={terminal}
+        session={session}
+        onSuccess={onCheckoutSuccess}
+      />
     </>
   )
 }
