@@ -13,14 +13,16 @@ import { useApp } from '../../contexts/AppContext'
 import { useToast } from '../../contexts/ToastContext'
 import { useSWRList } from '../../hooks/useSWRList'
 import { supabase } from '../../lib/supabase'
-import { defaultTerminal, currentSession } from './lib/posDb'
+import { defaultTerminal, currentSession, holdSale } from './lib/posDb'
 import { usePosCart } from './hooks/usePosCart'
+import { usePosShortcuts } from './hooks/usePosShortcuts'
 
 import CategoryRail from './components/CategoryRail'
 import ProductGrid from './components/ProductGrid'
 import SearchBar from './components/SearchBar'
 import BillPanel from './components/BillPanel'
 import CheckoutDrawer from './components/CheckoutDrawer'
+import HoldRecallSheet from './components/HoldRecallSheet'
 
 import { LogOut, History as HistoryIcon, DollarSign } from 'lucide-react'
 
@@ -109,6 +111,7 @@ export default function PosRegisterPage({ mode = 'counter' }) {
   }
 
   const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const [recallOpen, setRecallOpen] = useState(false)
 
   const onCheckout = () => {
     if (!session) { toast.info('Open a drawer session first'); return }
@@ -123,9 +126,64 @@ export default function PosRegisterPage({ mode = 'counter' }) {
     if (import.meta.env.DEV) console.log('Created invoice', invoiceId)
   }
 
-  const onHold = () => {
-    toast.info('Hold/recall ships in Phase 8')
+  const onHold = async () => {
+    if (!session) { toast.info('Open a drawer session first'); return }
+    if (cart.totals.lines.length === 0) return
+    const label = window.prompt('Hold label (optional, e.g. "Sharma walk-in 11:42"):') || ''
+    const idem = crypto.randomUUID()
+    const payload = {
+      session_id: session.id,
+      terminal_id: terminal?.id,
+      customer_id: cart.state.customer?.id || null,
+      warehouse_id: terminal?.default_warehouse_id || null,
+      doc_type: cart.state.docType,
+      hold_label: label,
+      notes: cart.state.notes || null,
+      subtotal: cart.totals.subtotal,
+      cgst_amount: cart.totals.cgst_amount,
+      sgst_amount: cart.totals.sgst_amount,
+      igst_amount: cart.totals.igst_amount,
+      total_tax: cart.totals.total_tax,
+      grand_total: cart.totals.grand_total_after_discount,
+      lines: cart.totals.lines.map((l, i) => ({
+        product_id: l.product_id, description: l.description, qty: l.qty, unit: l.unit, rate: l.rate,
+        discount_pct: l.discount_pct, discount_amt: l.discount_amt, hsn_code: l.hsn_code, gst_rate: l.gst_rate,
+        taxable_amount: l.taxable_amount, cgst_amount: l.cgst_amount, sgst_amount: l.sgst_amount,
+        igst_amount: l.igst_amount, line_total: l.line_total, sort_order: i,
+      })),
+    }
+    const { error } = await holdSale(payload, idem)
+    if (error) { toast.error(String(error.message || error)); return }
+    toast.success('Bill held — F5 to recall')
+    cart.clear()
   }
+
+  const onRecallOpen = () => {
+    if (!session) { toast.info('Open a drawer session first'); return }
+    setRecallOpen(true)
+  }
+
+  const onRecallApply = (held) => {
+    // held = { invoice: {...}, lines: [...] }
+    cart.clear()
+    // Hydrate cart from held bill
+    const customer = customers.find(c => c.id === held.invoice.customer_id) || null
+    if (customer) cart.setCustomer(customer)
+    cart.setDocType(held.invoice.doc_type || 'tax_invoice')
+    for (const ln of held.lines || []) {
+      const product = products.find(p => p.id === ln.product_id)
+      if (product) cart.addProduct(product, { qty: Number(ln.qty), rate: Number(ln.rate) })
+    }
+    toast.success('Recalled')
+  }
+
+  // Keyboard shortcuts
+  usePosShortcuts({
+    onCheckout,
+    onHold,
+    onRecall: onRecallOpen,
+    onReprint: () => toast.info('Reprint ships in Phase 10'),
+  })
 
   if (bootstrapping) {
     return <div className="flex-1 flex items-center justify-center text-slate-400">Loading POS…</div>
@@ -205,6 +263,13 @@ export default function PosRegisterPage({ mode = 'counter' }) {
         terminal={terminal}
         session={session}
         onSuccess={onCheckoutSuccess}
+      />
+
+      <HoldRecallSheet
+        open={recallOpen}
+        onClose={() => setRecallOpen(false)}
+        sessionId={session?.id}
+        onRecall={onRecallApply}
       />
     </>
   )
