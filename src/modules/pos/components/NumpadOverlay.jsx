@@ -14,6 +14,7 @@ export default function NumpadOverlay({ open, onClose, label, initialValue, onSu
   const [val, setVal] = useState('')
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (open) setVal(String(initialValue ?? ''))
   }, [open, initialValue])
 

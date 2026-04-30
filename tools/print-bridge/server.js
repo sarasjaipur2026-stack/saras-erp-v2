@@ -1,3 +1,4 @@
+/* global process, Buffer */
 /**
  * SARAS POS — Local Print Bridge
  *

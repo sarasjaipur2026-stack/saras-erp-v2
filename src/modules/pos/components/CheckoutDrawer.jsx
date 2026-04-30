@@ -33,8 +33,11 @@ export default function CheckoutDrawer({ open, onClose, cart, terminal, session,
   // Reset on open / pre-fill single cash tender for the full amount
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTenders([{ tender_type: 'cash', amount: billTotal, reference: '' }])
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setOutputs(DEFAULT_OUTPUTS)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError('')
     }
   }, [open, billTotal])

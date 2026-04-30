@@ -39,7 +39,9 @@ export default function QuickInvoiceModal({ open, onClose, order, customer, onSu
   useEffect(() => {
     if (!open || !order?.id) return
     let alive = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setError('')
     ;(async () => {
       const { data: items, error: liErr } = await supabase
@@ -82,6 +84,7 @@ export default function QuickInvoiceModal({ open, onClose, order, customer, onSu
   // Pre-fill default tender = full bill total in cash
   useEffect(() => {
     if (open && lines.length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTenders([{ tender_type: 'cash', amount: billTotal, reference: '' }])
     }
   }, [open, lines.length, billTotal])

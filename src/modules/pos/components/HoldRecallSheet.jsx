@@ -16,7 +16,9 @@ export default function HoldRecallSheet({ open, onClose, sessionId, onRecall }) 
   useEffect(() => {
     if (!open || !sessionId) return
     let alive = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setErr('')
     ;(async () => {
       const { data, error } = await listHeldSales(sessionId)

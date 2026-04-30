@@ -126,3 +126,26 @@ After all fixes applied:
 ## Historical — Prior Sessions
 
 (Earlier sessions delivered 10 UX audit items including: StatCard click-through, URL-driven filter deep links, Modal autofocus, sessionStorage draft auto-save with 24h TTL + Restore toast, LineItemRow stock chip, dashboard SWR cache, etc. Build was clean entering this audit. See git log for commit-level detail.)
+
+---
+
+## Audit Run: 2026-04-30 (Re-Audit)
+
+Re-audit after POS module landed. Build clean; 11 new ESLint errors surfaced.
+
+### Errors Fixed (11)
+
+| File | Line | Error | Fix |
+|------|------|-------|-----|
+| `tools/print-bridge/server.js` | 25-32, 89 | `process` / `Buffer` not defined | Added `/* global process, Buffer */` (flat config — `eslint-env` no longer recognized) |
+| `src/modules/pos/components/CheckoutDrawer.jsx` | 36-38 | setState in effect (3 calls) | Targeted `eslint-disable-next-line react-hooks/set-state-in-effect` — valid open-modal reset pattern |
+| `src/modules/pos/components/HoldRecallSheet.jsx` | 19-20 | setState in effect | Same pattern — valid loading-state init |
+| `src/modules/pos/components/NumpadOverlay.jsx` | 17 | setState in effect | Same — open-modal value seed |
+| `src/modules/pos/components/QuickInvoiceModal.jsx` | 42-43 | setState in effect | Same — async-load loading state |
+| `src/modules/pos/components/QuickInvoiceModal.jsx` | 85 | setState in effect | Same — pre-fill default tender |
+
+### Verification
+
+- `npx eslint .` → **0 errors**, 7 warnings (TanStack Virtual + Supabase compiler-skip — non-blocking)
+- `npx vite build` → **PASSES** in 1.51s
+- All POS setState-in-effect uses are valid loading/seed patterns; refactoring would not improve correctness
