@@ -1,0 +1,15 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignore": [
+    "tools/print-bridge/**",
+    "src/modules/pos/components/NumpadOverlay.jsx",
+    "src/modules/pos/lib/permissions.js"
+  ],
+  "ignoreDependencies": [
+    "tailwindcss"
+  ],
+  "playwright": {
+    "config": ["playwright.config.js"],
+    "entry": ["e2e/**/*.{js,ts}"]
+  }
+}
