@@ -101,10 +101,11 @@ export default function PosRegisterPage({ mode = 'counter' }) {
     return m
   }, [stockRaw])
 
-  // Filtering
+  // Filtering — wrap fallbacks in useMemo so referential identity is stable
+  // across renders (lint 0019: avoid logical-fallback in useMemo deps).
   const [category, setCategory] = useState(null)
-  const products = app?.products ?? []
-  const customers = app?.customers ?? []
+  const products = useMemo(() => app?.products ?? [], [app?.products])
+  const customers = useMemo(() => app?.customers ?? [], [app?.customers])
   const filtered = useMemo(() => {
     if (!category) return products
     return products.filter(p => (p.category || 'other').toLowerCase() === category)

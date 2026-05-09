@@ -10,7 +10,7 @@
  * Spec: docs/specs/2026-04-28-pos-system-design.md §5.3
  */
 
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useApp } from '../../contexts/AppContext'
@@ -62,7 +62,7 @@ export default function ProductPhotoWizard() {
   const [imageMap, setImageMap] = useState(new Map()) // product_id → image row
   const [imagesLoading, setImagesLoading] = useState(true)
 
-  const refreshImages = async () => {
+  const refreshImages = useCallback(async () => {
     setImagesLoading(true)
     const { data, error } = await supabase
       .from('product_images')
@@ -73,8 +73,8 @@ export default function ProductPhotoWizard() {
     const m = new Map()
     for (const img of data || []) m.set(img.product_id, img)
     setImageMap(m)
-  }
-  useEffect(() => { refreshImages() }, [])
+  }, [toast])
+  useEffect(() => { refreshImages() }, [refreshImages])
 
   const [pickedId, setPickedId] = useState(null)
   const picked = useMemo(() => products.find(p => p.id === pickedId) || null, [products, pickedId])
