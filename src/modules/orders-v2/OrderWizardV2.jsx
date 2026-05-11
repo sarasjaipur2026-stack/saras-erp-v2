@@ -1,34 +1,43 @@
 /**
- * <OrderWizardV2> — smart-progressive single-page order creator.
+ * <OrderWizardV2> — POS-style order creator.
  *
- * Spec: docs/specs/2026-05-11-orders-workspace-design.md (Q5 option D)
- * Plan: docs/specs/2026-05-11-orders-workspace-plan.md §Phase 9
+ * Phase 9 + 10 shipped a form-style smart-progressive wizard.
+ * Phase 10.1 (this rewrite) borrows the POS register pattern the user
+ * already finds easy + clear:
  *
- * Phase 9 (this commit) — new-order path only. Mounted at the opt-in route
- * `/orders/new-v2`. The legacy 4-step OrderForm continues to handle
- * `/orders/new`, `/orders/:id/edit`, and `/orders/:id/duplicate` so we
- * don't regress the complex shapes (sample branching, customer-spec
- * cards, charges, broker commission) until the wizard catches up.
+ *   Top bar: ← back · [Customer chip] · ⚡Sample toggle · Total · [Save]
+ *   Body:
+ *     ┌────────────────────────────┬──────────────────────┐
+ *     │ Product grid               │ Cart                 │
+ *     │ (search · tile grid)       │ (lines + totals)     │
+ *     │                            │                      │
+ *     └────────────────────────────┴──────────────────────┘
+ *   Optional sections (charges · dates · notes · payment terms) stack below.
  *
- * Layout: always-visible Customer + Lines + Save · optional Delivery /
- * Notes / Payment Terms / GST override reveal as "+ Add" buttons.
+ * Tap a tile → addOrIncrementProduct. Already-in-cart tiles show a count
+ * badge. Cart lines have -/+ qty steppers and an expandable rate/disc/GST
+ * editor. Customer chip opens a modal picker with F2 hotkey (POS muscle
+ * memory).
+ *
+ * State + math reuse the existing useOrderWizard hook + _wizardMath helpers
+ * — only the presentation changed.
  */
 
 import { useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  ArrowLeft, Plus, Save, AlertCircle, Loader2, Sparkles, Phone, Mail, MessageCircle,
-} from 'lucide-react'
+import { ArrowLeft, Save, Loader2, Sparkles } from 'lucide-react'
 import ShellShell from '../../components/shell/ShellShell'
-import { Button, Input, SearchSelect, Textarea, Select, Currency } from '../../components/ui'
+import { Button, Currency, Textarea, Select, Input } from '../../components/ui'
 import { useApp } from '../../contexts/AppContext'
 import { useToast } from '../../contexts/ToastContext'
 import { useOrderWizard } from './hooks/useOrderWizard'
 import { useCustomerOutstanding } from './hooks/useCustomerOutstanding'
-import LineItemRow from './wizard/LineItemRow'
 import OptionalSection from './wizard/OptionalSection'
 import CreditCheckBanner from './wizard/CreditCheckBanner'
 import ChargesSection from './wizard/ChargesSection'
+import ProductGrid from './wizard/ProductGrid'
+import CartPanel from './wizard/CartPanel'
+import CustomerSheet from './wizard/CustomerSheet'
 
 export default function OrderWizardV2() {
   const navigate = useNavigate()
@@ -39,45 +48,41 @@ export default function OrderWizardV2() {
   } = useApp()
 
   const {
-    form, patch, patchLine, addLine, removeLine,
+    form, patch, patchLine, addOrIncrementProduct, removeLine,
     totals, validation, saving, save,
   } = useOrderWizard()
 
-  // Selected customer (for phone preview + credit banner)
-  const selectedCustomer = useMemo(
-    () => (form.customerId ? customers.find((c) => c.id === form.customerId) : null),
-    [customers, form.customerId],
-  )
-
-  const { outstanding, loading: outstandingLoading } = useCustomerOutstanding(form.customerId)
-
-  // Map for save() to resolve GST type from customer.state_code without a refetch.
+  // Quick lookups
   const customersById = useMemo(() => {
     const m = new Map()
     for (const c of customers) m.set(c.id, c)
     return m
   }, [customers])
 
-  const customerOptions = customers
-    .filter((c) => c.active !== false)
-    .map((c) => ({
-      value: c.id,
-      label: c.firm_name || c.contact_person || c.id,
-    }))
+  const selectedCustomer = form.customerId ? customersById.get(form.customerId) || null : null
 
-  const paymentTermsOptions = paymentTerms.map((pt) => ({
-    value: pt.id,
-    label: pt.name,
-  }))
+  const cartByProductId = useMemo(() => {
+    const m = new Map()
+    for (const l of form.lines) {
+      if (!l.productId) continue
+      const qty = Number(l.qty) || 0
+      m.set(l.productId, (m.get(l.productId) || 0) + qty)
+    }
+    return m
+  }, [form.lines])
 
-  const orderTypesOptions = orderTypes.map((ot) => ({
-    value: ot.id,
-    label: ot.name,
-  }))
+  const { outstanding, loading: outstandingLoading } = useCustomerOutstanding(form.customerId)
 
-  // Credit-block guard: when projected total exceeds the customer's credit
-  // limit, confirm before saving. Phase 10 doesn't HARD-block (no permission
-  // gate yet); a confirm prompt + warning banner is the safety net.
+  // ─── Handlers ─────────────────────────────────────────────
+  const handlePickCustomer = useCallback((c) => {
+    patch({ customerId: c?.id || '' })
+  }, [patch])
+
+  const handlePickProduct = useCallback((product) => {
+    addOrIncrementProduct(product)
+  }, [addOrIncrementProduct])
+
+  // Over-credit guard
   const isOverCredit = useMemo(() => {
     const limit = Number(selectedCustomer?.credit_limit) || 0
     if (limit <= 0) return false
@@ -110,274 +115,202 @@ export default function OrderWizardV2() {
     }
   }, [save, customersById, toast, navigate, isOverCredit, selectedCustomer, outstanding, totals.grand])
 
+  // ─── Render ───────────────────────────────────────────────
+  const paymentTermsOptions = paymentTerms.map((pt) => ({ value: pt.id, label: pt.name }))
+  const orderTypesOptions = orderTypes.map((ot) => ({ value: ot.id, label: ot.name }))
+
+  const canSave = validation.isValid && !saving
+
   return (
     <ShellShell navRail={null} context={null}>
-      <div className="max-w-4xl mx-auto p-6 space-y-4">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => navigate('/orders')}
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[12px] font-medium text-slate-500 hover:bg-slate-100 transition"
-          >
-            <ArrowLeft size={14} /> Orders
-          </button>
-          <h1 className="text-xl font-bold text-slate-900">
-            New {form.nature === 'sample' ? 'sample' : 'order'}
-          </h1>
-          <a
-            href="/orders/new"
-            className="text-[11px] text-slate-400 hover:text-slate-700 transition"
-            title="Open the full 4-step form (spec cards, complex orders)"
-          >
-            Advanced form →
-          </a>
-        </div>
+      <div className="flex h-full flex-col">
+        {/* ─── Sticky top bar ──────────────────────────────────── */}
+        <header className="sticky top-0 z-10 bg-white/85 backdrop-blur-xl border-b border-slate-200 px-4 py-2.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => navigate('/orders')}
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[12px] font-medium text-slate-500 hover:bg-slate-100 transition"
+              aria-label="Back"
+            >
+              <ArrowLeft size={14} /> Orders
+            </button>
 
-        {/* Sample toggle */}
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-2.5">
-          <div className="inline-flex items-center gap-2 text-[12px] text-slate-700">
-            <Sparkles size={14} className={form.nature === 'sample' ? 'text-amber-500' : 'text-slate-400'} />
-            <span className="font-semibold">Sample order</span>
-            <span className="text-slate-500">— smaller qty, often free or at cost</span>
+            <CustomerSheet
+              customer={selectedCustomer}
+              customers={customers}
+              onChange={handlePickCustomer}
+            />
+
+            <button
+              type="button"
+              role="switch"
+              aria-checked={form.nature === 'sample'}
+              onClick={() => patch({ nature: form.nature === 'sample' ? 'regular' : 'sample' })}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[12px] font-semibold transition ${
+                form.nature === 'sample'
+                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                  : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
+              }`}
+              title="Toggle sample order"
+            >
+              <Sparkles size={12} className={form.nature === 'sample' ? 'text-amber-500' : 'text-slate-400'} />
+              Sample
+            </button>
+
+            <div className="ml-auto flex items-center gap-3">
+              <div className="hidden sm:flex flex-col items-end text-[11px] leading-tight">
+                <span className="text-slate-400">Total</span>
+                <span className="font-bold text-slate-900 tabular-nums"><Currency amount={totals.grand} /></span>
+              </div>
+              <Button onClick={handleSave} disabled={!canSave}>
+                {saving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : <><Save size={14} /> Save</>}
+              </Button>
+            </div>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={form.nature === 'sample'}
-            onClick={() => patch({ nature: form.nature === 'sample' ? 'regular' : 'sample' })}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${form.nature === 'sample' ? 'bg-amber-500' : 'bg-slate-200'}`}
-          >
-            <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition ${form.nature === 'sample' ? 'translate-x-4' : 'translate-x-0.5'}`} />
-          </button>
-        </div>
 
-        {mastersLoading && customers.length === 0 ? (
-          <div className="flex items-center justify-center gap-2 py-12 text-[12px] text-slate-400">
-            <Loader2 size={14} className="animate-spin" />
-            Loading master data…
+          {!validation.isValid && (
+            <div className="mt-1 flex items-center gap-3 text-[11px] text-slate-500">
+              {validation.errors.customerId && <span className="text-amber-700">⚠ pick a customer</span>}
+              {validation.errors.lines && <span className="text-amber-700">⚠ add at least one line</span>}
+            </div>
+          )}
+        </header>
+
+        {/* ─── Loading state ───────────────────────────────────── */}
+        {mastersLoading && products.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center gap-2 text-[12px] text-slate-400">
+            <Loader2 size={14} className="animate-spin" /> Loading products + customers…
           </div>
         ) : (
           <>
-            {/* Customer */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-4">
-              <h2 className="text-[11px] uppercase tracking-wider font-semibold text-slate-500 mb-2">Customer</h2>
-              <SearchSelect
-                required
-                value={form.customerId}
-                onChange={(v) => patch({ customerId: v })}
-                options={customerOptions}
-                placeholder="Search by firm name…"
-              />
-              {validation.errors.customerId && (
-                <p className="mt-1.5 text-[11px] text-red-600 inline-flex items-center gap-1">
-                  <AlertCircle size={11} /> {validation.errors.customerId}
-                </p>
-              )}
-              {/* Phone preview — appears once a customer is selected */}
-              {selectedCustomer && (selectedCustomer.phone || selectedCustomer.whatsapp || selectedCustomer.email) && (
-                <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-                  {selectedCustomer.phone && (
-                    <a href={`tel:${selectedCustomer.phone}`} className="inline-flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1 hover:bg-indigo-50 hover:text-indigo-700 transition">
-                      <Phone size={11} /> {selectedCustomer.phone}
-                    </a>
-                  )}
-                  {selectedCustomer.whatsapp && selectedCustomer.whatsapp !== selectedCustomer.phone && (
-                    <a href={`https://wa.me/91${String(selectedCustomer.whatsapp).replace(/[^0-9]/g, '').slice(-10)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1 hover:bg-emerald-50 hover:text-emerald-700 transition">
-                      <MessageCircle size={11} /> WhatsApp
-                    </a>
-                  )}
-                  {selectedCustomer.email && (
-                    <a href={`mailto:${selectedCustomer.email}`} className="inline-flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1 hover:bg-indigo-50 hover:text-indigo-700 transition">
-                      <Mail size={11} /> {selectedCustomer.email}
-                    </a>
-                  )}
-                  {selectedCustomer.gstin && (
-                    <span className="inline-flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1 font-mono">
-                      GSTIN: {selectedCustomer.gstin}
-                    </span>
-                  )}
-                </div>
-              )}
-            </section>
-
-            {/* Credit-check banner */}
-            <CreditCheckBanner
-              customer={selectedCustomer}
-              outstanding={outstanding}
-              thisOrderTotal={totals.grand}
-              loading={outstandingLoading}
-            />
-
-            {/* Line items */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-[11px] uppercase tracking-wider font-semibold text-slate-500">Lines</h2>
-                <button
-                  type="button"
-                  onClick={addLine}
-                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50 transition"
-                >
-                  <Plus size={12} /> Add line
-                </button>
+            {/* ─── POS-style grid + cart ─────────────────────── */}
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-3 p-3 min-h-0">
+              <div className="min-h-0 rounded-2xl border border-slate-200 bg-slate-50/30 p-3">
+                <ProductGrid
+                  products={products}
+                  cartByProductId={cartByProductId}
+                  onPick={handlePickProduct}
+                />
               </div>
-              <div className="flex flex-col gap-2">
-                {form.lines.map((line, idx) => (
-                  <LineItemRow
-                    key={idx}
-                    index={idx}
-                    line={line}
-                    products={products}
-                    onPatch={(p) => patchLine(idx, p)}
-                    onRemove={() => removeLine(idx)}
-                    canRemove={form.lines.length > 1}
-                  />
-                ))}
+
+              <div className="min-h-0 lg:max-h-[calc(100vh-12rem)]">
+                <CartPanel
+                  lines={form.lines}
+                  products={products}
+                  totals={totals}
+                  onPatchLine={patchLine}
+                  onRemoveLine={removeLine}
+                />
               </div>
-              {validation.errors.lines && (
-                <p className="mt-2 text-[11px] text-red-600 inline-flex items-center gap-1">
-                  <AlertCircle size={11} /> {validation.errors.lines}
-                </p>
-              )}
-            </section>
-
-            {/* Totals */}
-            <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-              <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[13px]">
-                <dt className="text-slate-500">Subtotal</dt>
-                <dd className="text-right tabular-nums"><Currency amount={totals.subtotal} /></dd>
-                {totals.discount > 0 && (
-                  <>
-                    <dt className="text-slate-500">Discount</dt>
-                    <dd className="text-right text-amber-700 tabular-nums">−<Currency amount={totals.discount} /></dd>
-                    <dt className="text-slate-500">Taxable</dt>
-                    <dd className="text-right tabular-nums"><Currency amount={totals.taxable} /></dd>
-                  </>
-                )}
-                <dt className="text-slate-500">GST</dt>
-                <dd className="text-right tabular-nums"><Currency amount={totals.gst} /></dd>
-                {totals.charges > 0 && (
-                  <>
-                    <dt className="text-slate-500">Charges</dt>
-                    <dd className="text-right tabular-nums"><Currency amount={totals.charges} /></dd>
-                  </>
-                )}
-                <dt className="text-slate-700 font-semibold border-t border-slate-200 pt-1.5">Total</dt>
-                <dd className="text-right font-bold text-slate-900 border-t border-slate-200 pt-1.5 tabular-nums">
-                  <Currency amount={totals.grand} />
-                </dd>
-              </dl>
-            </section>
-
-            {/* Charges (optional) */}
-            <OptionalSection
-              label="charges"
-              helper="Freight · packing · labour — flat extras added after GST"
-              active={form.charges.length > 0}
-              onActivate={() => patch({ charges: [{ chargeTypeId: chargeTypes[0]?.id || '', amount: chargeTypes[0]?.default_value ?? '' }] })}
-              onClear={() => patch({ charges: [] })}
-            >
-              <ChargesSection
-                charges={form.charges}
-                chargeTypes={chargeTypes}
-                onChange={(next) => patch({ charges: next })}
-              />
-            </OptionalSection>
-
-            {/* Optional sections */}
-            <OptionalSection
-              label="delivery date"
-              helper="Promised delivery — used for production scheduling"
-              active={Boolean(form.deliveryDate)}
-              onActivate={() => patch({ deliveryDate: new Date().toISOString().slice(0, 10) })}
-              onClear={() => patch({ deliveryDate: '' })}
-            >
-              <Input
-                label="Delivery date"
-                type="date"
-                value={form.deliveryDate}
-                onChange={(e) => patch({ deliveryDate: e.target.value })}
-              />
-            </OptionalSection>
-
-            <OptionalSection
-              label="notes"
-              helper="Internal notes — visible to anyone with order access"
-              active={Boolean(form.notes)}
-              onActivate={() => patch({ notes: ' ' })}
-              onClear={() => patch({ notes: '' })}
-            >
-              <Textarea
-                label="Notes"
-                rows={3}
-                value={form.notes}
-                onChange={(e) => patch({ notes: e.target.value })}
-              />
-            </OptionalSection>
-
-            <OptionalSection
-              label="payment terms"
-              helper="Override the customer default for this order"
-              active={Boolean(form.paymentTermsId)}
-              onActivate={() => patch({ paymentTermsId: paymentTermsOptions[0]?.value || '' })}
-              onClear={() => patch({ paymentTermsId: '' })}
-            >
-              <Select
-                label="Payment terms"
-                value={form.paymentTermsId}
-                onChange={(e) => patch({ paymentTermsId: e.target.value })}
-                options={paymentTermsOptions}
-              />
-            </OptionalSection>
-
-            <OptionalSection
-              label="order type"
-              helper="Order numbering prefix — manufacturing / trading / sample / jobwork"
-              active={Boolean(form.orderTypeId)}
-              onActivate={() => patch({ orderTypeId: orderTypesOptions[0]?.value || '' })}
-              onClear={() => patch({ orderTypeId: '' })}
-            >
-              <Select
-                label="Order type"
-                value={form.orderTypeId}
-                onChange={(e) => patch({ orderTypeId: e.target.value })}
-                options={orderTypesOptions}
-              />
-            </OptionalSection>
-
-            <OptionalSection
-              label="GST override"
-              helper="Auto-resolves from customer state code; override here if needed"
-              active={form.gstType !== 'auto'}
-              onActivate={() => patch({ gstType: 'intra_state' })}
-              onClear={() => patch({ gstType: 'auto' })}
-            >
-              <Select
-                label="GST type"
-                value={form.gstType}
-                onChange={(e) => patch({ gstType: e.target.value })}
-                options={[
-                  { value: 'intra_state', label: 'CGST + SGST (intra-state)' },
-                  { value: 'inter_state', label: 'IGST (inter-state)' },
-                ]}
-              />
-            </OptionalSection>
-
-            {/* Save bar */}
-            <div className="sticky bottom-4 flex items-center justify-end gap-2 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur-md px-4 py-3 shadow-md">
-              <Button variant="secondary" onClick={() => navigate('/orders')} disabled={saving}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave} disabled={saving || !validation.isValid}>
-                {saving ? <><Loader2 size={14} className="animate-spin" /> Saving…</> : <><Save size={14} /> Create order</>}
-              </Button>
             </div>
 
-            <p className="text-center text-[10px] text-slate-400 leading-snug max-w-md mx-auto">
-              Phase 9 ships the simple-order path. For sample-order branching,
-              charges, customer spec cards, broker commission, and existing-order
-              edits — use the <a href="/orders/new" className="text-indigo-600 hover:underline">advanced form</a>.
-            </p>
+            {/* ─── Credit + optional sections ─────────────────── */}
+            <div className="px-3 pb-6 space-y-3 max-w-4xl mx-auto w-full">
+              <CreditCheckBanner
+                customer={selectedCustomer}
+                outstanding={outstanding}
+                thisOrderTotal={totals.grand}
+                loading={outstandingLoading}
+              />
+
+              <OptionalSection
+                label="charges"
+                helper="Freight · packing · labour — flat extras added after GST"
+                active={form.charges.length > 0}
+                onActivate={() => patch({ charges: [{ chargeTypeId: chargeTypes[0]?.id || '', amount: chargeTypes[0]?.default_value ?? '' }] })}
+                onClear={() => patch({ charges: [] })}
+              >
+                <ChargesSection
+                  charges={form.charges}
+                  chargeTypes={chargeTypes}
+                  onChange={(next) => patch({ charges: next })}
+                />
+              </OptionalSection>
+
+              <OptionalSection
+                label="delivery date"
+                helper="Promised delivery — used for production scheduling"
+                active={Boolean(form.deliveryDate)}
+                onActivate={() => patch({ deliveryDate: new Date().toISOString().slice(0, 10) })}
+                onClear={() => patch({ deliveryDate: '' })}
+              >
+                <Input
+                  label="Delivery date"
+                  type="date"
+                  value={form.deliveryDate}
+                  onChange={(e) => patch({ deliveryDate: e.target.value })}
+                />
+              </OptionalSection>
+
+              <OptionalSection
+                label="notes"
+                helper="Internal notes — visible to anyone with order access"
+                active={Boolean(form.notes)}
+                onActivate={() => patch({ notes: ' ' })}
+                onClear={() => patch({ notes: '' })}
+              >
+                <Textarea
+                  label="Notes"
+                  rows={3}
+                  value={form.notes}
+                  onChange={(e) => patch({ notes: e.target.value })}
+                />
+              </OptionalSection>
+
+              <OptionalSection
+                label="payment terms"
+                helper="Override the customer default for this order"
+                active={Boolean(form.paymentTermsId)}
+                onActivate={() => patch({ paymentTermsId: paymentTermsOptions[0]?.value || '' })}
+                onClear={() => patch({ paymentTermsId: '' })}
+              >
+                <Select
+                  label="Payment terms"
+                  value={form.paymentTermsId}
+                  onChange={(e) => patch({ paymentTermsId: e.target.value })}
+                  options={paymentTermsOptions}
+                />
+              </OptionalSection>
+
+              <OptionalSection
+                label="order type"
+                helper="Order numbering prefix — manufacturing / trading / sample / jobwork"
+                active={Boolean(form.orderTypeId)}
+                onActivate={() => patch({ orderTypeId: orderTypesOptions[0]?.value || '' })}
+                onClear={() => patch({ orderTypeId: '' })}
+              >
+                <Select
+                  label="Order type"
+                  value={form.orderTypeId}
+                  onChange={(e) => patch({ orderTypeId: e.target.value })}
+                  options={orderTypesOptions}
+                />
+              </OptionalSection>
+
+              <OptionalSection
+                label="GST override"
+                helper="Auto-resolves from customer state code; override here if needed"
+                active={form.gstType !== 'auto'}
+                onActivate={() => patch({ gstType: 'intra_state' })}
+                onClear={() => patch({ gstType: 'auto' })}
+              >
+                <Select
+                  label="GST type"
+                  value={form.gstType}
+                  onChange={(e) => patch({ gstType: e.target.value })}
+                  options={[
+                    { value: 'intra_state', label: 'CGST + SGST (intra-state)' },
+                    { value: 'inter_state', label: 'IGST (inter-state)' },
+                  ]}
+                />
+              </OptionalSection>
+
+              <p className="text-center text-[10px] text-slate-400 leading-snug">
+                Need sample-order branching, customer-spec cards, or broker commission?
+                <a href="/orders/new" className="ml-1 text-indigo-600 hover:underline">Advanced form →</a>
+              </p>
+            </div>
           </>
         )}
       </div>

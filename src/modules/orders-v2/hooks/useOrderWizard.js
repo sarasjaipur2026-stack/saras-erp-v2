@@ -68,6 +68,46 @@ export function useOrderWizard() {
     setForm((prev) => ({ ...prev, lines: [...prev.lines, EMPTY_LINE()] }))
   }, [])
 
+  /**
+   * POS-style "tap product tile" handler. If the product is already a line,
+   * increments qty by 1. Otherwise, drops the first blank line (if any)
+   * and appends a new line pre-filled with the product's default rate +
+   * GST rate. Returns the resulting line index so callers can highlight it.
+   */
+  const addOrIncrementProduct = useCallback((product) => {
+    if (!product?.id) return -1
+    let outIdx = -1
+    setForm((prev) => {
+      const existingIdx = prev.lines.findIndex((l) => l.productId === product.id)
+      if (existingIdx >= 0) {
+        outIdx = existingIdx
+        const next = prev.lines.map((l, i) => {
+          if (i !== existingIdx) return l
+          const currentQty = Number(l.qty) || 0
+          return { ...l, qty: currentQty + 1 }
+        })
+        return { ...prev, lines: next }
+      }
+      const newLine = {
+        ...EMPTY_LINE(),
+        productId: product.id,
+        qty: 1,
+        rate: product.default_rate != null ? String(product.default_rate) : '',
+        gstRate: Number.isFinite(Number(product.gst_rate)) ? Number(product.gst_rate) : 18,
+      }
+      // Replace the first all-blank line (default empty wizard state); else append.
+      const blankIdx = prev.lines.findIndex(
+        (l) => !l.productId && !l.qty && !l.rate,
+      )
+      const next = blankIdx >= 0
+        ? prev.lines.map((l, i) => (i === blankIdx ? newLine : l))
+        : [...prev.lines, newLine]
+      outIdx = next.indexOf(newLine)
+      return { ...prev, lines: next }
+    })
+    return outIdx
+  }, [])
+
   const removeLine = useCallback((idx) => {
     setForm((prev) => ({
       ...prev,
@@ -118,7 +158,7 @@ export function useOrderWizard() {
   }, [form, validation.isValid, saving])
 
   return {
-    form, patch, patchLine, addLine, removeLine, reset,
+    form, patch, patchLine, addLine, addOrIncrementProduct, removeLine, reset,
     totals, validation, saving, error, save,
   }
 }
