@@ -68,7 +68,7 @@ b97f41…  src/contexts/AppContext.jsx
 8a49a0…  src/lib/authGate.js
 4aa7f8…  src/components/Topbar.legacy.jsx
 ```
-App.jsx has a locked but mutable baseline (`e582fc…` as of Orders V2 Phase 4 — route swap from `modules/orders/OrdersPage` → `modules/orders-v2/OrdersV2Page`; previous baseline `fa5532…` from Shell Phase 6). Drift is OK if planned + re-baselined; rogue drift means a regression.
+App.jsx has a locked but mutable baseline (`1764b8…` as of Orders V2 Phase 6 — route swap from `modules/orders/OrderDetail` → `modules/orders-v2/OrderDetailV2`; previous baseline `e582fc…` from Orders V2 Phase 4 list swap; original `fa5532…` from Shell Phase 6). Drift is OK if planned + re-baselined; rogue drift means a regression. Phase 9 will re-baseline once more for OrderForm → OrderWizardV2.
 
 Verify after every commit:
 ```

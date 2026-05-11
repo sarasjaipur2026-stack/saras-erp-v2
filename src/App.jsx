@@ -109,7 +109,10 @@ const NowWhatHome = lazy(() => import('./pages/NowWhatHome'))
 // rollback (git history preserved via git mv).
 const OrdersPage = lazy(() => import('./modules/orders-v2/OrdersV2Page'))
 const OrderForm = lazy(() => import('./modules/orders/OrderForm'))
-const OrderDetail = lazy(() => import('./modules/orders/OrderDetail'))
+// Orders Workspace Phase 6 — OrderDetailV2 replaces legacy OrderDetail at
+// /orders/:id. Legacy detail retained at `modules/orders/OrderDetail.legacy.jsx`
+// for rollback. Form swap follows in Phase 9.
+const OrderDetail = lazy(() => import('./modules/orders-v2/OrderDetailV2'))
 const EnquiriesPage = lazy(() => import('./modules/enquiry/EnquiriesPage'))
 const EnquiryForm = lazy(() => import('./modules/enquiry/EnquiryForm'))
 const CalculatorPage = lazy(() => import('./modules/calculator/CalculatorPage'))
