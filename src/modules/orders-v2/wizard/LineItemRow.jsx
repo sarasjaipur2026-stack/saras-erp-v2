@@ -23,9 +23,12 @@ export default function LineItemRow({
 }) {
   const qty = Number(line.qty) || 0
   const rate = Number(line.rate) || 0
-  const amount = qty * rate
-  const gstAmt = (amount * (Number(line.gstRate) || 0)) / 100
-  const net = amount + gstAmt
+  const gross = qty * rate
+  const discPct = Math.min(100, Math.max(0, Number(line.discountPct) || 0))
+  const discAmt = (gross * discPct) / 100
+  const taxable = gross - discAmt
+  const gstAmt = (taxable * (Number(line.gstRate) || 0)) / 100
+  const net = taxable + gstAmt
 
   const productOptions = (products || []).map((p) => ({
     value: p.id,
@@ -72,7 +75,7 @@ export default function LineItemRow({
             onChange={onProduct}
           />
         </div>
-        <div className="md:col-span-2">
+        <div className="md:col-span-1">
           <Input
             label="Qty"
             type="number"
@@ -94,6 +97,16 @@ export default function LineItemRow({
         </div>
         <div className="md:col-span-1">
           <Input
+            label="Disc %"
+            type="number"
+            inputMode="decimal"
+            value={line.discountPct}
+            onChange={(e) => onPatch({ discountPct: e.target.value })}
+            placeholder="0"
+          />
+        </div>
+        <div className="md:col-span-1">
+          <Input
             label="GST %"
             type="number"
             inputMode="decimal"
@@ -105,6 +118,9 @@ export default function LineItemRow({
         <div className="md:col-span-2 flex flex-col items-end justify-end">
           <span className="text-[11px] text-slate-400">Net</span>
           <span className="text-[14px] font-semibold text-slate-900 tabular-nums"><Currency amount={net} /></span>
+          {discAmt > 0 && (
+            <span className="text-[10px] text-amber-600 tabular-nums">−<Currency amount={discAmt} /> off</span>
+          )}
         </div>
       </div>
     </div>

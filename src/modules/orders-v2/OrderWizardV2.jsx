@@ -17,25 +17,39 @@
 import { useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, Plus, Save, AlertCircle, Loader2,
+  ArrowLeft, Plus, Save, AlertCircle, Loader2, Sparkles, Phone, Mail, MessageCircle,
 } from 'lucide-react'
 import ShellShell from '../../components/shell/ShellShell'
 import { Button, Input, SearchSelect, Textarea, Select, Currency } from '../../components/ui'
 import { useApp } from '../../contexts/AppContext'
 import { useToast } from '../../contexts/ToastContext'
 import { useOrderWizard } from './hooks/useOrderWizard'
+import { useCustomerOutstanding } from './hooks/useCustomerOutstanding'
 import LineItemRow from './wizard/LineItemRow'
 import OptionalSection from './wizard/OptionalSection'
+import CreditCheckBanner from './wizard/CreditCheckBanner'
+import ChargesSection from './wizard/ChargesSection'
 
 export default function OrderWizardV2() {
   const navigate = useNavigate()
   const toast = useToast()
-  const { customers = [], products = [], paymentTerms = [], orderTypes = [], loading: mastersLoading } = useApp()
+  const {
+    customers = [], products = [], paymentTerms = [], orderTypes = [],
+    chargeTypes = [], loading: mastersLoading,
+  } = useApp()
 
   const {
     form, patch, patchLine, addLine, removeLine,
     totals, validation, saving, save,
   } = useOrderWizard()
+
+  // Selected customer (for phone preview + credit banner)
+  const selectedCustomer = useMemo(
+    () => (form.customerId ? customers.find((c) => c.id === form.customerId) : null),
+    [customers, form.customerId],
+  )
+
+  const { outstanding, loading: outstandingLoading } = useCustomerOutstanding(form.customerId)
 
   // Map for save() to resolve GST type from customer.state_code without a refetch.
   const customersById = useMemo(() => {
@@ -61,7 +75,27 @@ export default function OrderWizardV2() {
     label: ot.name,
   }))
 
+  // Credit-block guard: when projected total exceeds the customer's credit
+  // limit, confirm before saving. Phase 10 doesn't HARD-block (no permission
+  // gate yet); a confirm prompt + warning banner is the safety net.
+  const isOverCredit = useMemo(() => {
+    const limit = Number(selectedCustomer?.credit_limit) || 0
+    if (limit <= 0) return false
+    return (outstanding + totals.grand) > limit
+  }, [selectedCustomer, outstanding, totals.grand])
+
   const handleSave = useCallback(async () => {
+    if (isOverCredit) {
+      const limit = Number(selectedCustomer?.credit_limit) || 0
+      const projected = outstanding + totals.grand
+      const excess = projected - limit
+      const ok = window.confirm(
+        `${selectedCustomer?.firm_name || 'Customer'} is over credit limit by ₹${excess.toLocaleString('en-IN')}.\n\n` +
+        `Limit ₹${limit.toLocaleString('en-IN')} · projected ₹${projected.toLocaleString('en-IN')}.\n\n` +
+        'Save the order anyway?',
+      )
+      if (!ok) return
+    }
     const { data, error } = await save(customersById)
     if (error) {
       toast.error?.(error.message || 'Could not create order')
@@ -74,7 +108,7 @@ export default function OrderWizardV2() {
       if (orderId) navigate(`/orders/${orderId}`)
       else navigate('/orders')
     }
-  }, [save, customersById, toast, navigate])
+  }, [save, customersById, toast, navigate, isOverCredit, selectedCustomer, outstanding, totals.grand])
 
   return (
     <ShellShell navRail={null} context={null}>
@@ -88,14 +122,34 @@ export default function OrderWizardV2() {
           >
             <ArrowLeft size={14} /> Orders
           </button>
-          <h1 className="text-xl font-bold text-slate-900">New order</h1>
+          <h1 className="text-xl font-bold text-slate-900">
+            New {form.nature === 'sample' ? 'sample' : 'order'}
+          </h1>
           <a
             href="/orders/new"
             className="text-[11px] text-slate-400 hover:text-slate-700 transition"
-            title="Open the full 4-step form (charges, spec cards, sample branching)"
+            title="Open the full 4-step form (spec cards, complex orders)"
           >
             Advanced form →
           </a>
+        </div>
+
+        {/* Sample toggle */}
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-2.5">
+          <div className="inline-flex items-center gap-2 text-[12px] text-slate-700">
+            <Sparkles size={14} className={form.nature === 'sample' ? 'text-amber-500' : 'text-slate-400'} />
+            <span className="font-semibold">Sample order</span>
+            <span className="text-slate-500">— smaller qty, often free or at cost</span>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={form.nature === 'sample'}
+            onClick={() => patch({ nature: form.nature === 'sample' ? 'regular' : 'sample' })}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${form.nature === 'sample' ? 'bg-amber-500' : 'bg-slate-200'}`}
+          >
+            <span className={`inline-block h-4 w-4 rounded-full bg-white shadow transition ${form.nature === 'sample' ? 'translate-x-4' : 'translate-x-0.5'}`} />
+          </button>
         </div>
 
         {mastersLoading && customers.length === 0 ? (
@@ -120,7 +174,40 @@ export default function OrderWizardV2() {
                   <AlertCircle size={11} /> {validation.errors.customerId}
                 </p>
               )}
+              {/* Phone preview — appears once a customer is selected */}
+              {selectedCustomer && (selectedCustomer.phone || selectedCustomer.whatsapp || selectedCustomer.email) && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                  {selectedCustomer.phone && (
+                    <a href={`tel:${selectedCustomer.phone}`} className="inline-flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1 hover:bg-indigo-50 hover:text-indigo-700 transition">
+                      <Phone size={11} /> {selectedCustomer.phone}
+                    </a>
+                  )}
+                  {selectedCustomer.whatsapp && selectedCustomer.whatsapp !== selectedCustomer.phone && (
+                    <a href={`https://wa.me/91${String(selectedCustomer.whatsapp).replace(/[^0-9]/g, '').slice(-10)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1 hover:bg-emerald-50 hover:text-emerald-700 transition">
+                      <MessageCircle size={11} /> WhatsApp
+                    </a>
+                  )}
+                  {selectedCustomer.email && (
+                    <a href={`mailto:${selectedCustomer.email}`} className="inline-flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1 hover:bg-indigo-50 hover:text-indigo-700 transition">
+                      <Mail size={11} /> {selectedCustomer.email}
+                    </a>
+                  )}
+                  {selectedCustomer.gstin && (
+                    <span className="inline-flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1 font-mono">
+                      GSTIN: {selectedCustomer.gstin}
+                    </span>
+                  )}
+                </div>
+              )}
             </section>
+
+            {/* Credit-check banner */}
+            <CreditCheckBanner
+              customer={selectedCustomer}
+              outstanding={outstanding}
+              thisOrderTotal={totals.grand}
+              loading={outstandingLoading}
+            />
 
             {/* Line items */}
             <section className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -159,14 +246,43 @@ export default function OrderWizardV2() {
               <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[13px]">
                 <dt className="text-slate-500">Subtotal</dt>
                 <dd className="text-right tabular-nums"><Currency amount={totals.subtotal} /></dd>
+                {totals.discount > 0 && (
+                  <>
+                    <dt className="text-slate-500">Discount</dt>
+                    <dd className="text-right text-amber-700 tabular-nums">−<Currency amount={totals.discount} /></dd>
+                    <dt className="text-slate-500">Taxable</dt>
+                    <dd className="text-right tabular-nums"><Currency amount={totals.taxable} /></dd>
+                  </>
+                )}
                 <dt className="text-slate-500">GST</dt>
                 <dd className="text-right tabular-nums"><Currency amount={totals.gst} /></dd>
+                {totals.charges > 0 && (
+                  <>
+                    <dt className="text-slate-500">Charges</dt>
+                    <dd className="text-right tabular-nums"><Currency amount={totals.charges} /></dd>
+                  </>
+                )}
                 <dt className="text-slate-700 font-semibold border-t border-slate-200 pt-1.5">Total</dt>
                 <dd className="text-right font-bold text-slate-900 border-t border-slate-200 pt-1.5 tabular-nums">
                   <Currency amount={totals.grand} />
                 </dd>
               </dl>
             </section>
+
+            {/* Charges (optional) */}
+            <OptionalSection
+              label="charges"
+              helper="Freight · packing · labour — flat extras added after GST"
+              active={form.charges.length > 0}
+              onActivate={() => patch({ charges: [{ chargeTypeId: chargeTypes[0]?.id || '', amount: chargeTypes[0]?.default_value ?? '' }] })}
+              onClear={() => patch({ charges: [] })}
+            >
+              <ChargesSection
+                charges={form.charges}
+                chargeTypes={chargeTypes}
+                onChange={(next) => patch({ charges: next })}
+              />
+            </OptionalSection>
 
             {/* Optional sections */}
             <OptionalSection

@@ -24,7 +24,9 @@ import { useCallback, useMemo, useState } from 'react'
 import { orders as ordersDb } from '../../../lib/db/orders'
 import { markSelfWrite } from '../../../hooks/useRealtimeTable'
 
-const EMPTY_LINE = () => ({ productId: '', qty: '', rate: '', gstRate: 18 })
+// Phase 10: lines gain a `discountPct` field (line-level discount applied
+// before GST). Charges array sits alongside lines for order-level extras.
+const EMPTY_LINE = () => ({ productId: '', qty: '', rate: '', gstRate: 18, discountPct: '' })
 
 const INITIAL = {
   customerId: '',
@@ -33,7 +35,9 @@ const INITIAL = {
   gstType: 'auto', // resolved on save from customer.state_code
   deliveryDate: '',
   notes: '',
+  nature: 'regular', // 'regular' | 'sample' — Phase 10 sample toggle
   lines: [EMPTY_LINE()],
+  charges: [], // [{ chargeTypeId, amount }]
 }
 
 export function useOrderWizard() {
@@ -67,19 +71,34 @@ export function useOrderWizard() {
   const reset = useCallback(() => setForm(INITIAL), [])
 
   // ─── derived totals ───────────────────────────────────────
+  // Per-line: (qty × rate) less discountPct, then add GST. Then sum
+  // line nets + charges → grand. Charges are added AFTER GST (legacy
+  // behaviour — they're typically freight/packing, not part of taxable value).
   const totals = useMemo(() => {
     let subtotal = 0
+    let discount = 0
+    let taxable = 0
     let gst = 0
     for (const l of form.lines) {
       const qty = Number(l.qty) || 0
       const rate = Number(l.rate) || 0
-      const amt = qty * rate
+      const gross = qty * rate
+      const discPct = Math.min(100, Math.max(0, Number(l.discountPct) || 0))
+      const discAmt = (gross * discPct) / 100
+      const base = gross - discAmt
       const gstRate = Number(l.gstRate) || 0
-      subtotal += amt
-      gst += (amt * gstRate) / 100
+      const gstAmt = (base * gstRate) / 100
+      subtotal += gross
+      discount += discAmt
+      taxable += base
+      gst += gstAmt
     }
-    return { subtotal, gst, grand: subtotal + gst }
-  }, [form.lines])
+    const chargesTotal = form.charges.reduce(
+      (a, c) => a + (Number(c.amount) || 0), 0,
+    )
+    const grand = taxable + gst + chargesTotal
+    return { subtotal, discount, taxable, gst, charges: chargesTotal, grand }
+  }, [form.lines, form.charges])
 
   // ─── validation ───────────────────────────────────────────
   const validation = useMemo(() => {
@@ -114,15 +133,19 @@ export function useOrderWizard() {
         gstType = stateCode === '08' ? 'intra_state' : 'inter_state'
       }
 
-      // Transform lines → schema. Use total_qty as the catch-all qty field
-      // (legacy uses meters/weight_kg for kg/m products but total_qty is
-      // always populated and the pricing engine reads it as a fallback).
+      // Transform lines → schema. Apply discountPct before storing the
+      // net amount so the server-side balance + invoice calc see the
+      // already-reduced base. GST is intentionally stored as a rate (not
+      // amount); downstream code re-derives the tax breakdown.
       const lines = form.lines
         .filter((l) => l.productId && Number(l.qty) > 0 && Number(l.rate) > 0)
         .map((l, idx) => {
           const qty = Number(l.qty)
           const rate = Number(l.rate)
           const amount = qty * rate
+          const discPct = Math.min(100, Math.max(0, Number(l.discountPct) || 0))
+          const discAmt = (amount * discPct) / 100
+          const net = amount - discAmt
           const gstRate = Number(l.gstRate) || 0
           return {
             sort_order: idx + 1,
@@ -131,10 +154,20 @@ export function useOrderWizard() {
             total_qty: qty,
             rate_per_unit: rate,
             amount,
+            discount_pct: discPct,
+            discount_amount: discAmt,
             gst_rate: gstRate,
-            net_amount: amount,
+            net_amount: net,
           }
         })
+
+      const charges = form.charges
+        .filter((c) => c.chargeTypeId && Number(c.amount) > 0)
+        .map((c, idx) => ({
+          sort_order: idx + 1,
+          charge_type_id: c.chargeTypeId,
+          amount: Number(c.amount),
+        }))
 
       const orderPayload = {
         customer_id: form.customerId,
@@ -144,10 +177,11 @@ export function useOrderWizard() {
         gst_type: gstType,
         delivery_date_1: form.deliveryDate || null,
         notes: form.notes || null,
+        nature: form.nature || 'regular',
       }
 
       markSelfWrite('orders')
-      const { data, error: err } = await ordersDb.createAtomic(orderPayload, lines, [])
+      const { data, error: err } = await ordersDb.createAtomic(orderPayload, lines, charges)
       if (err) throw err
       return { data, error: null }
     } catch (e) {
