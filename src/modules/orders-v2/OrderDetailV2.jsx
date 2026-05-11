@@ -23,6 +23,8 @@ import { useToast } from '../../contexts/ToastContext'
 import { useOrderDetail } from './hooks/useOrderDetail'
 import DetailHeader from './panels/DetailHeader'
 import DetailTabsRail from './panels/DetailTabsRail'
+import PinnedCustomerCard from './panels/PinnedCustomerCard'
+import QuickActionStack from './panels/QuickActionStack'
 
 // Each tab is its own lazy chunk so the initial detail-page paint loads
 // just Overview. Switching tabs incurs a single chunk fetch (cached
@@ -92,10 +94,19 @@ export default function OrderDetailV2() {
     )
   }
 
+  // Right context — pinned customer card (Phase 8) + status-gated quick
+  // actions. Both render null safely while `order` is still loading.
+  const contextStack = order && (
+    <div className="flex flex-col gap-3 p-3">
+      <PinnedCustomerCard customerId={order.customer_id} />
+      <QuickActionStack order={order} refetch={refetch} />
+    </div>
+  )
+
   return (
     <ShellShell
       navRail={<DetailTabsRail tab={tab} setTab={setTab} counts={counts} />}
-      context={null}
+      context={contextStack}
     >
       <div className="p-6 space-y-5">
         {loading && !order ? (
