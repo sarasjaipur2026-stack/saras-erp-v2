@@ -11,7 +11,7 @@ const prefetchRoutes = () => {
   const idle = typeof requestIdleCallback === 'function' ? requestIdleCallback : (fn) => setTimeout(fn, 300)
   idle(() => {
     // Wave 1 — immediately after dashboard paints (most likely next clicks)
-    import('./pages/Dashboard')
+    import('./pages/NowWhatHome')
     import('./modules/orders/OrdersPage')
     import('./modules/enquiry/EnquiriesPage')
     import('./modules/invoicing/InvoicesPage')
@@ -100,7 +100,8 @@ function RouteShell({ children }) {
 }
 
 // Lazy-loaded page imports
-const Dashboard = lazy(() => import('./pages/Dashboard'))
+// Dashboard.legacy.jsx retained for rollback; NowWhatHome is the new '/' page (Phase 6).
+const NowWhatHome = lazy(() => import('./pages/NowWhatHome'))
 const OrdersPage = lazy(() => import('./modules/orders/OrdersPage'))
 const OrderForm = lazy(() => import('./modules/orders/OrderForm'))
 const OrderDetail = lazy(() => import('./modules/orders/OrderDetail'))
@@ -216,7 +217,7 @@ export default function App() {
 
       {/* All authenticated routes share a single persistent Layout. */}
       <Route element={<LayoutShell />}>
-        <Route path="/" element={<Dashboard />} />
+        <Route path="/" element={<NowWhatHome />} />
 
         {/* Orders */}
         <Route path="/orders" element={<PermissionGate perm="orders"><OrdersPage /></PermissionGate>} />
