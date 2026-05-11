@@ -42,7 +42,8 @@ export default function CommandPalette() {
   const [activeIdx, setActiveIdx] = useState(0)
   const inputRef = useRef(null)
 
-  // Global Ctrl+K / Cmd+K toggle. Registers once on mount, tears down on unmount.
+  // Global Ctrl+K / Cmd+K toggle + programmatic-open event from TopbarV2 hotbar.
+  // Registers once on mount, tears down on unmount.
   useEffect(() => {
     const handler = (e) => {
       const isCmdK = (e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')
@@ -53,8 +54,13 @@ export default function CommandPalette() {
         setIsOpen(false)
       }
     }
+    const onOpenEvent = () => setIsOpen(true)
     window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
+    window.addEventListener('saras:open-command-palette', onOpenEvent)
+    return () => {
+      window.removeEventListener('keydown', handler)
+      window.removeEventListener('saras:open-command-palette', onOpenEvent)
+    }
   }, [isOpen])
 
   // Prev-prop sync — close palette on route change + reset on open.

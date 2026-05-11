@@ -1,6 +1,9 @@
+// LEGACY — kept for rollback only. ShellV2 (src/components/shell/ShellV2.jsx)
+// is the live shell as of 2026-05-09. Topbar import points at Topbar.legacy
+// so this file stays buildable in case we need to revert Phase 4.
 import { useState } from 'react'
 import Sidebar from './Sidebar'
-import Topbar from './Topbar'
+import Topbar from './Topbar.legacy'
 import CommandPalette from './CommandPalette'
 
 export default function Layout({ children }) {

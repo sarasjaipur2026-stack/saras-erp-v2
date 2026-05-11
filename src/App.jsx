@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate, useLocation, Outlet } from 'react-router-dom'
 import { lazy, Suspense, Component, useEffect } from 'react'
 import { useAuth } from './contexts/AuthContext'
-import Layout from './components/Layout'
+import ShellV2 from './components/shell/ShellV2'
 import LoginPage from './pages/LoginPage'
 import { PageLoader } from './components/ui'
 
@@ -172,11 +172,11 @@ function LayoutShell() {
   if (loading) return <PageLoader />
   if (!user) return <Navigate to="/login" replace />
   return (
-    <Layout>
+    <ShellV2>
       <RouteShell>
         <Outlet />
       </RouteShell>
-    </Layout>
+    </ShellV2>
   )
 }
 
