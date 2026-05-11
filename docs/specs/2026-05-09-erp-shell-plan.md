@@ -146,7 +146,23 @@
 
 ---
 
-## Phase 7 — Per-page swap to `<ShellShell>` (1 day)
+## Phase 7 — Per-page swap to `<ShellShell>` (1 day) — **DEFERRED**
+
+**Decision (2026-05-09):** skipped during the shell build. Reason: wrapping
+all 30+ existing pages in `<ShellShell>` with no rails is a no-op visually.
+The wrap only earns its keep when a page actually has navRail/context content
+to render — which happens during per-module redesigns. Each per-module
+sub-project (Orders Workspace, Production Board, Stock+Purchase, Dispatch,
+Invoicing+Payments+Reports, Masters cleanup) introduces its own
+`<ShellShell>` wrap when it adds rails. No bulk prep needed.
+
+ShellShell remains shipped and ready (Phase 1, commit 4d1f2b6). Per-module
+phases will adopt it organically.
+
+---
+
+(historical content — what Phase 7 would have done if we'd run it)
+
 
 | Files | Change |
 |---|---|
