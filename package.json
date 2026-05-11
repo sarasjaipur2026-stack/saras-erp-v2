@@ -8,7 +8,9 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:pos": "node --test src/modules/pos/__tests__/*.test.js"
+    "test:pos": "node --test src/modules/pos/__tests__/*.test.js",
+    "test:shell": "node --test src/pages/now-what/__tests__/*.test.js src/lib/__tests__/*.test.js",
+    "test": "npm run test:pos && npm run test:shell"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",

@@ -15,6 +15,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { labelForPath } from '../lib/labelForPath'
 
 const MAX = 5
 
@@ -73,22 +74,4 @@ export function useRecentPages() {
   }, [user?.id])
 
   return { recent, clear }
-}
-
-/**
- * Best-effort label generation from a path. Used when we don't have a NAV_ITEM
- * match — falls back to the last path segment, prettified.
- *
- * @param {string} path
- * @returns {string}
- */
-function labelForPath(path) {
-  if (!path || path === '/') return 'Dashboard'
-  const segs = path.split('/').filter(Boolean)
-  // /orders/abc → "Order detail" feels nicer than "Abc"
-  if (segs[0] === 'orders' && segs[1] && segs[1] !== 'new') return 'Order detail'
-  if (segs[0] === 'enquiries' && segs[1] && segs[1] !== 'new') return 'Enquiry detail'
-  // Default — prettify last segment
-  const last = segs[segs.length - 1] || segs[0] || ''
-  return last.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
