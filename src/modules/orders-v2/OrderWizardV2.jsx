@@ -23,7 +23,7 @@
  * — only the presentation changed.
  */
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Save, Loader2, Sparkles } from 'lucide-react'
 import ShellShell from '../../components/shell/ShellShell'
@@ -44,8 +44,14 @@ export default function OrderWizardV2() {
   const toast = useToast()
   const {
     customers = [], products = [], paymentTerms = [], orderTypes = [],
-    chargeTypes = [], loading: mastersLoading,
+    chargeTypes = [], loading: mastersLoading, primeMasters,
   } = useApp()
+
+  // AppContext doesn't auto-load masters on mount — pages that need them
+  // must explicitly call primeMasters(). Legacy OrderForm does the same.
+  useEffect(() => {
+    if (primeMasters) primeMasters()
+  }, [primeMasters])
 
   const {
     form, patch, patchLine, addOrIncrementProduct, removeLine,
