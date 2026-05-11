@@ -13,6 +13,7 @@
  * context — keeps every render function deterministic given the row data.
  */
 
+import { ExternalLink } from 'lucide-react'
 import { Currency, StatusBadge, Badge } from '../../../components/ui'
 // Note: column key list lives in `./columnKeys.js` so it can be imported
 // by Node `--test` runners that don't transpile JSX. Don't re-export from
@@ -21,10 +22,46 @@ import { Currency, StatusBadge, Badge } from '../../../components/ui'
 /**
  * Build column defs for the orders list.
  *
- * @returns {Array<{ key: string, label: string, render: (value: unknown, row: object) => unknown }>}
+ * @param {object} [opts]
+ * @param {Set<string>} [opts.selectedIds]            — bulk-select set
+ * @param {(id: string) => void} [opts.onToggleSelect] — checkbox toggle
+ * @param {() => void} [opts.onSelectAll]             — header checkbox
+ * @param {boolean} [opts.allSelected]                — drives header checkbox state
+ * @param {(id: string) => void} [opts.onOpenOrder]   — Open icon → navigate
+ * @returns {Array<{ key: string, label: any, render: (value: unknown, row: object) => unknown }>}
  */
-export function buildOrdersColumns() {
-  return [
+export function buildOrdersColumns(opts = {}) {
+  const { selectedIds, onToggleSelect, onSelectAll, allSelected, onOpenOrder } = opts
+  const bulkEnabled = Boolean(selectedIds && onToggleSelect && onSelectAll)
+
+  const cols = []
+
+  if (bulkEnabled) {
+    cols.push({
+      key: '_select',
+      label: (
+        <input
+          type="checkbox"
+          checked={allSelected}
+          onChange={onSelectAll}
+          aria-label="Select all rows on this page"
+          className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/30"
+        />
+      ),
+      render: (_value, row) => (
+        <input
+          type="checkbox"
+          checked={selectedIds.has(row.id)}
+          onChange={() => onToggleSelect(row.id)}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Select ${row.order_number || 'row'}`}
+          className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/30"
+        />
+      ),
+    })
+  }
+
+  cols.push(
     {
       key: 'order_number',
       label: 'Order #',
@@ -98,6 +135,29 @@ export function buildOrdersColumns() {
         ? new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
         : <span className="text-slate-400">—</span>,
     },
-  ]
+  )
+
+  if (onOpenOrder) {
+    cols.push({
+      key: '_open',
+      label: '',
+      render: (_value, row) => (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onOpenOrder(row.id)
+          }}
+          className="inline-flex items-center gap-1 rounded-md p-1 text-slate-400 hover:bg-indigo-50 hover:text-indigo-700 transition"
+          aria-label="Open order"
+          title="Open order details"
+        >
+          <ExternalLink size={13} />
+        </button>
+      ),
+    })
+  }
+
+  return cols
 }
 
