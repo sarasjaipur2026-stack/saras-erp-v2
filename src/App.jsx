@@ -12,7 +12,7 @@ const prefetchRoutes = () => {
   idle(() => {
     // Wave 1 — immediately after dashboard paints (most likely next clicks)
     import('./pages/NowWhatHome')
-    import('./modules/orders/OrdersPage')
+    import('./modules/orders-v2/OrdersV2Page')
     import('./modules/enquiry/EnquiriesPage')
     import('./modules/invoicing/InvoicesPage')
     import('./modules/finance/PaymentsPage')
@@ -102,7 +102,12 @@ function RouteShell({ children }) {
 // Lazy-loaded page imports
 // Dashboard.legacy.jsx retained for rollback; NowWhatHome is the new '/' page (Phase 6).
 const NowWhatHome = lazy(() => import('./pages/NowWhatHome'))
-const OrdersPage = lazy(() => import('./modules/orders/OrdersPage'))
+// Orders Workspace (sub-project 1) — OrdersV2Page replaces the legacy
+// OrdersPage at `/orders`. The detail + form routes still hit the legacy
+// OrderDetail/OrderForm files; those land in Phase 6+ of the same sub-project.
+// Legacy list page retained at `modules/orders/OrdersPage.legacy.jsx` for
+// rollback (git history preserved via git mv).
+const OrdersPage = lazy(() => import('./modules/orders-v2/OrdersV2Page'))
 const OrderForm = lazy(() => import('./modules/orders/OrderForm'))
 const OrderDetail = lazy(() => import('./modules/orders/OrderDetail'))
 const EnquiriesPage = lazy(() => import('./modules/enquiry/EnquiriesPage'))

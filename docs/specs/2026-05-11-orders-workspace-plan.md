@@ -11,6 +11,7 @@ b97f41…  AppContext.jsx         MUST NOT CHANGE
 8a49a0…  authGate.js            MUST NOT CHANGE
 4aa7f8…  Topbar.legacy.jsx      MUST NOT CHANGE
 fa5532…  App.jsx                may re-baseline once at Phase 4
+                                  → re-baselined to e582fc… at Phase 4 (Orders Workspace)
 ```
 
 ---
