@@ -38,6 +38,7 @@ import ShellShell from '../../components/shell/ShellShell'
 import { Button, DataTable } from '../../components/ui'
 import { useOrdersList } from './hooks/useOrdersList'
 import { buildOrdersColumns } from './panels/_OrdersTableColumns'
+import OrdersNavRail from './panels/OrdersNavRail'
 
 export default function OrdersV2Page() {
   const navigate = useNavigate()
@@ -68,7 +69,10 @@ export default function OrdersV2Page() {
   const columns = buildOrdersColumns()
 
   return (
-    <ShellShell navRail={null} context={null}>
+    <ShellShell
+      navRail={<OrdersNavRail filters={filters} setFilter={setFilter} />}
+      context={null}
+    >
       <div className="p-6 space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
