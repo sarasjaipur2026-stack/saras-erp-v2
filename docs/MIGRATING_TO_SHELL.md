@@ -4,6 +4,21 @@ How to redesign a module page to use `<ShellShell>` + the surrounding shell prim
 
 See `docs/SHELL.md` for the reference of what's available.
 
+## Completed migrations
+
+| Module | Reference | Notes |
+|---|---|---|
+| **Orders Workspace** | [`docs/ORDERS_V2.md`](ORDERS_V2.md) | First per-module migration. Three planned `App.jsx` re-baselines for list / detail / wizard route swaps. List + detail fully on V2; legacy form still owns edit + duplicate. |
+
+### Learnings from Orders V2 (apply to subsequent modules)
+
+1. **Plan the App.jsx re-baselines up front.** Three route swaps (list / detail / form) each need their own commit + md5 re-baseline. Don't batch — each is its own checkpoint for rollback.
+2. **Co-locate JSX-free constants in a sibling `.js` file** when you want Node `--test` to import them (`columnKeys.js` ↔ `_OrdersTableColumns.jsx`). The lint rule `react-refresh/only-export-components` forbids mixing components + constants in the same JSX file.
+3. **Avoid the `icon: Icon` aliased-prop pattern** in JSX — ESLint can't infer JSX usage of renamed component refs. Either inline the buttons (preferred) or expose a small icon-name → component map.
+4. **Pure helpers extract well from React hooks.** Pulling `_quickActions.js`, `_wizardMath.js`, `_savedSearchOps.js`, `filterUtils.js`, and `columnKeys.js` into JSX-free modules gave 121 cheap unit tests with zero React-testing-library overhead.
+5. **Conservative wizard scope.** The legacy 1800-LOC form has too much business logic (sample branching · spec cards · broker commission) to rewrite in one phase. Ship the smart-progressive wizard at `/orders/new-v2` as an opt-in route; keep legacy for edit + duplicate until the wizard catches up.
+6. **Lag contract held.** Across 13 phases the 5 non-App.jsx lag-protected files stayed byte-identical. Every accidental drift was caught at commit time by re-running `md5sum`.
+
 ## When to use ShellShell
 
 Wrap your page in `<ShellShell>` ONLY when the page has at least one of:

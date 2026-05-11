@@ -78,7 +78,7 @@ md5sum src/hooks/useSWRList.js src/contexts/AppContext.jsx src/lib/db/core.js sr
 ### Per-module redesigns (separate sub-projects, each with own spec)
 The shell unblocks per-module work. Each gets its own brainstorm → spec → 13-phase plan → ship cycle. Order:
 
-1. Orders Workspace
+1. **Orders Workspace — SHIPPED** (`docs/ORDERS_V2.md`). List `/orders`, detail `/orders/:id`, opt-in wizard `/orders/new-v2`. Three planned App.jsx re-baselines. 121 unit tests.
 2. Production Board (kanban)
 3. Stock + Purchase
 4. Dispatch
