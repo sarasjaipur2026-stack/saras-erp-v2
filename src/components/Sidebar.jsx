@@ -1,13 +1,16 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Pin } from 'lucide-react'
 import { NAV_ITEMS, SYSTEM_ITEMS, CATEGORIES } from '../lib/navItems'
+import PinnedNav from './shell/PinnedNav'
+import { usePinnedNav } from '../hooks/usePinnedNav'
 
 export default function Sidebar({ isOpen, onClose }) {
   const { isAdmin, hasPermission } = useAuth()
   const location = useLocation()
   const [expandedCategories, setExpandedCategories] = useState({ masters: true })
+  const { togglePin, isPinned } = usePinnedNav()
 
   const toggleCategory = (catKey) => {
     setExpandedCategories(prev => ({
@@ -45,7 +48,11 @@ export default function Sidebar({ isOpen, onClose }) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-3 px-3 sidebar-scroll">
+      <nav className="flex-1 overflow-y-auto pb-3 sidebar-scroll">
+        {/* Pinned + Recent sections (hide when both empty) */}
+        <PinnedNav onItemClick={onClose} />
+
+        <div className="px-3 pt-3">
         {CATEGORIES.map(cat => {
           const items = allItems.filter(i => i.category === cat.key)
           if (!items.length) return null
@@ -78,44 +85,67 @@ export default function Sidebar({ isOpen, onClose }) {
                   (item.path !== '/' && location.pathname.startsWith(item.path))
 
                 return (
-                  <NavLink
-                    key={item.path}
-                    to={item.coming ? '#' : item.path}
-                    onClick={(e) => {
-                      if (item.coming) e.preventDefault()
-                      else onClose?.()
-                    }}
-                    className={`
-                      group relative flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] mb-0.5
-                      transition-all duration-200
-                      ${item.coming
-                        ? 'text-slate-300 cursor-not-allowed'
-                        : isActive
-                          ? 'bg-indigo-50/80 text-indigo-700 font-semibold'
-                          : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
-                      }
-                    `}
-                  >
-                    {/* Active indicator bar */}
-                    {isActive && !item.coming && (
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-indigo-500 rounded-r-full" />
-                    )}
-                    <Icon size={18} strokeWidth={isActive ? 2 : 1.5} className={`shrink-0 transition-colors duration-200 ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
-                    <span className="flex-1">{item.label}</span>
-                    {item.coming && (
-                      <span className="text-[9px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded-md font-medium">
-                        Soon
-                      </span>
-                    )}
-                    {item.badge && (
-                      <span className="w-2 h-2 bg-indigo-500 rounded-full" />
-                    )}
-                  </NavLink>
+                  <div key={item.path} className="group relative">
+                    <NavLink
+                      to={item.coming ? '#' : item.path}
+                      onClick={(e) => {
+                        if (item.coming) e.preventDefault()
+                        else onClose?.()
+                      }}
+                      onContextMenu={(e) => {
+                        // Right-click toggles pin (only for real nav items)
+                        if (item.coming) return
+                        e.preventDefault()
+                        togglePin({ path: item.path, label: item.label })
+                      }}
+                      className={`
+                        group relative flex items-center gap-3 px-3 py-2 rounded-xl text-[13px] mb-0.5
+                        transition-all duration-200
+                        ${item.coming
+                          ? 'text-slate-300 cursor-not-allowed'
+                          : isActive
+                            ? 'bg-indigo-50/80 text-indigo-700 font-semibold'
+                            : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                        }
+                      `}
+                    >
+                      {/* Active indicator bar */}
+                      {isActive && !item.coming && (
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-indigo-500 rounded-r-full" />
+                      )}
+                      <Icon size={18} strokeWidth={isActive ? 2 : 1.5} className={`shrink-0 transition-colors duration-200 ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
+                      <span className="flex-1">{item.label}</span>
+                      {item.coming && (
+                        <span className="text-[9px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded-md font-medium">
+                          Soon
+                        </span>
+                      )}
+                      {item.badge && (
+                        <span className="w-2 h-2 bg-indigo-500 rounded-full" />
+                      )}
+                      {/* Pin hint button — discoverable on hover, right-click is the power-user path */}
+                      {!item.coming && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            togglePin({ path: item.path, label: item.label })
+                          }}
+                          title={isPinned(item.path) ? 'Unpin from top' : 'Pin to top'}
+                          className={`p-1 rounded transition-opacity ${isPinned(item.path) ? 'text-indigo-500 opacity-100' : 'text-slate-300 opacity-0 group-hover:opacity-100 hover:text-indigo-500'}`}
+                        >
+                          <Pin size={11} fill={isPinned(item.path) ? 'currentColor' : 'none'} />
+                        </button>
+                      )}
+                    </NavLink>
+                  </div>
                 )
               })}
             </div>
           )
         })}
+        </div>
       </nav>
 
       {/* Footer */}
