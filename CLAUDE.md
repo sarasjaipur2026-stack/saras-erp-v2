@@ -46,6 +46,57 @@ A complete ERP system for **RPK Industries** — a cordage and narrow textile ma
 
 ---
 
+## SHELL ARCHITECTURE (2026-05-09 ERP redesign)
+
+The non-POS shell. POS keeps its own full-screen layout (`PosLayout`).
+**Full reference: `docs/SHELL.md`. Migration guide: `docs/MIGRATING_TO_SHELL.md`.**
+
+### Live primitives
+- `<ShellV2>` — top-level wrapper (`src/components/shell/ShellV2.jsx`)
+- `<TopbarV2>` — three zones: hamburger+brand · Cmd+K hotbar · pills+notifs+profile
+- `<Sidebar>` — categories + per-user pinned section + recent pages
+- `<ShellShell>` — 3-panel scaffold every module page mounts inside (`navRail · centre · context`); responsive ladder collapses cleanly down to phone (`BottomSheet` for context)
+- `<CommandPaletteV2>` — primary nav. **Cmd+K** / **Ctrl+K** / **`/`**. Domain-grouped (Navigate · People · Records · Products), verb commands (`>add customer` etc.), Cmd+Enter peeks in `<SearchResultDrawer>`
+- `<NowWhatHome>` at `/` — action-prompted feed (8 role-aware cards) replaces the old Dashboard
+
+### Lag-protection contract (NON-NEGOTIABLE)
+These files MUST stay byte-identical across the shell build + every per-module phase:
+```
+5f7095…  src/hooks/useSWRList.js
+b97f41…  src/contexts/AppContext.jsx
+8d1216…  src/lib/db/core.js
+8a49a0…  src/lib/authGate.js
+4aa7f8…  src/components/Topbar.legacy.jsx
+```
+App.jsx has a locked but mutable baseline (`fa5532…` as of Phase 6). Drift is OK if planned + re-baselined; rogue drift means a regression.
+
+Verify after every commit:
+```
+md5sum src/hooks/useSWRList.js src/contexts/AppContext.jsx src/lib/db/core.js src/lib/authGate.js src/components/Topbar.legacy.jsx src/App.jsx
+```
+
+### Per-module redesigns (separate sub-projects, each with own spec)
+The shell unblocks per-module work. Each gets its own brainstorm → spec → 13-phase plan → ship cycle. Order:
+
+1. Orders Workspace
+2. Production Board (kanban)
+3. Stock + Purchase
+4. Dispatch
+5. Invoicing + Payments + Reports
+6. Masters cleanup + bulk wizards
+
+Each redesign starts by reading `docs/MIGRATING_TO_SHELL.md`.
+
+### Visual style invariants
+- Indigo primary (`bg-indigo-600`, `text-indigo-700`)
+- Plus Jakarta Sans (via index.html font preload)
+- Slate neutrals
+- 2xl rounded everywhere (`rounded-2xl` for cards, `rounded-xl` for buttons)
+- Backdrop blur on the topbar (`bg-white/85 backdrop-blur-xl`)
+- Same indigo gradient on brand mark (`from-indigo-500 to-purple-600`)
+
+---
+
 ## MASTER DATA ARCHITECTURE (Foundation — Build First!)
 
 ### Principle: "Pehle registers banao, phir kaam shuru"
