@@ -19,7 +19,7 @@
 import { useState } from 'react'
 import Sidebar from '../Sidebar'
 import TopbarV2 from './TopbarV2'
-import CommandPalette from '../CommandPalette'
+import CommandPaletteV2 from './CommandPaletteV2'
 
 export default function ShellV2({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -46,10 +46,10 @@ export default function ShellV2({ children }) {
         </main>
       </div>
 
-      {/* CommandPalette mounted at root — reachable from anywhere via Cmd+K
-          or via the saras:open-command-palette event dispatched by TopbarV2's
-          search hotbar. */}
-      <CommandPalette />
+      {/* CommandPaletteV2 mounted at root — reachable from anywhere via Cmd+K,
+          via the saras:open-command-palette event dispatched by TopbarV2's
+          search hotbar, or via the `/` shortcut anywhere except inside inputs. */}
+      <CommandPaletteV2 />
     </div>
   )
 }

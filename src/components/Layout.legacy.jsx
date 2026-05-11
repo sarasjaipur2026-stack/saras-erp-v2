@@ -4,7 +4,7 @@
 import { useState } from 'react'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar.legacy'
-import CommandPalette from './CommandPalette'
+import CommandPalette from './CommandPalette.legacy'
 
 export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
