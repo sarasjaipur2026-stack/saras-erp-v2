@@ -92,7 +92,21 @@ Note: when nothing is selected, pass `context={null}` (not `<div>nothing</div>`)
 
 ### Saved searches in navRail
 
-Persist via `profiles.preferences.saved_searches[module_key]` JSONB (mirrors the pinned-nav pattern). Use `mergePreferences` from `src/lib/db/profiles.js`.
+Persist via a per-module top-level key on `profiles.preferences` (flat, mirrors `pinned_nav`). Convention: `<module>_saved_searches`.
+
+| Module | Key | Shape |
+|---|---|---|
+| Orders | `orders_saved_searches` | `Array<{ name: string, params: Record<string,string> }>` |
+| Production | `production_saved_searches` | same shape (future) |
+| Stock | `stock_saved_searches` | same shape (future) |
+
+Use `mergePreferences` from `src/lib/db/profiles.js` (read-modify-write, ≤2 KB total blob). Thin DAL wrappers (`getSavedSearches`, `saveSearch`, `removeSearch`) live in `profiles.js` and accept the module key so they stay generic.
+
+Why flat keys not nested `saved_searches.orders`? Two reasons:
+1. Mirrors `pinned_nav` which is already flat — consistency wins.
+2. RMW on a flat key is one less destructure step + fewer "key missing → null deref" footguns.
+
+Cap saved-search count at ~16 per module (each entry ~80 bytes serialised; well under the 2 KB ceiling).
 
 ### Linking back into the URL
 
