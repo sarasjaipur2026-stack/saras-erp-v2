@@ -13,7 +13,7 @@ b97f41…  AppContext.jsx         MUST NOT CHANGE
 fa5532…  App.jsx                may re-baseline at Phase 4, 6, 9 (planned route swaps)
                                   → re-baselined to e582fc… at Phase 4 (list swap)
                                   → re-baselined to 1764b8… at Phase 6 (detail swap)
-                                  → Phase 9 wizard swap pending
+                                  → re-baselined to 3e8745… at Phase 9 (wizard opt-in route)
 ```
 
 ---

@@ -109,6 +109,10 @@ const NowWhatHome = lazy(() => import('./pages/NowWhatHome'))
 // rollback (git history preserved via git mv).
 const OrdersPage = lazy(() => import('./modules/orders-v2/OrdersV2Page'))
 const OrderForm = lazy(() => import('./modules/orders/OrderForm'))
+// Orders Workspace Phase 9 — smart-progressive wizard, opt-in route at
+// `/orders/new-v2`. Legacy 4-step OrderForm still owns /orders/new, edit,
+// duplicate until the wizard catches up to complex orders.
+const OrderWizardV2 = lazy(() => import('./modules/orders-v2/OrderWizardV2'))
 // Orders Workspace Phase 6 — OrderDetailV2 replaces legacy OrderDetail at
 // /orders/:id. Legacy detail retained at `modules/orders/OrderDetail.legacy.jsx`
 // for rollback. Form swap follows in Phase 9.
@@ -230,6 +234,7 @@ export default function App() {
         {/* Orders */}
         <Route path="/orders" element={<PermissionGate perm="orders"><OrdersPage /></PermissionGate>} />
         <Route path="/orders/new" element={<PermissionGate perm="orders" action="create"><OrderForm /></PermissionGate>} />
+        <Route path="/orders/new-v2" element={<PermissionGate perm="orders" action="create"><OrderWizardV2 /></PermissionGate>} />
         <Route path="/orders/:id" element={<PermissionGate perm="orders" action="view"><OrderDetail /></PermissionGate>} />
         <Route path="/orders/:id/edit" element={<PermissionGate perm="orders" action="edit"><OrderForm /></PermissionGate>} />
 
