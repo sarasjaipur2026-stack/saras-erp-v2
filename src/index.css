@@ -27,6 +27,12 @@ html {
   --vh: 1vh;
 }
 
+/* Phase 9 — no horizontal scroll on any viewport.
+   Catches any errant fixed-width child trying to overflow the screen.
+   Specific pages that need horizontal scroll opt in with overflow-x-auto
+   on their own container. */
+html, body { overflow-x: hidden; }
+
 /* Utility: dynamic viewport height that respects mobile browser chrome. */
 @supports (height: 100dvh) {
   .min-h-screen-dvh { min-height: 100dvh; }

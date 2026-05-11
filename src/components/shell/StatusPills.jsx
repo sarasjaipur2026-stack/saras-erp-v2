@@ -19,8 +19,12 @@ export default function StatusPills() {
 
   // Print-bridge pill only mounts when on /pos (so the 5-second polling
   // doesn't run on every page). The hook itself is no-op when unmounted.
+  //
+  // Hidden on phone (<sm) to keep the topbar uncluttered at 320px width.
+  // Critical errors still surface via toasts; the pills are an
+  // at-a-glance reassurance for desktop users.
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="hidden sm:flex items-center gap-1.5">
       <Pill
         state={connection === 'online' ? 'green' : connection === 'reconnecting' ? 'amber' : 'red'}
         label="Net"

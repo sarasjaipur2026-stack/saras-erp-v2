@@ -36,6 +36,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { X, SlidersHorizontal, ClipboardList } from 'lucide-react'
+import BottomSheet from './BottomSheet'
 
 const DEFAULT_NAV_WIDTH = 200
 const DEFAULT_CTX_WIDTH = 360
@@ -153,7 +154,8 @@ export default function ShellShell({
         </button>
       )}
 
-      {/* ===== Nav rail slide-over (all sub-xl widths) ===== */}
+      {/* ===== Nav rail slide-over (all sub-xl widths) — stays as a left-side
+                 drawer regardless of viewport (Sidebar already uses this idiom). */}
       {hasNav && (
         <SlideOver
           open={openPanel === 'nav'}
@@ -166,17 +168,33 @@ export default function ShellShell({
         </SlideOver>
       )}
 
-      {/* ===== Context drawer (all sub-xl widths) ===== */}
+      {/* ===== Context drawer — phone gets a bottom-sheet (thumb-friendly);
+                 sm/md keep the right slide-over. ===== */}
       {hasCtx && (
-        <SlideOver
-          open={openPanel === 'ctx'}
-          onClose={closeAny}
-          side="right"
-          title="Details"
-          widthPx={Math.max(contextWidth, 320)}
-        >
-          {context}
-        </SlideOver>
+        <>
+          {/* sm:hidden — phone */}
+          <div className="sm:hidden">
+            <BottomSheet
+              open={openPanel === 'ctx'}
+              onClose={closeAny}
+              title="Details"
+            >
+              {context}
+            </BottomSheet>
+          </div>
+          {/* hidden sm:block — tablet/desktop slide-over */}
+          <div className="hidden sm:block">
+            <SlideOver
+              open={openPanel === 'ctx'}
+              onClose={closeAny}
+              side="right"
+              title="Details"
+              widthPx={Math.max(contextWidth, 320)}
+            >
+              {context}
+            </SlideOver>
+          </div>
+        </>
       )}
     </>
   )
