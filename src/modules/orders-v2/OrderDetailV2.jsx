@@ -2,39 +2,37 @@
  * <OrderDetailV2> — the Orders Workspace detail page.
  *
  * Spec: docs/specs/2026-05-11-orders-workspace-design.md
- * Plan: docs/specs/2026-05-11-orders-workspace-plan.md §Phase 6
+ * Plan: docs/specs/2026-05-11-orders-workspace-plan.md §Phase 6 + §Phase 7
  *
- * Phase 6 ships the scaffold:
- *   - useOrderDetail hook (orders.get + realtime filtered by id)
- *   - sticky DetailHeader (order # · status · customer · total · actions)
- *   - DetailTabsRail in ShellShell navRail · 6 tabs with keyboard 1-6
- *   - OverviewTab content; other 5 tabs render <StubTab> placeholder
- *   - 404-style not-found state for bad IDs
- *   - Cmd/Ctrl+E shortcut → /orders/:id/edit (legacy OrderForm until Phase 9)
+ * Phase 6 shipped the scaffold + Overview tab.
+ * Phase 7 fills in Dispatch + Payments with real content from the
+ *   order's already-fetched joins (zero extra round-trips) and wires
+ *   Production / Invoice / Activity to their respective modules. All
+ *   six tabs become lazy chunks so the first paint stays fast.
  *
  * The right-rail context slot stays null — Phase 8 fills it with the pinned
  * customer card + status-gated quick-action stack.
  */
 
-import { useCallback, useEffect } from 'react'
+import { lazy, Suspense, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Loader2 } from 'lucide-react'
 import ShellShell from '../../components/shell/ShellShell'
 import { Button } from '../../components/ui'
 import { useToast } from '../../contexts/ToastContext'
 import { useOrderDetail } from './hooks/useOrderDetail'
 import DetailHeader from './panels/DetailHeader'
 import DetailTabsRail from './panels/DetailTabsRail'
-import OverviewTab from './tabs/OverviewTab'
-import StubTab from './tabs/_StubTab'
 
-const TAB_STUB_COPY = {
-  production: 'Linked production jobs, machine assignment, and progress bars. Inline "+ New production job" creator.',
-  dispatch:   'Linked deliveries, transporter assignment, dispatch dates. "+ Schedule dispatch" inline form.',
-  invoice:    'Linked invoice(s), balance, and "Generate invoice" CTA. Click invoice → opens the invoice detail.',
-  payments:   'Payments timeline + inline add-payment form. Settled balance + receipt links.',
-  activity:   'Full activity_log feed with comment-box for free-text notes. Filter by event type.',
-}
+// Each tab is its own lazy chunk so the initial detail-page paint loads
+// just Overview. Switching tabs incurs a single chunk fetch (cached
+// thereafter by the browser).
+const OverviewTab   = lazy(() => import('./tabs/OverviewTab'))
+const ProductionTab = lazy(() => import('./tabs/ProductionTab'))
+const DispatchTab   = lazy(() => import('./tabs/DispatchTab'))
+const InvoiceTab    = lazy(() => import('./tabs/InvoiceTab'))
+const PaymentsTab   = lazy(() => import('./tabs/PaymentsTab'))
+const ActivityTab   = lazy(() => import('./tabs/ActivityTab'))
 
 export default function OrderDetailV2() {
   const navigate = useNavigate()
@@ -69,10 +67,8 @@ export default function OrderDetailV2() {
 
   // ─── Tab counts for the rail badges ───────────────────────
   const counts = {
-    production: order?.production_plans?.length, // join may not exist yet; safe null-undefined
-    dispatch:   Array.isArray(order?.deliveries) ? order.deliveries.length : 0,
-    invoice:    Array.isArray(order?.invoices)   ? order.invoices.length   : 0,
-    payments:   Array.isArray(order?.payments)   ? order.payments.length   : 0,
+    dispatch: Array.isArray(order?.deliveries) ? order.deliveries.length : 0,
+    payments: Array.isArray(order?.payments)   ? order.payments.length   : 0,
   }
 
   // ─── 404 / error handling ─────────────────────────────────
@@ -113,12 +109,14 @@ export default function OrderDetailV2() {
             />
 
             <div role="tabpanel" aria-labelledby={`tab-${tab}`}>
-              {tab === 'overview' && <OverviewTab order={order} summary={summary} />}
-              {tab === 'production' && <StubTab label="Production" description={TAB_STUB_COPY.production} />}
-              {tab === 'dispatch' && <StubTab label="Dispatch" description={TAB_STUB_COPY.dispatch} />}
-              {tab === 'invoice' && <StubTab label="Invoice" description={TAB_STUB_COPY.invoice} />}
-              {tab === 'payments' && <StubTab label="Payments" description={TAB_STUB_COPY.payments} />}
-              {tab === 'activity' && <StubTab label="Activity" description={TAB_STUB_COPY.activity} />}
+              <Suspense fallback={<TabSkeleton />}>
+                {tab === 'overview' && <OverviewTab order={order} summary={summary} />}
+                {tab === 'production' && <ProductionTab order={order} />}
+                {tab === 'dispatch' && <DispatchTab order={order} />}
+                {tab === 'invoice' && <InvoiceTab order={order} />}
+                {tab === 'payments' && <PaymentsTab order={order} summary={summary} />}
+                {tab === 'activity' && <ActivityTab order={order} />}
+              </Suspense>
             </div>
           </>
         )}
@@ -137,6 +135,15 @@ function DetailSkeleton() {
         <div className="h-40 rounded-2xl bg-slate-100" />
       </div>
       <div className="h-24 rounded-2xl bg-slate-100" />
+    </div>
+  )
+}
+
+function TabSkeleton() {
+  return (
+    <div className="flex items-center justify-center gap-2 py-12 text-[12px] text-slate-400">
+      <Loader2 size={14} className="animate-spin" />
+      Loading tab…
     </div>
   )
 }
