@@ -222,6 +222,63 @@ export const orders = {
     }
   },
 
+  // Edit-mode counterpart to createAtomic. Updates the header in place and
+  // replaces (delete + insert) the child arrays. NOT atomic at the SQL level
+  // until an `update_order_atomic` RPC ships — for now we do header-first +
+  // best-effort children so the user's edits are durable even if children
+  // partially fail. Returns the updated header on success.
+  updateWithChildren: async (id, order, lineItemsArr = [], chargesArr = []) => {
+    try {
+      if (!id) return { data: null, error: new Error('updateWithChildren: id required') }
+      // Strip fields that should never be re-sent on PATCH.
+      const { customer_id, order_type_id, payment_terms_id, broker_id, status,
+              gst_type, delivery_date_1, notes, nature } = order
+      const payload = {
+        customer_id, order_type_id, payment_terms_id, broker_id, status,
+        gst_type, delivery_date_1, notes, nature,
+      }
+      const { error: headerErr, data: header } = await supabase
+        .from('orders')
+        .update(payload)
+        .eq('id', id)
+        .select('*, customers(firm_name, contact_name)')
+        .single()
+      if (headerErr) return { data: null, error: headerErr }
+
+      // Replace line items
+      const { error: delLineErr } = await supabase
+        .from('order_line_items')
+        .delete()
+        .eq('order_id', id)
+      if (delLineErr) return { data: header, error: delLineErr }
+      if (lineItemsArr.length > 0) {
+        const rows = lineItemsArr.map((li) => ({ ...li, order_id: id }))
+        const { error: insLineErr } = await supabase
+          .from('order_line_items')
+          .insert(rows)
+        if (insLineErr) return { data: header, error: insLineErr }
+      }
+
+      // Replace charges
+      const { error: delChargeErr } = await supabase
+        .from('order_charges')
+        .delete()
+        .eq('order_id', id)
+      if (delChargeErr) return { data: header, error: delChargeErr }
+      if (chargesArr.length > 0) {
+        const rows = chargesArr.map((c) => ({ ...c, order_id: id }))
+        const { error: insChargeErr } = await supabase
+          .from('order_charges')
+          .insert(rows)
+        if (insChargeErr) return { data: header, error: insChargeErr }
+      }
+
+      return { data: header, error: null }
+    } catch (error) {
+      return { data: null, error }
+    }
+  },
+
   // Phase 1 — atomic create. Header + line items + charges in one transaction.
   // If any insert fails the whole thing rolls back — no orphan headers.
   // Caller passes order fields (minus order_number / user_id — RPC derives both),

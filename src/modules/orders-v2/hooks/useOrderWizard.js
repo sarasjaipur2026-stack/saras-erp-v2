@@ -22,7 +22,7 @@
  *   }
  */
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { orders as ordersDb } from '../../../lib/db/orders'
 import { markSelfWrite } from '../../../hooks/useRealtimeTable'
 import {
@@ -48,10 +48,56 @@ const INITIAL = {
   charges: [],
 }
 
-export function useOrderWizard() {
+/**
+ * @param {object} [opts]
+ * @param {object|null} [opts.existingOrder]  full order row (with joins) to load
+ *                                            into the form for edit-mode
+ */
+export function useOrderWizard(opts = {}) {
+  const { existingOrder } = opts
   const [form, setForm] = useState(INITIAL)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [hydratedFromId, setHydratedFromId] = useState(null)
+
+  // Hydrate the form once from an existing order (edit-mode). Subsequent
+  // changes to existingOrder (eg. realtime echo of our own save) do NOT
+  // re-hydrate — we'd overwrite user edits in flight.
+  useEffect(() => {
+    if (!existingOrder?.id) return
+    if (hydratedFromId === existingOrder.id) return
+    Promise.resolve().then(() => {
+      const lines = Array.isArray(existingOrder.order_line_items) && existingOrder.order_line_items.length > 0
+        ? existingOrder.order_line_items.map((li) => ({
+            productId: li.product_id || '',
+            qty: li.total_qty ?? li.meters ?? li.weight_kg ?? '',
+            rate: li.rate_per_unit ?? '',
+            gstRate: li.gst_rate ?? 18,
+            discountPct: li.discount_pct ?? '',
+          }))
+        : [{ ...EMPTY_LINE() }]
+      const charges = Array.isArray(existingOrder.order_charges)
+        ? existingOrder.order_charges.map((c) => ({
+            chargeTypeId: c.charge_type_id || '',
+            amount: c.amount ?? '',
+          }))
+        : []
+      setForm({
+        customerId: existingOrder.customer_id || '',
+        orderTypeId: existingOrder.order_type_id || '',
+        paymentTermsId: existingOrder.payment_terms_id || '',
+        gstType: existingOrder.gst_type || 'auto',
+        deliveryDate: existingOrder.delivery_date_1
+          ? String(existingOrder.delivery_date_1).slice(0, 10)
+          : '',
+        notes: existingOrder.notes || '',
+        nature: existingOrder.nature || 'regular',
+        lines,
+        charges,
+      })
+      setHydratedFromId(existingOrder.id)
+    })
+  }, [existingOrder, hydratedFromId])
 
   const patch = useCallback((p) => {
     setForm((prev) => ({ ...prev, ...p }))
@@ -146,6 +192,15 @@ export function useOrderWizard() {
       const orderPayload = buildOrderPayload(form, gstType)
 
       markSelfWrite('orders')
+      // Edit-mode: PATCH the header then replace line + charge rows.
+      // Insert-mode: createAtomic header + lines + charges together.
+      if (existingOrder?.id) {
+        const { data: headerData, error: headerErr } = await ordersDb.updateWithChildren(
+          existingOrder.id, orderPayload, lines, charges,
+        )
+        if (headerErr) throw headerErr
+        return { data: headerData || { id: existingOrder.id }, error: null }
+      }
       const { data, error: err } = await ordersDb.createAtomic(orderPayload, lines, charges)
       if (err) throw err
       return { data, error: null }
@@ -155,10 +210,11 @@ export function useOrderWizard() {
     } finally {
       setSaving(false)
     }
-  }, [form, validation.isValid, saving])
+  }, [form, validation.isValid, saving, existingOrder])
 
   return {
     form, patch, patchLine, addLine, addOrIncrementProduct, removeLine, reset,
     totals, validation, saving, error, save,
+    isEditMode: Boolean(existingOrder?.id),
   }
 }
