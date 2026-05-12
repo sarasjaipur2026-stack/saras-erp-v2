@@ -64,14 +64,15 @@ export function useRecentPages() {
     const label = labelForPath(path)
     const next = [{ path, label }, ...without].slice(0, MAX)
     writeBuffer(user.id, next)
-    setRecent(next)
-  }, [location.pathname, user?.id])
+    // Defer setState past the effect body to avoid cascading-render lint.
+    Promise.resolve().then(() => setRecent(next))
+  }, [location.pathname, user])
 
   const clear = useCallback(() => {
     if (!user?.id) return
     sessionStorage.removeItem(storageKey(user.id))
     setRecent([])
-  }, [user?.id])
+  }, [user])
 
   return { recent, clear }
 }

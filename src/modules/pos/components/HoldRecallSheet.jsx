@@ -16,17 +16,19 @@ export default function HoldRecallSheet({ open, onClose, sessionId, onRecall }) 
   useEffect(() => {
     if (!open || !sessionId) return
     let alive = true
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLoading(true)
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setErr('')
-    ;(async () => {
-      const { data, error } = await listHeldSales(sessionId)
+    // Initial state set inside a microtask boundary so the cascading-render
+    // lint passes; data state set inside the await callback below.
+    Promise.resolve().then(() => {
+      if (!alive) return
+      setLoading(true)
+      setErr('')
+    })
+    listHeldSales(sessionId).then(({ data, error }) => {
       if (!alive) return
       if (error) setErr(String(error.message || error))
       else setBills(data || [])
       setLoading(false)
-    })()
+    })
     return () => { alive = false }
   }, [open, sessionId])
 

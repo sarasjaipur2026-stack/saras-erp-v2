@@ -15,7 +15,7 @@ import { Link } from 'react-router-dom'
 import { Plus, Store, Search } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { cardsForRole } from './now-what/visibility'
-import { CARD_REGISTRY } from './now-what/cards.jsx'
+import { CARD_REGISTRY } from './now-what/cards-registry'
 
 export default function NowWhatHome() {
   const { profile } = useAuth()
@@ -45,44 +45,36 @@ export default function NowWhatHome() {
       <div className="mt-6 lg:mt-8">
         <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 mb-2">Quick actions</div>
         <div className="grid grid-cols-3 gap-3">
-          <QuickAction to="/orders/new" icon={Plus} label="New Order" />
-          <QuickAction to="/pos" icon={Store} label="POS" />
-          <QuickActionButton
+          <Link
+            to="/orders/new"
+            className="group rounded-xl bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-sm p-3 flex items-center gap-2.5 transition-all"
+          >
+            <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white flex items-center justify-center transition-colors shrink-0">
+              <Plus size={16} />
+            </div>
+            <div className="text-[13px] font-semibold text-slate-700 group-hover:text-indigo-700 truncate">New Order</div>
+          </Link>
+          <Link
+            to="/pos"
+            className="group rounded-xl bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-sm p-3 flex items-center gap-2.5 transition-all"
+          >
+            <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white flex items-center justify-center transition-colors shrink-0">
+              <Store size={16} />
+            </div>
+            <div className="text-[13px] font-semibold text-slate-700 group-hover:text-indigo-700 truncate">POS</div>
+          </Link>
+          <button
             onClick={() => window.dispatchEvent(new CustomEvent('saras:open-command-palette'))}
-            icon={Search}
-            label="Search"
-          />
+            className="group rounded-xl bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-sm p-3 flex items-center gap-2.5 transition-all text-left"
+          >
+            <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white flex items-center justify-center transition-colors shrink-0">
+              <Search size={16} />
+            </div>
+            <div className="text-[13px] font-semibold text-slate-700 group-hover:text-indigo-700 truncate">Search</div>
+          </button>
         </div>
       </div>
     </div>
-  )
-}
-
-function QuickAction({ to, icon: Icon, label }) {
-  return (
-    <Link
-      to={to}
-      className="group rounded-xl bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-sm p-3 flex items-center gap-2.5 transition-all"
-    >
-      <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white flex items-center justify-center transition-colors shrink-0">
-        <Icon size={16} />
-      </div>
-      <div className="text-[13px] font-semibold text-slate-700 group-hover:text-indigo-700 truncate">{label}</div>
-    </Link>
-  )
-}
-
-function QuickActionButton({ onClick, icon: Icon, label }) {
-  return (
-    <button
-      onClick={onClick}
-      className="group rounded-xl bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-sm p-3 flex items-center gap-2.5 transition-all text-left"
-    >
-      <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white flex items-center justify-center transition-colors shrink-0">
-        <Icon size={16} />
-      </div>
-      <div className="text-[13px] font-semibold text-slate-700 group-hover:text-indigo-700 truncate">{label}</div>
-    </button>
   )
 }
 

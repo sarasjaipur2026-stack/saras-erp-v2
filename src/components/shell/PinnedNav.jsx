@@ -28,7 +28,11 @@ export default function PinnedNav({ onItemClick }) {
   return (
     <div className="px-3 pt-3 pb-1 border-b border-slate-100/70">
       {pinned.length > 0 && (
-        <Section icon={Pin} label="Pinned">
+        <div className="mb-1">
+          <div className="flex items-center gap-1.5 px-3 pb-1 text-[9px] uppercase tracking-[0.08em] font-semibold text-slate-400/80">
+            <Pin size={10} strokeWidth={2} />
+            Pinned
+          </div>
           {pinned.map(p => (
             <PinnedItem
               key={p.path}
@@ -39,10 +43,14 @@ export default function PinnedNav({ onItemClick }) {
               onClick={onItemClick}
             />
           ))}
-        </Section>
+        </div>
       )}
       {recentFiltered.length > 0 && (
-        <Section icon={Clock} label="Recent">
+        <div className="mb-1">
+          <div className="flex items-center gap-1.5 px-3 pb-1 text-[9px] uppercase tracking-[0.08em] font-semibold text-slate-400/80">
+            <Clock size={10} strokeWidth={2} />
+            Recent
+          </div>
           {recentFiltered.map(r => (
             <RecentItem
               key={r.path}
@@ -51,20 +59,8 @@ export default function PinnedNav({ onItemClick }) {
               onClick={onItemClick}
             />
           ))}
-        </Section>
+        </div>
       )}
-    </div>
-  )
-}
-
-function Section({ icon: Icon, label, children }) {
-  return (
-    <div className="mb-1">
-      <div className="flex items-center gap-1.5 px-3 pb-1 text-[9px] uppercase tracking-[0.08em] font-semibold text-slate-400/80">
-        <Icon size={10} strokeWidth={2} />
-        {label}
-      </div>
-      {children}
     </div>
   )
 }

@@ -330,13 +330,5 @@ export function NewEnquiriesCard() {
 /* ---------------------------------------------------------------------- */
 /* Registry — maps card id → component (consumed by NowWhatHome).          */
 /* ---------------------------------------------------------------------- */
-export const CARD_REGISTRY = {
-  overdue_payments: OverduePaymentsCard,
-  orders_pending: OrdersPendingCard,
-  low_stock: LowStockCard,
-  qc_pending: QcPendingCard,
-  dispatch_today: DispatchTodayCard,
-  held_bills: HeldBillsCard,
-  today_sales: TodaySalesCard,
-  new_enquiries: NewEnquiriesCard,
-}
+// CARD_REGISTRY lives in ./cards-registry.js — this file only exports
+// components (satisfies react-refresh/only-export-components).

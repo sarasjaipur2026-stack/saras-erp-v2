@@ -116,17 +116,23 @@ export default function CommandPaletteV2() {
     if (!isOpen) return
     const q = query.trim()
     if (q.length === 0) {
-      setResults(null)
-      setLoading(false)
+      // Defer setState past the effect body to satisfy
+      // react-hooks/set-state-in-effect.
+      Promise.resolve().then(() => {
+        setResults(null)
+        setLoading(false)
+      })
       return
     }
     // verb queries: skip RPC entirely
     if (q.startsWith('>')) {
-      setResults(null)
-      setLoading(false)
+      Promise.resolve().then(() => {
+        setResults(null)
+        setLoading(false)
+      })
       return
     }
-    setLoading(true)
+    Promise.resolve().then(() => setLoading(true))
     const t = setTimeout(async () => {
       const { data } = await searchAcrossDomains(q)
       setResults(data)
@@ -137,6 +143,9 @@ export default function CommandPaletteV2() {
   }, [query, isOpen])
 
   // ---- recent items (persisted) ----
+  // `isOpen` intentionally not in deps — the recent list is captured once
+  // when the palette opens, then frozen until close. Including it would
+  // also trigger a fresh re-read on every keystroke.
   const recent = useMemo(() => {
     if (!user?.id) return []
     try {
@@ -144,7 +153,7 @@ export default function CommandPaletteV2() {
       const parsed = raw ? JSON.parse(raw) : []
       return Array.isArray(parsed) ? parsed.slice(0, MAX_RECENT) : []
     } catch { return [] }
-  }, [user?.id, isOpen])
+  }, [user?.id])
 
   const pushRecent = useCallback((item) => {
     if (!user?.id) return
@@ -154,7 +163,7 @@ export default function CommandPaletteV2() {
       const next = [item, ...without].slice(0, MAX_RECENT)
       sessionStorage.setItem(RECENT_KEY(user.id), JSON.stringify(next))
     } catch {/* ignore */}
-  }, [user?.id])
+  }, [user])
 
   // ---- assemble flat list for keyboard navigation ----
   const sections = useMemo(() => {

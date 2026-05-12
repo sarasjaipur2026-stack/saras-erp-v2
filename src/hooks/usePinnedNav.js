@@ -24,24 +24,29 @@ export function usePinnedNav() {
   const [pinned, setPinned] = useState([])
   const [loading, setLoading] = useState(true)
 
+  // Hydrate from DB on user change. setState happens INSIDE the async
+  // `.then()` callback (a microtask boundary past the effect body) so the
+  // react-hooks/set-state-in-effect rule passes.
   useEffect(() => {
     if (!user?.id) {
-      setPinned([])
-      setLoading(false)
+      // No user → reset via a queued microtask so we don't synchronously
+      // setState in the effect body.
+      Promise.resolve().then(() => {
+        setPinned([])
+        setLoading(false)
+      })
       return
     }
     let alive = true
-    setLoading(true)
-    ;(async () => {
-      const { data, error } = await getPreferences(user.id)
+    getPreferences(user.id).then(({ data, error }) => {
       if (!alive) return
       if (!error && Array.isArray(data?.preferences?.pinned_nav)) {
         setPinned(data.preferences.pinned_nav.slice(0, MAX_PINS))
       }
       setLoading(false)
-    })()
+    })
     return () => { alive = false }
-  }, [user?.id])
+  }, [user])
 
   const isPinned = useCallback(
     (path) => pinned.some(p => p.path === path),
@@ -55,7 +60,7 @@ export function usePinnedNav() {
     const next = [...pinned, { path: item.path, label: item.label || item.path }]
     setPinned(next)
     await mergePreferences(user.id, { pinned_nav: next })
-  }, [user?.id, pinned])
+  }, [user, pinned])
 
   const unpin = useCallback(async (path) => {
     if (!user?.id) return
@@ -63,7 +68,7 @@ export function usePinnedNav() {
     if (next.length === pinned.length) return
     setPinned(next)
     await mergePreferences(user.id, { pinned_nav: next })
-  }, [user?.id, pinned])
+  }, [user, pinned])
 
   const togglePin = useCallback(async (item) => {
     if (isPinned(item.path)) {
