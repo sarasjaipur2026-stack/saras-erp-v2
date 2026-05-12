@@ -181,8 +181,13 @@ const AccessDenied = () => (
 // meant Topbar, Sidebar, and CommandPalette unmounted/remounted on every
 // route change → notification fetch stampede + masters re-init.
 function LayoutShell() {
-  const { user, loading } = useAuth()
-  if (loading) return <PageLoader />
+  const { user, loading, profile } = useAuth()
+  // Wait for BOTH auth and profile before mounting children. Without the
+  // profile check, PermissionGate evaluates with profile=null on first
+  // mount → isAdmin=false → AccessDenied flashes for ~500 ms before the
+  // async fetchProfile resolves and the gate re-renders. This guard makes
+  // the flash impossible.
+  if (loading || (user && !profile)) return <PageLoader />
   if (!user) return <Navigate to="/login" replace />
   return (
     <ShellV2>

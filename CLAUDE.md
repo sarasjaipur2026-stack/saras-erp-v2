@@ -68,7 +68,7 @@ b97f41…  src/contexts/AppContext.jsx
 8a49a0…  src/lib/authGate.js
 4aa7f8…  src/components/Topbar.legacy.jsx
 ```
-App.jsx has a locked but mutable baseline (`3e8745…` as of Orders V2 Phase 9 — added opt-in `/orders/new-v2` route for OrderWizardV2; legacy `/orders/new` `/orders/:id/edit` stay on the 4-step form. Previous baselines: `1764b8…` Phase 6 detail swap · `e582fc…` Phase 4 list swap · `fa5532…` Shell Phase 6). Drift is OK if planned + re-baselined; rogue drift means a regression.
+App.jsx has a locked but mutable baseline (`37cf24…` as of the post-Orders V2 PermissionGate flash-bug fix — LayoutShell now waits for both auth AND profile before mounting children, eliminating the AccessDenied flash on direct-navigation to gated routes. Previous baselines: `3e8745…` Orders V2 Phase 9 wizard route · `1764b8…` Phase 6 detail swap · `e582fc…` Phase 4 list swap · `fa5532…` Shell Phase 6). Drift is OK if planned + re-baselined; rogue drift means a regression.
 
 Verify after every commit:
 ```
