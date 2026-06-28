@@ -514,3 +514,5 @@
 
 {"timestamp":"2026-06-27T16:34:43.570Z","commit":"47ccfb70dc5ab1e91e144efdcce4636af3d8cdd9","branch":"main","prod_url":"https://saras-erp-v2-rebuild.vercel.app","authenticated":false,"dashboard_load_ms":278,"orders_click_ms":null,"enquiries_click_ms":null,"post_idle_orders_ms":null,"expired_jwt_orders_ms":null,"token_refreshes_in_post_idle":null,"errors":[]}
 
+{"timestamp":"2026-06-28T09:37:46.273Z","commit":"1373a8777e94d6cbfae375a4298827f535ce80c4","branch":"main","prod_url":"https://saras-erp-v2-rebuild.vercel.app","authenticated":false,"dashboard_load_ms":213,"orders_click_ms":null,"enquiries_click_ms":null,"post_idle_orders_ms":null,"expired_jwt_orders_ms":null,"token_refreshes_in_post_idle":null,"errors":[]}
+
