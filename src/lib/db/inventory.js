@@ -408,7 +408,14 @@ export const goodsReceipts = {
           source_id: grn.id,
           notes: `Received via ${grnNum}`,
         }))
-        await supabase.from('stock_movements').insert(stockRows)
+        const { error: smErr } = await supabase.from('stock_movements').insert(stockRows)
+        if (smErr) {
+          // GRN + items are committed but stock is now out of sync — surface it
+          return {
+            data: { grn_number: grnNum, grn },
+            error: new Error(`GRN saved but stock movement failed — stock balance is out of sync. Re-enter movements manually. (${smErr.message})`),
+          }
+        }
       }
 
       const { data: refreshedItems } = await supabase

@@ -222,58 +222,27 @@ export const orders = {
     }
   },
 
-  // Edit-mode counterpart to createAtomic. Updates the header in place and
-  // replaces (delete + insert) the child arrays. NOT atomic at the SQL level
-  // until an `update_order_atomic` RPC ships — for now we do header-first +
-  // best-effort children so the user's edits are durable even if children
-  // partially fail. Returns the updated header on success.
+  // Edit-mode counterpart to createAtomic. Header update + child replacement
+  // run inside the update_order_atomic RPC in ONE transaction — a failed
+  // child insert rolls back the delete, so the order can never be left with
+  // zero line items.
   updateWithChildren: async (id, order, lineItemsArr = [], chargesArr = []) => {
     try {
       if (!id) return { data: null, error: new Error('updateWithChildren: id required') }
-      // Strip fields that should never be re-sent on PATCH.
       const { customer_id, order_type_id, payment_terms_id, broker_id, status,
               gst_type, delivery_date_1, notes, nature } = order
       const payload = {
         customer_id, order_type_id, payment_terms_id, broker_id, status,
         gst_type, delivery_date_1, notes, nature,
       }
-      const { error: headerErr, data: header } = await supabase
-        .from('orders')
-        .update(payload)
-        .eq('id', id)
-        .select('*, customers(firm_name, contact_name)')
-        .single()
-      if (headerErr) return { data: null, error: headerErr }
-
-      // Replace line items
-      const { error: delLineErr } = await supabase
-        .from('order_line_items')
-        .delete()
-        .eq('order_id', id)
-      if (delLineErr) return { data: header, error: delLineErr }
-      if (lineItemsArr.length > 0) {
-        const rows = lineItemsArr.map((li) => ({ ...li, order_id: id }))
-        const { error: insLineErr } = await supabase
-          .from('order_line_items')
-          .insert(rows)
-        if (insLineErr) return { data: header, error: insLineErr }
-      }
-
-      // Replace charges
-      const { error: delChargeErr } = await supabase
-        .from('order_charges')
-        .delete()
-        .eq('order_id', id)
-      if (delChargeErr) return { data: header, error: delChargeErr }
-      if (chargesArr.length > 0) {
-        const rows = chargesArr.map((c) => ({ ...c, order_id: id }))
-        const { error: insChargeErr } = await supabase
-          .from('order_charges')
-          .insert(rows)
-        if (insChargeErr) return { data: header, error: insChargeErr }
-      }
-
-      return { data: header, error: null }
+      const { data, error } = await supabase.rpc('update_order_atomic', {
+        p_id: id,
+        p_order: payload,
+        p_line_items: lineItemsArr,
+        p_charges: chargesArr,
+      })
+      if (error) return { data: null, error }
+      return { data, error: null }
     } catch (error) {
       return { data: null, error }
     }

@@ -65,7 +65,7 @@ export const productionPlans = {
         .limit(1)
       if (existing && existing.length > 0) return result
 
-      await supabase.from('stock_movements').insert([{
+      const { error: smErr } = await supabase.from('stock_movements').insert([{
         kind: 'in',
         product_id: productId,
         quantity: plan.completed_qty,
@@ -74,8 +74,17 @@ export const productionPlans = {
         source_id: plan.id,
         notes: `Production complete (plan ${String(plan.id).slice(0, 8)})`,
       }])
+      if (smErr) {
+        return {
+          ...result,
+          error: new Error(`Plan completed but stock-in failed — finished-goods stock is out of sync. (${smErr.message})`),
+        }
+      }
     } catch (e) {
-      if (import.meta.env.DEV) console.error('[productionPlans.update] stock-in hook failed', e)
+      return {
+        ...result,
+        error: new Error(`Plan completed but stock-in hook failed — finished-goods stock is out of sync. (${e?.message || e})`),
+      }
     }
     return result
   },
@@ -194,10 +203,19 @@ export const jobworkJobs = {
               notes: `Jobwork ${it.kind.replace('_', ' ')} (${jobNum})`,
             }))
             if (stockRows.length) {
-              await supabase.from('stock_movements').insert(stockRows)
+              const { error: smErr } = await supabase.from('stock_movements').insert(stockRows)
+              if (smErr) {
+                return {
+                  data: { ...job, job_number: jobNum },
+                  error: new Error(`Jobwork saved but stock movement failed — stock is out of sync. Re-enter movements manually. (${smErr.message})`),
+                }
+              }
             }
           } catch (sErr) {
-            if (import.meta.env.DEV) console.error('[jobworkJobs.createWithItems] stock hook failed', sErr)
+            return {
+              data: { ...job, job_number: jobNum },
+              error: new Error(`Jobwork saved but stock hook failed — stock is out of sync. (${sErr?.message || sErr})`),
+            }
           }
         }
       }
@@ -297,7 +315,7 @@ export const jobworkJobs = {
           .eq('id', job_id)
           .single()
         const isCustomerOwned = parentJob?.direction === 'inward'
-        await supabase.from('stock_movements').insert([{
+        const { error: smErr } = await supabase.from('stock_movements').insert([{
           kind: stockKind,
           yarn_type_id: yarn_type_id || null,
           product_type_id: product_type_id || null,
@@ -308,8 +326,17 @@ export const jobworkJobs = {
           customer_owned: isCustomerOwned,
           notes: `Jobwork ${kind.replace('_', ' ')} (item ${data?.id?.slice(0, 8) || ''})`,
         }])
+        if (smErr) {
+          return {
+            data,
+            error: new Error(`Item saved but stock movement failed — stock is out of sync. (${smErr.message})`),
+          }
+        }
       } catch (sErr) {
-        if (import.meta.env.DEV) console.error('[jobworkJobs.addItem] stock hook failed', sErr)
+        return {
+          data,
+          error: new Error(`Item saved but stock hook failed — stock is out of sync. (${sErr?.message || sErr})`),
+        }
       }
 
       return { data, error: null }
