@@ -162,6 +162,15 @@ test('all database migrations execute in filename order on a clean database', as
       having count(*) > 1
     `)
     assert.deepEqual(duplicateIndexes.rows, [], 'public tables should not have duplicate indexes')
+
+    const ambiguousStockFunctions = await db.query(`
+      select p.oid::regprocedure::text as signature
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname = 'stock_balances'
+        and p.pronargs > 0 and p.pronargdefaults = p.pronargs
+    `)
+    assert.deepEqual(ambiguousStockFunctions.rows, [], 'zero-argument stock RPC must resolve unambiguously')
   } finally {
     await db.close()
   }
@@ -366,6 +375,8 @@ test('core transactional, import, dashboard, and search RPCs preserve invariants
     result = await db.query('select public.dashboard_stats() as stats')
     assert.equal(Number(result.rows[0].stats.total_orders), 2)
     assert.equal(Number(result.rows[0].stats.total_customers), 1)
+    result = await db.query('select jsonb_typeof(public.stock_balances()) as result_type')
+    assert.equal(result.rows[0].result_type, 'array')
     result = await db.query("select entity_type, primary_label from public.search_entities('Test', null, 5)")
     assert.ok(result.rows.some(row => row.entity_type === 'customer' && row.primary_label === 'Test Customer'))
     assert.ok(result.rows.some(row => row.entity_type === 'product' && row.primary_label === 'Test Product'))
