@@ -21,7 +21,7 @@ const whenIdle = (fn, timeout = 100) =>
 //
 // New behaviour: ALWAYS return cached masters synchronously regardless of
 // age. Background refresh is throttled and explicit (see refreshIfStale).
-const CACHE_KEY_PREFIX = 'saras_masters_v4'
+const CACHE_KEY_PREFIX = 'saras_masters_v5'
 const STALE_AFTER_MS = 30 * 60 * 1000  // refresh in background if >30min old
 const VIS_REFRESH_MIN_IDLE_MS = 10 * 60 * 1000  // only refresh on visibility after ≥10min idle
 
@@ -51,6 +51,10 @@ const CACHE_FIELDS = new Set([
   'exchange_rate', 'products', 'count_or_denier', 'sequence_order',
   'cgst_pct', 'sgst_pct', 'igst_pct', 'vehicle_number', 'vehicle_type',
   'gstin', 'credit_limit', 'broker_id', 'payment_term_id',
+  'custom_number', 'default_carriers', 'default_speed_m_per_min',
+  'requires_filler', 'default_chaal_id', 'default_waste_pct',
+  'default_rate_per_kg', 'is_optional', 'default_machine_type_id',
+  'default_duration_per_kg_mins',
 ])
 
 function trimForCache(data) {
@@ -188,12 +192,14 @@ export function AppProvider({ children }) {
       try {
         const BATCH = 2
         const collected = {}
+        const errors = []
         for (let i = 0; i < DEFERRED_FNS.length; i += BATCH) {
           const slice = DEFERRED_FNS.slice(i, i + BATCH)
           const keys = DEFERRED_KEYS.slice(i, i + BATCH)
           const results = await Promise.allSettled(slice.map(fn => fn.getAll()))
           results.forEach((r, idx) => {
             if (r.status === 'fulfilled' && r.value?.data) collected[keys[idx]] = r.value.data
+            if (r.status === 'rejected' || r.value?.error) errors.push(keys[idx])
           })
         }
         setMasters(prev => {
@@ -201,6 +207,7 @@ export function AppProvider({ children }) {
           writeCache(user?.id, next)
           return next
         })
+        return { errors }
       } finally {
         deferredInFlightRef.current = null
       }
@@ -213,9 +220,10 @@ export function AppProvider({ children }) {
 
   // Load deferred masters on demand — only fetches once
   const ensureDeferred = useCallback(async () => {
-    if (deferredLoaded.current) return
-    deferredLoaded.current = true
-    await loadDeferred()
+    if (deferredLoaded.current) return { errors: [] }
+    const result = await loadDeferred()
+    deferredLoaded.current = !result?.errors?.length
+    return result || { errors: [] }
   }, [loadDeferred])
 
   const loadMasterData = useCallback(async () => {

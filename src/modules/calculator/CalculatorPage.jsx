@@ -3,6 +3,7 @@ import { useApp } from '../../contexts/AppContext'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { calculatorProfiles, orders as ordersApi } from '../../lib/db'
+import { deriveCalculatorLinkFromOrder } from '../../lib/calculatorOrderLink'
 import { Button, Input, Modal, Badge } from '../../components/ui'
 import {
   Save, RotateCcw, Plus, X, Link2, Camera, TrendingUp, TrendingDown,
@@ -274,7 +275,6 @@ export default function CalculatorPage() {
     machineTypes, productTypes, yarnTypes, chaalTypes, processTypes, operators,
     ensureDeferred,
   } = masters
-  useEffect(() => { ensureDeferred() }, [ensureDeferred])
 
   const [state, setState] = useState(defaultState)
   const [orderList, setOrderList] = useState([])
@@ -282,11 +282,38 @@ export default function CalculatorPage() {
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [showProfilesModal, setShowProfilesModal] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [ordersLoading, setOrdersLoading] = useState(true)
+  const [orderLoadError, setOrderLoadError] = useState('')
+  const [linkedOrder, setLinkedOrder] = useState(null)
+  const [linkedOrderLoading, setLinkedOrderLoading] = useState(false)
+  const [mastersLoading, setMastersLoading] = useState(true)
+  const [masterLoadError, setMasterLoadError] = useState('')
+  const orderRequestRef = useRef(0)
+
+  const loadCalculatorMasters = useCallback(async () => {
+    setMastersLoading(true)
+    setMasterLoadError('')
+    const result = await ensureDeferred()
+    if (result?.errors?.length) {
+      setMasterLoadError(`Could not load: ${result.errors.join(', ')}`)
+    }
+    setMastersLoading(false)
+  }, [ensureDeferred])
+
+  useEffect(() => { loadCalculatorMasters() }, [loadCalculatorMasters])
 
   // Load orders + profiles
   useEffect(() => {
     let cancelled = false
-    ordersApi.list().then(r => { if (!cancelled) setOrderList((r?.data || []).filter(o => ['booking', 'approved', 'draft'].includes(o.status))) })
+    ordersApi.list().then(r => {
+      if (cancelled) return
+      setOrdersLoading(false)
+      if (r?.error) {
+        setOrderLoadError(r.error.message || 'Orders could not be loaded')
+        return
+      }
+      setOrderList((r?.data || []).filter(o => ['draft', 'booking', 'approved', 'production', 'qc'].includes(o.status)))
+    })
     calculatorProfiles.getAll().then(r => { if (!cancelled) setProfileList(r?.data || []) })
     return () => { cancelled = true }
   }, [])
@@ -366,6 +393,38 @@ export default function CalculatorPage() {
     ...s,
     processes: s.processes.map(p => p.id === id ? { ...p, ...patch } : p)
   }))
+
+  const handleOrderChange = async (orderId) => {
+    const requestId = ++orderRequestRef.current
+    setOrderLoadError('')
+    setLinkedOrder(null)
+    patch({ order_id: orderId })
+    if (!orderId) return
+
+    setLinkedOrderLoading(true)
+    const { data, error } = await ordersApi.get(orderId)
+    if (requestId !== orderRequestRef.current) return
+    setLinkedOrderLoading(false)
+    if (error || !data) {
+      setOrderLoadError(error?.message || 'Linked order details could not be loaded')
+      return
+    }
+
+    const { statePatch, summary } = deriveCalculatorLinkFromOrder(data)
+    const productType = (productTypes || []).find(item => item.id === statePatch.product_type_id)
+    const machineType = (machineTypes || []).find(item => item.id === statePatch.machine_type_id)
+    setState(current => ({
+      ...current,
+      ...statePatch,
+      order_id: orderId,
+      chaal_type_id: productType?.default_chaal_id || '',
+      waste_pct: num(productType?.default_waste_pct ?? current.waste_pct),
+      carriers: num(machineType?.default_carriers),
+      speed_m_per_min: num(machineType?.default_speed_m_per_min),
+    }))
+    setLinkedOrder(summary)
+    toast.success(`Loaded ${summary.orderNumber}`)
+  }
 
   const reset = () => {
     if (!confirm('Clear all inputs and start fresh?')) return
@@ -479,10 +538,40 @@ export default function CalculatorPage() {
               <SelectInput
                 label="Linked Order"
                 value={state.order_id}
-                onChange={v => patch({ order_id: v })}
+                onChange={handleOrderChange}
                 options={orderOptions}
-                placeholder="— standalone (no order) —"
+                placeholder={ordersLoading ? 'Loading orders…' : '— standalone (no order) —'}
               />
+              {linkedOrderLoading && (
+                <p className="mt-2 text-[11px] text-indigo-600">Fetching order details…</p>
+              )}
+              {orderLoadError && (
+                <p role="alert" className="mt-2 text-[11px] text-red-600">{orderLoadError}</p>
+              )}
+              {linkedOrder && (
+                <div className="mt-2 rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-2">
+                  <div className="text-[12px] font-semibold text-emerald-800">
+                    {linkedOrder.orderNumber} · {linkedOrder.customerName}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-emerald-700">
+                    {linkedOrder.lineCount} item{linkedOrder.lineCount === 1 ? '' : 's'}
+                    {linkedOrder.orderMeters > 0 ? ` · ${fmt(linkedOrder.orderMeters)} m` : ''}
+                    {linkedOrder.orderKgs > 0 ? ` · ${fmt(linkedOrder.orderKgs)} kg` : ''}
+                  </div>
+                  {!!linkedOrder.productNames.length && (
+                    <div className="mt-1 text-[11px] text-slate-600">Product: {linkedOrder.productNames.join(', ')}</div>
+                  )}
+                  {!!linkedOrder.machineNames.length && (
+                    <div className="text-[11px] text-slate-600">Machine: {linkedOrder.machineNames.join(', ')}</div>
+                  )}
+                  {(!linkedOrder.productTypeMapped || !linkedOrder.machineTypeMapped) && (
+                    <div className="mt-1 text-[10px] text-amber-700">
+                      {!linkedOrder.productTypeMapped && 'Product type is not mapped in this order. '}
+                      {!linkedOrder.machineTypeMapped && 'Machine type is not mapped in this order.'}
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3 mt-3">
                 <NumInput
                   label="Actual Sell ₹/kg"
@@ -531,6 +620,13 @@ export default function CalculatorPage() {
             {/* ③ PRODUCT & MATERIAL */}
             <div>
               <SectionHeader icon={Package} num="3" title="Product & Material" />
+              {mastersLoading && <p className="mb-2 text-[11px] text-indigo-600">Loading calculator masters…</p>}
+              {masterLoadError && (
+                <div role="alert" className="mb-2 flex items-center justify-between gap-3 rounded-lg bg-red-50 px-3 py-2 text-[11px] text-red-700">
+                  <span>{masterLoadError}</span>
+                  <button type="button" onClick={loadCalculatorMasters} className="font-semibold underline">Retry</button>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <SelectInput label="Machine" value={state.machine_type_id} onChange={v => patch({ machine_type_id: v })} options={machineOptions} />
                 <SelectInput label="Product" value={state.product_type_id} onChange={v => patch({ product_type_id: v })} options={productOptions} />
