@@ -6,6 +6,8 @@ const formatDate = (value) => new Intl.DateTimeFormat('en-IN', {
   year: 'numeric',
 }).format(new Date(`${value}T00:00:00`));
 
+const formatLabel = (value) => String(value || 'N/A').replace(/_/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
+
 export function StepReview({
   formData,
   selectedCustomer,
@@ -57,12 +59,12 @@ export function StepReview({
           </div>
           <div>
             <p className="text-sm text-slate-600">Order Nature</p>
-            <Badge variant="info"><span className="capitalize">{formData.nature}</span></Badge>
+            <Badge variant="info">{formatLabel(formData.nature)}</Badge>
           </div>
           <div>
             <p className="text-sm text-slate-600">Priority</p>
             <Badge variant={formData.priority === 'urgent' ? 'danger' : formData.priority === 'high' ? 'warning' : 'success'}>
-              <span className="capitalize">{formData.priority}</span>
+              {formatLabel(formData.priority)}
             </Badge>
           </div>
           <div>
