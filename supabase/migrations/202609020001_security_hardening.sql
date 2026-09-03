@@ -77,6 +77,23 @@ as $$
   ), false)
 $$;
 
+-- The ERP is login-only. Existing Supabase projects can inherit broad anon
+-- and PUBLIC grants from legacy default privileges, so make the database
+-- boundary explicit instead of relying on RLS alone. Authenticated users keep
+-- table access and are still constrained row-by-row by the policies below.
+revoke all on all tables in schema public from public, anon;
+revoke all on all sequences in schema public from public, anon;
+revoke execute on all functions in schema public from public, anon;
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+
+alter default privileges in schema public revoke all on tables from public, anon;
+alter default privileges in schema public revoke all on sequences from public, anon;
+alter default privileges in schema public revoke execute on functions from public, anon;
+alter default privileges in schema public grant select, insert, update, delete on tables to authenticated;
+alter default privileges in schema public grant usage, select on sequences to authenticated;
+
 revoke all on function public.is_admin() from public;
 revoke all on function public.has_permission(text, text) from public;
 grant execute on function public.is_admin() to authenticated;

@@ -92,6 +92,32 @@ test('all database migrations execute in filename order on a clean database', as
         and acl.grantee = 0 and acl.privilege_type = 'EXECUTE'
     `)
     assert.deepEqual(publicDefiners.rows, [], 'SECURITY DEFINER functions must not be executable by PUBLIC')
+
+    const anonTablePrivileges = await db.query(`
+      select table_name, privilege_type
+      from information_schema.role_table_grants
+      where table_schema = 'public' and grantee = 'anon'
+    `)
+    assert.deepEqual(anonTablePrivileges.rows, [], 'login-only ERP tables must not be granted to anon')
+
+    const publicOrAnonFunctions = await db.query(`
+      select distinct p.proname
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
+      where n.nspname = 'public' and acl.privilege_type = 'EXECUTE'
+        and acl.grantee in (0, (select oid from pg_roles where rolname = 'anon'))
+    `)
+    assert.deepEqual(publicOrAnonFunctions.rows, [], 'public functions must not be callable by PUBLIC or anon')
+
+    const authenticatedWithoutSelect = await db.query(`
+      select c.relname
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relkind in ('r', 'p')
+        and not has_table_privilege('authenticated', c.oid, 'SELECT')
+    `)
+    assert.deepEqual(authenticatedWithoutSelect.rows, [], 'authenticated users need Data API table grants')
   } finally {
     await db.close()
   }
