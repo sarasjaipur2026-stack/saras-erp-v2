@@ -25,7 +25,7 @@ export const LineItemRow = ({ item, onUpdate, onRemove }) => {
           <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-slate-800 truncate">
-              {item.line_type} — {item.products?.name || item.materials?.name || 'Select item'}
+              <span className="capitalize">{item.line_type}</span> — {item.products?.name || item.materials?.name || 'Select item'}
             </p>
             <p className="text-xs text-slate-500">
               {item.meters ? `${item.meters}m` : item.weight_kg ? `${item.weight_kg}kg` : '—'}

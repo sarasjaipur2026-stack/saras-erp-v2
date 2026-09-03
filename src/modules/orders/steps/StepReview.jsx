@@ -1,5 +1,11 @@
 import { Badge, Currency } from '../../../components/ui';
 
+const formatDate = (value) => new Intl.DateTimeFormat('en-IN', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+}).format(new Date(`${value}T00:00:00`));
+
 export function StepReview({
   formData,
   selectedCustomer,
@@ -13,12 +19,12 @@ export function StepReview({
   const getTypeLabel = (typeId, list) => list?.find((item) => item.id === typeId)?.name || 'N/A';
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       {/* Customer Summary */}
       {selectedCustomer && (
         <div>
           <h3 className="text-lg font-semibold text-slate-900 mb-4">Customer</h3>
-          <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-100">
             <div>
               <p className="text-sm text-slate-600">Name</p>
               <p className="font-semibold text-slate-900">
@@ -44,31 +50,31 @@ export function StepReview({
       {/* Order Details Summary */}
       <div className="border-t border-slate-200 pt-8">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">Order Details</h3>
-        <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-100">
           <div>
             <p className="text-sm text-slate-600">Order Type</p>
             <p className="font-semibold text-slate-900">{getTypeLabel(formData.order_type_id, orderTypes)}</p>
           </div>
           <div>
             <p className="text-sm text-slate-600">Order Nature</p>
-            <Badge variant="info">{formData.nature}</Badge>
+            <Badge variant="info"><span className="capitalize">{formData.nature}</span></Badge>
           </div>
           <div>
             <p className="text-sm text-slate-600">Priority</p>
             <Badge variant={formData.priority === 'urgent' ? 'danger' : formData.priority === 'high' ? 'warning' : 'success'}>
-              {formData.priority}
+              <span className="capitalize">{formData.priority}</span>
             </Badge>
           </div>
           <div>
             <p className="text-sm text-slate-600">Payment Terms</p>
             <p className="font-semibold text-slate-900">{getTypeLabel(formData.payment_terms_id, paymentTerms)}</p>
           </div>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <p className="text-sm text-slate-600 mb-2">Delivery Dates</p>
-            <div className="flex gap-4">
-              {formData.delivery_date_1 && <Badge>{formData.delivery_date_1}</Badge>}
-              {formData.delivery_date_2 && <Badge>{formData.delivery_date_2}</Badge>}
-              {formData.delivery_date_3 && <Badge>{formData.delivery_date_3}</Badge>}
+            <div className="flex flex-wrap gap-2">
+              {formData.delivery_date_1 && <Badge>{formatDate(formData.delivery_date_1)}</Badge>}
+              {formData.delivery_date_2 && <Badge>{formatDate(formData.delivery_date_2)}</Badge>}
+              {formData.delivery_date_3 && <Badge>{formatDate(formData.delivery_date_3)}</Badge>}
             </div>
           </div>
         </div>
@@ -79,8 +85,8 @@ export function StepReview({
         <h3 className="text-lg font-semibold text-slate-900 mb-4">Line Items ({formData.line_items?.length || 0})</h3>
         <div className="space-y-3">
           {(formData.line_items || []).map((item, idx) => (
-            <div key={item.id} className="p-4 bg-slate-50 rounded-lg">
-              <div className="flex justify-between items-start mb-2">
+            <div key={item.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-2">
                 <p className="font-semibold text-slate-900">
                   {item.products?.name || item.materials?.name || `Item ${idx + 1}`}
                 </p>
@@ -97,7 +103,7 @@ export function StepReview({
       {/* Pricing Summary */}
       <div className="border-t border-slate-200 pt-8">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">Pricing Summary</h3>
-        <div className="bg-indigo-50 p-6 rounded-lg space-y-3">
+        <div className="bg-indigo-50 p-4 sm:p-6 rounded-2xl border border-indigo-100 space-y-3">
           <div className="flex justify-between text-sm">
             <span className="text-slate-700">Subtotal</span>
             <Currency amount={formData.subtotal} />
@@ -158,19 +164,19 @@ export function StepReview({
           <h3 className="text-lg font-semibold text-slate-900 mb-4">Notes</h3>
           <div className="space-y-4">
             {formData.customer_notes && (
-              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="p-4 bg-blue-50 rounded-2xl border border-blue-200">
                 <p className="text-sm font-semibold text-blue-900 mb-2">Customer Notes</p>
                 <p className="text-sm text-blue-800">{formData.customer_notes}</p>
               </div>
             )}
             {formData.internal_notes && (
-              <div className="p-4 bg-amber-50 rounded-lg border border-amber-200">
+              <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200">
                 <p className="text-sm font-semibold text-amber-900 mb-2">Internal Notes</p>
                 <p className="text-sm text-amber-800">{formData.internal_notes}</p>
               </div>
             )}
             {formData.production_notes && (
-              <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+              <div className="p-4 bg-green-50 rounded-2xl border border-green-200">
                 <p className="text-sm font-semibold text-green-900 mb-2">Production Notes</p>
                 <p className="text-sm text-green-800">{formData.production_notes}</p>
               </div>

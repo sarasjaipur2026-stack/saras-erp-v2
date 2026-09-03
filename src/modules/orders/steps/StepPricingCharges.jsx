@@ -90,7 +90,7 @@ export function StepPricingCharges({
 
       <div className="border-t border-slate-200 pt-8">
         <h3 className="text-lg font-semibold text-slate-900 mb-6">Order Discount</h3>
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           <Select
             label="Discount Type"
             value={formData.order_discount_type}
@@ -126,7 +126,7 @@ export function StepPricingCharges({
 
       <div className="border-t border-slate-200 pt-8">
         <h3 className="text-lg font-semibold text-slate-900 mb-6">GST Configuration</h3>
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           <Select
             label="GST Type"
             value={formData.gst_type}
@@ -145,7 +145,7 @@ export function StepPricingCharges({
 
       <div className="border-t border-slate-200 pt-8">
         <h3 className="text-lg font-semibold text-slate-900 mb-6">Payment Details</h3>
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Advance Paid</label>
             <Input
