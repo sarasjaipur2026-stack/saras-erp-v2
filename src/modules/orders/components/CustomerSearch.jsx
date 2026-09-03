@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { customers } from '../../../lib/db'
+import { search } from '../../../lib/db/search'
 import { useAuth } from '../../../contexts/AuthContext'
 import { useToast } from '../../../contexts/ToastContext'
 import { Input, Modal, Button } from '../../../components/ui'
@@ -9,41 +10,65 @@ export const CustomerSearch = ({ value, onChange, onSelect }) => {
   const { user } = useAuth()
   const userId = user?.id
   const toast = useToast()
-  const [allCustomers, setAllCustomers] = useState([])
+  const [results, setResults] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [isSearching, setIsSearching] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
-  const [selected, setSelected] = useState(null)
+  const [selected, setSelected] = useState(() => (typeof value === 'object' ? value : null))
   const [showNewModal, setShowNewModal] = useState(false)
   const emptyForm = { firm_name: '', contact_name: '', phone: '', email: '', city: '', address: '', gstin: '', pan: '' }
   const [newForm, setNewForm] = useState(emptyForm)
   const ref = useRef(null)
 
   const valueId = typeof value === 'object' ? value?.id : value
-  const fetchCustomers = useCallback(async () => {
-    if (!userId) return
-    const { data } = await customers.list(userId)
-    if (data) {
-      setAllCustomers(data)
-      if (valueId) setSelected(data.find(c => c.id === valueId) || null)
-    }
-  }, [userId, valueId])
 
-  useEffect(() => { fetchCustomers() }, [fetchCustomers])
+  // Existing orders already include the selected customer relation, so render
+  // it immediately instead of waiting for the entire customer table to load.
+  // ID-only callers (for example Jobwork) fetch just that one row.
+  useEffect(() => {
+    let cancelled = false
+    if (!valueId) {
+      setSelected(null)
+      return () => { cancelled = true }
+    }
+    if (typeof value === 'object') {
+      setSelected(value)
+      return () => { cancelled = true }
+    }
+    customers.get(valueId).then(({ data }) => {
+      if (!cancelled) setSelected(data || null)
+    })
+    return () => { cancelled = true }
+  }, [value, valueId])
+
+  // Search on the server so performance stays bounded as customer data grows.
+  useEffect(() => {
+    let cancelled = false
+    const term = searchTerm.trim()
+    if (!isOpen || term.length < 2) {
+      setResults([])
+      setIsSearching(false)
+      return () => { cancelled = true }
+    }
+    setIsSearching(true)
+    const timer = setTimeout(async () => {
+      const { data, error } = await search.entities(term, { types: ['customer'], maxPer: 20 })
+      if (!cancelled) {
+        setResults(error ? [] : (data || []))
+        setIsSearching(false)
+      }
+    }, 250)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [isOpen, searchTerm])
 
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setIsOpen(false) }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
-
-  const filtered = useMemo(() => {
-    if (!searchTerm) return allCustomers.slice(0, 50)
-    const term = searchTerm.toLowerCase()
-    return allCustomers.filter(c =>
-      (c.contact_name || '').toLowerCase().includes(term) ||
-      (c.firm_name || '').toLowerCase().includes(term)
-    ).slice(0, 50)
-  }, [allCustomers, searchTerm])
 
   const handleSelect = (customer) => {
     setSelected(customer)
@@ -53,6 +78,21 @@ export const CustomerSearch = ({ value, onChange, onSelect }) => {
     setSearchTerm('')
   }
 
+  const handleResultSelect = async (result) => {
+    const { data, error } = await customers.get(result.entity_id)
+    if (error || !data) {
+      toast.error('Failed to load customer')
+      return
+    }
+    handleSelect(data)
+  }
+
+  const handleClear = () => {
+    setSelected(null)
+    if (onChange) onChange(null)
+    else if (onSelect) onSelect(null)
+  }
+
   const handleAddNew = async () => {
     if (!newForm.firm_name || !newForm.contact_name) { toast.error('Name and firm required'); return }
     const { data, error } = await customers.create({ ...newForm, user_id: userId })
@@ -60,7 +100,6 @@ export const CustomerSearch = ({ value, onChange, onSelect }) => {
     toast.success('Customer added')
     setShowNewModal(false)
     setNewForm(emptyForm)
-    await fetchCustomers()
     if (data) handleSelect(data)
   }
 
@@ -88,14 +127,18 @@ export const CustomerSearch = ({ value, onChange, onSelect }) => {
 
           {isOpen && (
             <div className="absolute top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl z-20 max-h-60 overflow-auto scale-in">
-              {filtered.length > 0 ? filtered.map(c => (
+              {isSearching ? (
+                <div className="px-3 py-4 text-sm text-slate-400 text-center">Searching…</div>
+              ) : searchTerm.trim().length < 2 ? (
+                <div className="px-3 py-4 text-sm text-slate-400 text-center">Type at least 2 characters</div>
+              ) : results.length > 0 ? results.map(result => (
                 <div
-                  key={c.id}
-                  onClick={() => handleSelect(c)}
+                  key={result.entity_id}
+                  onClick={() => handleResultSelect(result)}
                   className="px-3 py-2.5 hover:bg-indigo-50 cursor-pointer transition-colors"
                 >
-                  <p className="text-sm font-medium text-slate-800">{c.contact_name}</p>
-                  <p className="text-xs text-slate-500">{c.firm_name} {c.city ? `• ${c.city}` : ''}</p>
+                  <p className="text-sm font-medium text-slate-800">{result.primary_label}</p>
+                  <p className="text-xs text-slate-500">{result.secondary || 'Customer'}</p>
                 </div>
               )) : (
                 <div className="px-3 py-4 text-sm text-slate-400 text-center">No customers found</div>
@@ -118,7 +161,7 @@ export const CustomerSearch = ({ value, onChange, onSelect }) => {
                   {selected.city && <div className="flex items-center gap-2 text-xs text-indigo-700"><MapPin size={12} /> {selected.city}</div>}
                 </div>
               </div>
-              <button onClick={() => { setSelected(null); onChange(null) }} className="p-1 rounded hover:bg-indigo-100 text-indigo-400">
+              <button onClick={handleClear} className="p-1 rounded hover:bg-indigo-100 text-indigo-400">
                 <X size={14} />
               </button>
             </div>

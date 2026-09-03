@@ -117,6 +117,11 @@ export default function OrderForm() {
   }, [duplicateId, isDuplicate, navigate, orderId, toast]);
 
   const handleCustomerSelect = async (customer) => {
+    if (!customer) {
+      setSelectedCustomer(null);
+      setFormData((prev) => ({ ...prev, customer_id: null, shipping_address: null }));
+      return;
+    }
     const customerStateCode = customer.state_code || customer.gstin?.substring(0, 2);
     setSelectedCustomer(customer);
     setFormData((prev) => ({
