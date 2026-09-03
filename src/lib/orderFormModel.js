@@ -42,6 +42,8 @@ const LINE_FIELDS = [
   'item_discount_amount', 'gst_rate', 'gst_amount', 'instructions',
 ]
 
+const LINE_DISPLAY_FIELDS = ['products', 'materials', 'machines', 'colors', 'calculator_profiles']
+
 const CHARGE_FIELDS = ['charge_type_id', 'scope', 'amount', 'is_taxable']
 
 const pick = (source, fields) => Object.fromEntries(
@@ -72,6 +74,7 @@ export const normalizeOrderForForm = (order, { duplicate = false, now = Date.now
     ...pick(order, ORDER_FIELDS),
     line_items: lineItems.map((line, index) => ({
       ...pick(line, LINE_FIELDS),
+      ...pick(line, LINE_DISPLAY_FIELDS),
       id: duplicate ? `temp_duplicate_line_${now}_${index}` : line.id,
     })),
     charges: charges.map((charge, index) => ({
