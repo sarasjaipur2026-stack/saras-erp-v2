@@ -372,6 +372,7 @@ test('core transactional, import, dashboard, and search RPCs preserve invariants
       /exceeds the remaining quantity/,
     )
 
+    await db.query('alter table public.orders drop column delivery_date')
     result = await db.query('select public.dashboard_stats() as stats')
     assert.equal(Number(result.rows[0].stats.total_orders), 2)
     assert.equal(Number(result.rows[0].stats.total_customers), 1)
