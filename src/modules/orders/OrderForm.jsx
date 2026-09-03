@@ -321,8 +321,20 @@ export default function OrderForm() {
         errors.lineItems = 'At least one line item is required';
       }
       (formData.line_items || []).forEach((item, idx) => {
-        if (!item.product_id) newWarnings.push(`Line item ${idx + 1}: Product not selected`);
-        if (!item.meters || item.meters <= 0) newWarnings.push(`Line item ${idx + 1}: Meters must be greater than 0`);
+        if (item.line_type === 'stock') {
+          if (!item.material_id) errors[`lineItemProduct${idx}`] = `Line item ${idx + 1}: Material is required`;
+        } else if (!item.product_id) {
+          errors[`lineItemProduct${idx}`] = `Line item ${idx + 1}: Product is required`;
+        }
+
+        const quantityFieldCount = [item.quantity, item.meters, item.weight_kg]
+          .filter((value) => Number(value) > 0).length;
+        if (quantityFieldCount !== 1) {
+          errors[`lineItemQuantity${idx}`] = `Line item ${idx + 1}: Enter exactly one quantity — meters or weight`;
+        }
+        if (!item.rate_per_unit || item.rate_per_unit <= 0) {
+          newWarnings.push(`Line item ${idx + 1}: Rate must be greater than 0`);
+        }
       });
     }
 
