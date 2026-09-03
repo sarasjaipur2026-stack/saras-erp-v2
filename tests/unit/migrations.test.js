@@ -231,6 +231,53 @@ test('duplicate calculator profile relationships are removed idempotently', asyn
   }
 })
 
+test('legacy search RPC overload is removed idempotently', async () => {
+  const db = new PGlite()
+  try {
+    await db.waitReady
+    await createSupabaseHarness(db)
+    await runMigrations(db)
+    await db.exec(`
+      create function public.search_entities(
+        q text,
+        types text[] default null,
+        max_per integer default 5,
+        p_user_id uuid default null
+      )
+      returns table (
+        entity_type text,
+        entity_id uuid,
+        primary_label text,
+        secondary text,
+        metadata jsonb,
+        rank real
+      )
+      language sql stable
+      as $$ select null::text, null::uuid, null::text, null::text, null::jsonb, null::real where false $$;
+    `)
+
+    const migration = await readFile(
+      new URL('../../supabase/migrations/202609020010_dedupe_search_entities_rpc.sql', import.meta.url),
+      'utf8',
+    )
+    await db.exec(migration)
+    await db.exec(migration)
+
+    const { rows } = await db.query(`
+      select p.oid::regprocedure::text as signature
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname = 'search_entities'
+      order by signature
+    `)
+    assert.deepEqual(rows, [
+      { signature: 'search_entities(text,text[],integer)' },
+    ])
+  } finally {
+    await db.close()
+  }
+})
+
 test('compatible order status enums remain intact when status triggers exist', async () => {
   const db = new PGlite()
   try {
