@@ -87,23 +87,23 @@ function writeCache(userId, data) {
 const CRITICAL_KEYS = [
   'products', 'materials', 'machines', 'colors',
   'orderTypes', 'paymentTerms', 'chargeTypes',
-  'brokers', 'currencies',
+  'brokers', 'currencies', 'hsnCodes',
 ]
 const CRITICAL_FNS = [
   db.products, db.materials, db.machines, db.colors,
   db.orderTypes, db.paymentTerms, db.chargeTypes,
-  db.brokers, db.currencies,
+  db.brokers, db.currencies, db.hsnCodes,
 ]
 
 const DEFERRED_KEYS = [
   'suppliers', 'warehouses', 'banks', 'staff',
-  'hsnCodes', 'units', 'machineTypes', 'productTypes',
+  'units', 'machineTypes', 'productTypes',
   'yarnTypes', 'chaalTypes', 'processTypes',
   'operators', 'packagingTypes', 'transports', 'qualityParameters',
 ]
 const DEFERRED_FNS = [
   db.suppliers, db.warehouses, db.banks, db.staff,
-  db.hsnCodes, db.units, db.machineTypes, db.productTypes,
+  db.units, db.machineTypes, db.productTypes,
   db.yarnTypes, db.chaalTypes, db.processTypes,
   db.operators, db.packagingTypes, db.transports, db.qualityParameters,
 ]
@@ -147,7 +147,7 @@ export function AppProvider({ children }) {
 
   // Phase 1: Core masters — fetched SEQUENTIALLY in small batches (2 at a
   // time) so they don't saturate HTTP/2 connection slots and delay the
-  // current page's own data query. With 9 tables, this takes ~5 rounds of
+  // current page's own data query. With 10 tables, this takes 5 rounds of
   // ~100 ms each instead of one burst that competes with /rest/v1/orders.
   const loadCritical = useCallback(() => {
     if (criticalInFlightRef.current) return criticalInFlightRef.current

@@ -40,8 +40,7 @@ export default function OrderForm() {
   const [searchParams] = useSearchParams();
   const duplicateId = !orderId ? searchParams.get('duplicate') : null;
   const { profile } = useAuth();
-  const { products, materials, machines, colors, orderTypes, paymentTerms, chargeTypes, currencies, brokers, hsnCodes, ensureDeferred } = useApp();
-  useEffect(() => { ensureDeferred() }, [ensureDeferred]);
+  const { products, materials, machines, colors, orderTypes, paymentTerms, chargeTypes, currencies, brokers, hsnCodes } = useApp();
   const toast = useToast();
   const isEdit = !!orderId;
   const isDuplicate = !!duplicateId;
