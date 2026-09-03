@@ -602,6 +602,7 @@ export const PaginationBar = ({ currentPage, totalPages, rangeLabel, onPageChang
     <div className="flex items-center gap-1">
       <button
         type="button"
+        aria-label="Previous page"
         onClick={() => onPageChange(Math.max(0, currentPage - 1))}
         disabled={currentPage === 0}
         className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
@@ -611,6 +612,7 @@ export const PaginationBar = ({ currentPage, totalPages, rangeLabel, onPageChang
       <span className="text-[12px] font-medium text-slate-500 px-2">{currentPage + 1} / {totalPages}</span>
       <button
         type="button"
+        aria-label="Next page"
         onClick={() => onPageChange(Math.min(totalPages - 1, currentPage + 1))}
         disabled={currentPage >= totalPages - 1}
         className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
