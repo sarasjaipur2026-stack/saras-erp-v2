@@ -23,7 +23,7 @@ export function StepCustomer({
           <Select
             label="Order Type"
             value={formData.order_type_id || ''}
-            onChange={(e) => setFormData({ ...formData, order_type_id: e.target.value })}
+            onChange={(e) => setFormData((prev) => ({ ...prev, order_type_id: e.target.value }))}
             options={[
               { value: '', label: 'Select order type' },
               ...(orderTypes || []).map((type) => ({ value: type.id, label: type.name })),
@@ -33,7 +33,7 @@ export function StepCustomer({
           <Select
             label="Order Nature"
             value={formData.nature}
-            onChange={(e) => setFormData({ ...formData, nature: e.target.value })}
+            onChange={(e) => setFormData((prev) => ({ ...prev, nature: e.target.value }))}
             options={[
               { value: 'sample', label: 'Sample' },
               { value: 'production', label: 'Production' },
@@ -44,7 +44,7 @@ export function StepCustomer({
           <Select
             label="Priority"
             value={formData.priority}
-            onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+            onChange={(e) => setFormData((prev) => ({ ...prev, priority: e.target.value }))}
             options={[
               { value: 'normal', label: 'Normal' },
               { value: 'high', label: 'High' },
@@ -55,7 +55,7 @@ export function StepCustomer({
           <Select
             label="Payment Terms"
             value={formData.payment_terms_id || ''}
-            onChange={(e) => setFormData({ ...formData, payment_terms_id: e.target.value })}
+            onChange={(e) => setFormData((prev) => ({ ...prev, payment_terms_id: e.target.value }))}
             options={[
               { value: '', label: 'Select payment terms' },
               ...(paymentTerms || []).map((term) => ({ value: term.id, label: term.name })),
@@ -66,14 +66,14 @@ export function StepCustomer({
             label="Broker"
             value={formData.broker_id || ''}
             placeholder="Search broker (optional)..."
-            onChange={(option) => setFormData({ ...formData, broker_id: option.value })}
+            onChange={(option) => setFormData((prev) => ({ ...prev, broker_id: option.value }))}
             options={(brokers || []).map((broker) => ({ value: broker.id, label: broker.name }))}
           />
 
           <Select
             label="Currency"
             value={formData.currency_id || ''}
-            onChange={(e) => setFormData({ ...formData, currency_id: e.target.value })}
+            onChange={(e) => setFormData((prev) => ({ ...prev, currency_id: e.target.value }))}
             options={[
               { value: '', label: 'Select currency' },
               ...(currencies || []).map((c) => ({ value: c.id, label: c.code })),
@@ -87,7 +87,7 @@ export function StepCustomer({
                 <Input
                   type="date"
                   value={formData.delivery_date_1 || ''}
-                  onChange={(e) => setFormData({ ...formData, delivery_date_1: e.target.value })}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date_1: e.target.value }))}
                   placeholder="Delivery Date 1"
                 />
               </div>
@@ -95,7 +95,7 @@ export function StepCustomer({
                 <Input
                   type="date"
                   value={formData.delivery_date_2 || ''}
-                  onChange={(e) => setFormData({ ...formData, delivery_date_2: e.target.value })}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date_2: e.target.value }))}
                   placeholder="Delivery Date 2 (optional)"
                 />
               </div>
@@ -103,7 +103,7 @@ export function StepCustomer({
                 <Input
                   type="date"
                   value={formData.delivery_date_3 || ''}
-                  onChange={(e) => setFormData({ ...formData, delivery_date_3: e.target.value })}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, delivery_date_3: e.target.value }))}
                   placeholder="Delivery Date 3 (optional)"
                 />
               </div>

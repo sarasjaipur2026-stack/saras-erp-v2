@@ -21,19 +21,21 @@ export function StepReview({
           <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg">
             <div>
               <p className="text-sm text-slate-600">Name</p>
-              <p className="font-semibold text-slate-900">{selectedCustomer.name}</p>
+              <p className="font-semibold text-slate-900">
+                {selectedCustomer.firm_name || selectedCustomer.contact_name || selectedCustomer.name || 'N/A'}
+              </p>
             </div>
             <div>
               <p className="text-sm text-slate-600">Email</p>
-              <p className="font-semibold text-slate-900">{selectedCustomer.email}</p>
+              <p className="font-semibold text-slate-900">{selectedCustomer.email || 'N/A'}</p>
             </div>
             <div>
               <p className="text-sm text-slate-600">Phone</p>
-              <p className="font-semibold text-slate-900">{selectedCustomer.phone}</p>
+              <p className="font-semibold text-slate-900">{selectedCustomer.phone || 'N/A'}</p>
             </div>
             <div>
               <p className="text-sm text-slate-600">GST Registration</p>
-              <p className="font-semibold text-slate-900">{selectedCustomer.gst_no || 'N/A'}</p>
+              <p className="font-semibold text-slate-900">{selectedCustomer.gstin || selectedCustomer.gst_no || 'N/A'}</p>
             </div>
           </div>
         </div>
@@ -53,7 +55,7 @@ export function StepReview({
           </div>
           <div>
             <p className="text-sm text-slate-600">Priority</p>
-            <Badge variant={formData.priority === 'urgent' ? 'error' : formData.priority === 'high' ? 'warning' : 'success'}>
+            <Badge variant={formData.priority === 'urgent' ? 'danger' : formData.priority === 'high' ? 'warning' : 'success'}>
               {formData.priority}
             </Badge>
           </div>
@@ -79,7 +81,9 @@ export function StepReview({
           {(formData.line_items || []).map((item, idx) => (
             <div key={item.id} className="p-4 bg-slate-50 rounded-lg">
               <div className="flex justify-between items-start mb-2">
-                <p className="font-semibold text-slate-900">Item {idx + 1}</p>
+                <p className="font-semibold text-slate-900">
+                  {item.products?.name || item.materials?.name || `Item ${idx + 1}`}
+                </p>
                 <Currency amount={item.amount} />
               </div>
               <p className="text-sm text-slate-600">
