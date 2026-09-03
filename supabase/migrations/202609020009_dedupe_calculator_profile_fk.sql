@@ -14,9 +14,6 @@ begin
      and canonical.confrelid = legacy.confrelid
      and canonical.conkey = legacy.conkey
      and canonical.confkey = legacy.confkey
-     and canonical.confupdtype = legacy.confupdtype
-     and canonical.confdeltype = legacy.confdeltype
-     and canonical.confmatchtype = legacy.confmatchtype
     where legacy.conrelid = 'public.order_line_items'::regclass
       and legacy.contype = 'f'
       and legacy.conname = 'line_items_calc_profile_fkey'

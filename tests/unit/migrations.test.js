@@ -205,8 +205,7 @@ test('duplicate calculator profile relationships are removed idempotently', asyn
       alter table public.order_line_items
         add constraint line_items_calc_profile_fkey
         foreign key (calculator_profile_id)
-        references public.calculator_profiles(id)
-        on delete set null;
+        references public.calculator_profiles(id);
     `)
 
     const migration = await readFile(
