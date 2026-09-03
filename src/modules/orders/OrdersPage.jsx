@@ -33,6 +33,12 @@ import {
 } from '../../components/ui';
 import { useSWRList } from '../../hooks/useSWRList';
 import { useQueryState } from '../../hooks/useQueryState';
+import { downloadOrdersCsv, printOrders } from '../../lib/orderExport';
+import {
+  allVisibleRowsSelected,
+  selectedRows as getSelectedRows,
+  toggleAllVisibleRows,
+} from '../../lib/orderFormModel';
 
 const OrdersPage = () => {
   const navigate = useNavigate();
@@ -99,7 +105,8 @@ const OrdersPage = () => {
   const getDateRange = (range) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const startOfYear = new Date(today.getFullYear(), 0, 1);
+    const fiscalYear = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+    const startOfFiscalYear = new Date(fiscalYear, 3, 1);
 
     switch (range) {
       case 'today':
@@ -115,7 +122,7 @@ const OrdersPage = () => {
           end: new Date(),
         };
       case 'thisFY':
-        return { start: startOfYear, end: new Date() };
+        return { start: startOfFiscalYear, end: new Date() };
       default:
         return { start: null, end: null };
     }
@@ -163,8 +170,8 @@ const OrdersPage = () => {
     for (const o of ordersList) {
       const status = (o.status || 'draft').toLowerCase();
       if (activeStatuses.has(status)) activeOrders++;
-      totalRevenue += o.grand_total || 0;
-      outstandingBalance += o.balance_due || 0;
+      totalRevenue += Number(o.grand_total || 0);
+      outstandingBalance += Number(o.balance_due || 0);
       if (o.delivery_date_1 && new Date(o.delivery_date_1) < now && status !== 'completed') overdue++;
     }
     return { totalOrders: ordersList.length, activeOrders, totalRevenue, outstandingBalance, overdue };
@@ -198,23 +205,22 @@ const OrdersPage = () => {
   };
 
   const handleBulkPrint = () => {
-    const orderIds = Array.from(selectedOrders);
-    if (orderIds.length === 0) {
+    const rows = getSelectedRows(ordersList, selectedOrders);
+    if (rows.length === 0) {
       toast.error('Select orders to print');
       return;
     }
-    // TODO: Implement bulk print
-    toast.success('Print job started');
+    printOrders(rows);
   };
 
   const handleBulkExport = () => {
-    const orderIds = Array.from(selectedOrders);
-    if (orderIds.length === 0) {
+    const rows = getSelectedRows(ordersList, selectedOrders);
+    if (rows.length === 0) {
       toast.error('Select orders to export');
       return;
     }
-    // TODO: Implement bulk export
-    toast.success('Export started');
+    downloadOrdersCsv(rows, `orders-${new Date().toISOString().slice(0, 10)}.csv`);
+    toast.success(`Exported ${rows.length} order${rows.length === 1 ? '' : 's'}`);
   };
 
   const [deleting, setDeleting] = useState(false);
@@ -263,11 +269,7 @@ const OrdersPage = () => {
   };
 
   const handleSelectAll = () => {
-    if (selectedOrders.size === filteredOrders.length) {
-      setSelectedOrders(new Set());
-    } else {
-      setSelectedOrders(new Set(filteredOrders.map((o) => o.id)));
-    }
+    setSelectedOrders(current => toggleAllVisibleRows(filteredOrders, current));
   };
 
   const handleSelectOrder = (orderId) => {
@@ -302,8 +304,7 @@ const OrdersPage = () => {
           <input
             type="checkbox"
             checked={
-              filteredOrders.length > 0 &&
-              selectedOrders.size === filteredOrders.length
+              allVisibleRowsSelected(filteredOrders, selectedOrders)
             }
             onChange={handleSelectAll}
             className="w-4 h-4"
@@ -456,7 +457,7 @@ const OrdersPage = () => {
               </button>
               <button
                 onClick={() => {
-                  navigate(`/orders/${row.id}/duplicate`)
+                  navigate(`/orders/new?duplicate=${encodeURIComponent(row.id)}`)
                   setOpenMenuId(null)
                 }}
                 className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 text-[13px]"
@@ -465,7 +466,7 @@ const OrdersPage = () => {
               </button>
               <button
                 onClick={() => {
-                  toast.success('Print started')
+                  printOrders([row])
                   setOpenMenuId(null)
                 }}
                 className="w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 text-[13px]"

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Users,
   Package,
@@ -19,6 +19,13 @@ import { StepLineItems } from './steps/StepLineItems';
 import { StepPricingCharges } from './steps/StepPricingCharges';
 import { StepReview } from './steps/StepReview';
 import { useUnsavedChangesPrompt } from '../../hooks/useUnsavedChangesPrompt';
+import {
+  buildChargePayload,
+  buildLinePayload,
+  buildOrderPayload,
+  DEFAULT_ORDER,
+  normalizeOrderForForm,
+} from '../../lib/orderFormModel';
 
 const STEPS = [
   { id: 1, name: 'Customer', icon: Users },
@@ -27,52 +34,21 @@ const STEPS = [
   { id: 4, name: 'Review & Save', icon: CheckCircle },
 ];
 
-const DEFAULT_ORDER = {
-  customer_id: null,
-  order_type_id: null,
-  broker_id: null,
-  payment_terms_id: null,
-  priority: 'normal',
-  nature: 'sample',
-  currency_code: 'INR',
-  delivery_date_1: null,
-  delivery_date_2: null,
-  delivery_date_3: null,
-  subtotal: 0,
-  total_charges: 0,
-  total_item_discount: 0,
-  order_discount_type: 'flat',
-  order_discount_value: 0,
-  order_discount_amount: 0,
-  taxable_amount: 0,
-  cgst_amount: 0,
-  sgst_amount: 0,
-  igst_amount: 0,
-  gst_type: 'intra_state',
-  grand_total: 0,
-  advance_paid: 0,
-  balance_due: 0,
-  customer_notes: '',
-  internal_notes: '',
-  production_notes: '',
-  shipping_address: null,
-  status: 'draft',
-  line_items: [],
-  charges: [],
-};
-
 export default function OrderForm() {
   const navigate = useNavigate();
   const { id: orderId } = useParams();
+  const [searchParams] = useSearchParams();
+  const duplicateId = !orderId ? searchParams.get('duplicate') : null;
   const { profile } = useAuth();
   const { products, materials, machines, colors, orderTypes, paymentTerms, chargeTypes, currencies, brokers, hsnCodes, ensureDeferred } = useApp();
   useEffect(() => { ensureDeferred() }, [ensureDeferred]);
   const toast = useToast();
   const isEdit = !!orderId;
+  const isDuplicate = !!duplicateId;
   const companyStateCode = profile?.gst_company_state_code || profile?.state_code || '08';
 
   const [currentStep, setCurrentStep] = useState(1);
-  const [loading, setLoading] = useState(isEdit);
+  const [loading, setLoading] = useState(isEdit || isDuplicate);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState(DEFAULT_ORDER);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -80,6 +56,8 @@ export default function OrderForm() {
   const [validationErrors, setValidationErrors] = useState({});
   const [warnings, setWarnings] = useState([]);
   const [dirty, setDirty] = useState(false);
+  const persistedLineIds = React.useRef(new Set());
+  const persistedChargeIds = React.useRef(new Set());
 
   // Warn on navigation away when form has unsaved changes
   useUnsavedChangesPrompt(dirty && !saving);
@@ -95,30 +73,41 @@ export default function OrderForm() {
     if (JSON.stringify(formData) !== initialFormRef.current) setDirty(true);
   }, [formData]);
 
-  // Load order if editing
+  // Load an existing order for editing or pre-fill a safe, unsaved duplicate.
   useEffect(() => {
-    if (isEdit && loading) {
+    const sourceId = orderId || duplicateId;
+    if (sourceId && loading) {
       const loadOrder = async () => {
         try {
-          const { data: order, error } = await orders.get(orderId);
+          const { data: order, error } = await orders.get(sourceId);
           if (error) throw error;
           if (order) {
-            setFormData(order);
-            setSelectedCustomer(order.customer);
+            const normalized = normalizeOrderForForm(order, { duplicate: isDuplicate });
+            persistedLineIds.current = new Set(
+              isDuplicate ? [] : normalized.line_items.map(item => item.id).filter(Boolean),
+            );
+            persistedChargeIds.current = new Set(
+              isDuplicate ? [] : normalized.charges.map(charge => charge.id).filter(Boolean),
+            );
+            initialFormRef.current = isDuplicate
+              ? JSON.stringify(DEFAULT_ORDER)
+              : JSON.stringify(normalized);
+            setFormData(normalized);
+            setSelectedCustomer(order.customers || null);
+            setDirty(isDuplicate);
           }
-        // eslint-disable-next-line no-unused-vars
-        } catch (error) {
-          toast.error('Failed to load order');
+        } catch {
+          toast.error(isDuplicate ? 'Failed to load order to duplicate' : 'Failed to load order');
           navigate('/orders');
         } finally {
           setLoading(false);
         }
       };
       loadOrder();
-    } else if (!isEdit) {
+    } else if (!sourceId) {
       setLoading(false);
     }
-  }, [isEdit, loading, navigate, orderId, toast]);
+  }, [duplicateId, isDuplicate, loading, navigate, orderId, toast]);
 
   const handleCustomerSelect = async (customer) => {
     const customerStateCode = customer.state_code || customer.gstin?.substring(0, 2);
@@ -357,11 +346,41 @@ export default function OrderForm() {
     setCurrentStep((prev) => Math.max(prev - 1, 1));
   };
 
+  const persistChildren = async (finalOrderId) => {
+    const currentLines = formData.line_items || [];
+    const currentCharges = formData.charges || [];
+    const lineCreates = currentLines.filter(item => item.id?.toString().startsWith('temp_'));
+    const chargeCreates = currentCharges.filter(charge => charge.id?.toString().startsWith('temp_'));
+    const lineUpdates = currentLines.filter(item => item.id && !item.id.toString().startsWith('temp_'));
+    const chargeUpdates = currentCharges.filter(charge => charge.id && !charge.id.toString().startsWith('temp_'));
+    const currentLineIds = new Set(lineUpdates.map(item => item.id));
+    const currentChargeIds = new Set(chargeUpdates.map(charge => charge.id));
+    const removedLineIds = [...persistedLineIds.current].filter(id => !currentLineIds.has(id));
+    const removedChargeIds = [...persistedChargeIds.current].filter(id => !currentChargeIds.has(id));
+
+    const operations = [];
+    if (lineCreates.length) {
+      operations.push(lineItems.createMany(lineCreates.map(item => buildLinePayload(item, finalOrderId))));
+    }
+    if (chargeCreates.length) {
+      operations.push(orderCharges.createMany(chargeCreates.map(charge => buildChargePayload(charge, finalOrderId))));
+    }
+    operations.push(
+      ...lineUpdates.map(item => lineItems.update(item.id, buildLinePayload(item, finalOrderId))),
+      ...chargeUpdates.map(charge => orderCharges.update(charge.id, buildChargePayload(charge, finalOrderId))),
+      ...removedLineIds.map(id => lineItems.delete(id)),
+      ...removedChargeIds.map(id => orderCharges.delete(id)),
+    );
+
+    const results = await Promise.all(operations);
+    const failed = results.find(result => result?.error);
+    if (failed?.error) throw failed.error;
+  };
+
   const handleSaveDraft = async () => {
     setSaving(true);
     try {
-      const { line_items: _li, charges: _ch, customer: _cust, ...orderFields } = formData;
-      const draftData = { ...orderFields, status: 'draft' };
+      const draftData = buildOrderPayload(formData, 'draft');
 
       let finalOrderId;
       if (isEdit) {
@@ -379,32 +398,17 @@ export default function OrderForm() {
         finalOrderId = newOrder.id;
       }
 
-      // Save line items
-      const linesToCreate = (formData.line_items || []).filter((item) => item.id?.toString().startsWith('temp_'));
-      if (linesToCreate.length > 0) {
-        const { error } = await lineItems.createMany(
-          linesToCreate.map((item) => ({ order_id: finalOrderId, ...item, id: undefined }))
-        );
-        if (error) {
-          toast.error('Draft saved but line items failed — please edit and retry.');
-          navigate(`/orders/${finalOrderId}/edit`);
-          return;
-        }
-      }
-
-      // Save charges
-      const chargesToCreate = (formData.charges || []).filter((charge) => charge.id?.toString().startsWith('temp_'));
-      if (chargesToCreate.length > 0) {
-        const { error } = await orderCharges.createMany(
-          chargesToCreate.map((charge) => ({ order_id: finalOrderId, ...charge, id: undefined }))
-        );
-        if (error) {
-          toast.error('Draft & items saved but charges failed — please re-add charges');
-        }
+      try {
+        await persistChildren(finalOrderId);
+      } catch (childError) {
+        toast.error(`Draft saved, but its items could not be saved: ${childError.message}`);
+        navigate(`/orders/${finalOrderId}/edit`);
+        return;
       }
 
       if (isEdit) {
         toast.success('Order updated as draft');
+        navigate(`/orders/${finalOrderId}`);
       } else {
         navigate(`/orders/${finalOrderId}`);
         toast.success('Draft saved');
@@ -424,10 +428,9 @@ export default function OrderForm() {
 
     setSaving(true);
     try {
-      const { line_items: _li, charges: _ch, customer: _cust, ...orderFields } = formData;
       // 'booking' is the first non-draft state per ALLOWED_TRANSITIONS in orders.js.
       // Previously used 'confirmed' which isn't in the state machine and stranded orders.
-      const orderData = { ...orderFields, status: 'booking' };
+      const orderData = buildOrderPayload(formData, 'booking');
 
       let finalOrderId;
       if (isEdit) {
@@ -442,29 +445,15 @@ export default function OrderForm() {
         toast.success('Order created');
       }
 
-      // Insert line items and charges. If either fails, revert order to draft
-      // so partial data is obvious and recoverable.
-      const linesToCreate = (formData.line_items || []).filter((item) => item.id?.toString().startsWith('temp_'));
-      if (linesToCreate.length > 0) {
-        const { error } = await lineItems.createMany(
-          linesToCreate.map((item) => ({ order_id: finalOrderId, ...item, id: undefined }))
-        );
-        if (error) {
-          await orders.update(finalOrderId, { status: 'draft' });
-          toast.error('Order saved but line items failed — saved as draft. Please edit and retry.');
-          navigate(`/orders/${finalOrderId}/edit`);
-          return;
-        }
-      }
-
-      const chargesToCreate = (formData.charges || []).filter((charge) => charge.id?.toString().startsWith('temp_'));
-      if (chargesToCreate.length > 0) {
-        const { error } = await orderCharges.createMany(
-          chargesToCreate.map((charge) => ({ order_id: finalOrderId, ...charge, id: undefined }))
-        );
-        if (error) {
-          toast.error('Order & items saved but charges failed — please re-add charges');
-        }
+      // Keep parent and children consistent. A child failure leaves the parent
+      // visibly in draft so the user can safely retry from the edit screen.
+      try {
+        await persistChildren(finalOrderId);
+      } catch (childError) {
+        await orders.update(finalOrderId, { status: 'draft' });
+        toast.error(`Order saved as draft because its items could not be saved: ${childError.message}`);
+        navigate(`/orders/${finalOrderId}/edit`);
+        return;
       }
 
       navigate('/orders');
@@ -489,10 +478,14 @@ export default function OrderForm() {
         {/* Header */}
         <div className="mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">
-            {isEdit ? 'Edit Order' : 'Create New Order'}
+            {isEdit ? 'Edit Order' : isDuplicate ? 'Duplicate Order' : 'Create New Order'}
           </h1>
           <p className="text-sm sm:text-base text-slate-600">
-            {isEdit ? `Order #${formData.order_number}` : 'Follow the steps to create a new order'}
+            {isEdit
+              ? `Order #${formData.order_number || ''}`
+              : isDuplicate
+                ? 'Review the copied details, then save this as a new order'
+                : 'Follow the steps to create a new order'}
           </p>
         </div>
 

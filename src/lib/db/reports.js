@@ -1,13 +1,37 @@
 import { supabase } from '../supabase'
-import { safe } from './core'
+import { aggregateCustomerOutstanding, isMissingRpcError } from '../reportFallback'
+import { fetchAll, safe } from './core'
 import { stockMovements } from './inventory'
+
+const legacySalesRegister = ({ from, to } = {}) => safe(() => fetchAll(() => {
+  let query = supabase
+    .from('orders')
+    .select('*, customers(firm_name, gstin)')
+    .order('created_at', { ascending: false })
+  if (from) query = query.gte('created_at', from)
+  if (to) query = query.lte('created_at', to)
+  return query
+}))
+
+const legacyPurchaseRegister = ({ from, to } = {}) => safe(() => fetchAll(() => {
+  let query = supabase
+    .from('purchase_orders')
+    .select('*, suppliers(name, firm, gstin)')
+    .order('po_date', { ascending: false })
+  if (from) query = query.gte('po_date', from)
+  if (to) query = query.lte('po_date', to)
+  return query
+}))
 
 // ─── REPORTS ───────────────────────────────────────────────
 export const reports = {
-  salesRegister: async ({ from, to } = {}) => safe(() => supabase.rpc('report_sales_register', {
-    p_from: from || null,
-    p_to: to || null,
-  })),
+  salesRegister: async ({ from, to } = {}) => {
+    const result = await safe(() => supabase.rpc('report_sales_register', {
+      p_from: from || null,
+      p_to: to || null,
+    }))
+    return isMissingRpcError(result?.error) ? legacySalesRegister({ from, to }) : result
+  },
 
   gstSummary: async ({ from, to } = {}) => {
     const { data, error } = await reports.salesRegister({ from, to })
@@ -41,7 +65,16 @@ export const reports = {
   },
 
   customerOutstanding: async () => {
-    return safe(() => supabase.rpc('report_customer_outstanding'))
+    const result = await safe(() => supabase.rpc('report_customer_outstanding'))
+    if (!isMissingRpcError(result?.error)) return result
+
+    const fallback = await safe(() => fetchAll(() => supabase
+      .from('orders')
+      .select('customer_id, grand_total, advance_paid, balance_due, created_at, customers(firm_name, phone)')
+      .order('created_at', { ascending: false })
+    ))
+    if (fallback.error) return fallback
+    return { data: aggregateCustomerOutstanding(fallback.data), error: null }
   },
 
   stockRegister: async () => {
@@ -51,10 +84,13 @@ export const reports = {
     return { data: filtered, error: null }
   },
 
-  purchaseRegister: async ({ from, to } = {}) => safe(() => supabase.rpc('report_purchase_register', {
-    p_from: from || null,
-    p_to: to || null,
-  })),
+  purchaseRegister: async ({ from, to } = {}) => {
+    const result = await safe(() => supabase.rpc('report_purchase_register', {
+      p_from: from || null,
+      p_to: to || null,
+    }))
+    return isMissingRpcError(result?.error) ? legacyPurchaseRegister({ from, to }) : result
+  },
 }
 
 // ─── DASHBOARD STATS ───────────────────────────────────────
