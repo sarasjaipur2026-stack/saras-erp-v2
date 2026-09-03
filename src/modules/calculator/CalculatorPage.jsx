@@ -285,6 +285,7 @@ export default function CalculatorPage() {
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [showProfilesModal, setShowProfilesModal] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [ordersLoading, setOrdersLoading] = useState(true)
   const [orderLoadError, setOrderLoadError] = useState('')
   const [linkedOrder, setLinkedOrder] = useState(null)
@@ -436,35 +437,53 @@ export default function CalculatorPage() {
   }
 
   const saveProfile = async () => {
-    if (!state.profile_name.trim()) { toast.error('Enter a profile name'); return }
-    setSaving(true)
-    const product = productTypes?.find(p => p.id === state.product_type_id)
-    const payload = {
-      user_id: user?.id,
-      profile_name: state.profile_name.trim(),
-      product_id: null, // legacy column — v2 uses payload
-      machine_id: null,
-      chaal: state.chaal_type_id,
-      sample_length_m: state.sample.length_m,
-      sample_weight_kg: state.sample.total_wt_g / 1000,
-      grams_per_meter: derived.grams_per_meter,
-      waste_percentage: state.waste_pct,
-      labor_cost_per_kg: state.labor_per_kg,
-      overhead_cost_percentage: state.overhead_per_kg,
-      profit_margin_percentage: state.profit_pct,
-      total_cost_per_unit: derived.total_cost_per_kg,
-      order_id: state.order_id || null,
-      actual_sell_per_kg: state.actual_sell_per_kg || null,
-      calculated_sell_per_kg: derived.calculated_sell_per_kg,
-      calculated_cost_per_kg: derived.total_cost_per_kg,
-      payload: { ...state, product_name: product?.name },
+    const profileName = state.profile_name.trim()
+    if (!profileName) {
+      setSaveError('Enter a profile name')
+      toast.error('Enter a profile name')
+      return
     }
-    const { data, error } = await calculatorProfiles.create(payload)
-    setSaving(false)
-    if (error) { toast.error(error.message || 'Save failed'); return }
-    toast.success(`Saved "${state.profile_name}"`)
-    setShowSaveModal(false)
-    setProfileList(l => [data, ...l])
+    setSaveError('')
+    setSaving(true)
+    try {
+      const product = productTypes?.find(p => p.id === state.product_type_id)
+      const payload = {
+        user_id: user?.id,
+        profile_name: profileName,
+        product_id: null, // legacy column — v2 uses payload
+        machine_id: null,
+        chaal: state.chaal_type_id,
+        sample_length_m: state.sample.length_m,
+        sample_weight_kg: state.sample.total_wt_g / 1000,
+        grams_per_meter: derived.grams_per_meter,
+        waste_percentage: state.waste_pct,
+        labor_cost_per_kg: state.labor_per_kg,
+        overhead_cost_percentage: state.overhead_per_kg,
+        profit_margin_percentage: state.profit_pct,
+        total_cost_per_unit: derived.total_cost_per_kg,
+        order_id: state.order_id || null,
+        actual_sell_per_kg: state.actual_sell_per_kg || null,
+        calculated_sell_per_kg: derived.calculated_sell_per_kg,
+        calculated_cost_per_kg: derived.total_cost_per_kg,
+        payload: { ...state, profile_name: profileName, product_name: product?.name },
+      }
+      const { data, error } = await calculatorProfiles.create(payload)
+      if (error) {
+        const message = error.message || 'Save failed'
+        setSaveError(message)
+        toast.error(message)
+        return
+      }
+      toast.success(`Saved "${profileName}"`)
+      setShowSaveModal(false)
+      setProfileList(l => [data, ...l])
+    } catch (error) {
+      const message = error?.message || 'Save failed'
+      setSaveError(message)
+      toast.error(message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const loadProfile = (p) => {
@@ -519,7 +538,7 @@ export default function CalculatorPage() {
           <Button variant="secondary" size="sm" onClick={reset}>
             <RotateCcw size={14} /> Reset
           </Button>
-          <Button size="sm" onClick={() => setShowSaveModal(true)}>
+          <Button size="sm" onClick={() => { setSaveError(''); setShowSaveModal(true) }}>
             <Save size={14} /> Save
           </Button>
         </div>
@@ -873,19 +892,20 @@ export default function CalculatorPage() {
       <Modal isOpen={showSaveModal} onClose={() => setShowSaveModal(false)} title="Save Calculator Profile"
         footer={<>
           <Button variant="secondary" size="sm" onClick={() => setShowSaveModal(false)}>Cancel</Button>
-          <Button size="sm" onClick={saveProfile} loading={saving}>Save</Button>
+          <Button size="sm" type="submit" form="calculator-profile-save" loading={saving}>Save</Button>
         </>}
       >
-        <div className="space-y-3">
+        <form id="calculator-profile-save" className="space-y-3" onSubmit={(event) => { event.preventDefault(); saveProfile() }}>
           <Input
             label="Profile Name"
             required
             placeholder="e.g., Sharma 5mm Round Cord"
             value={state.profile_name}
-            onChange={e => patch({ profile_name: e.target.value })}
+            error={saveError}
+            onChange={e => { patch({ profile_name: e.target.value }); if (saveError) setSaveError('') }}
           />
           <p className="text-[12px] text-slate-400">Saves all inputs so you can reload later.</p>
-        </div>
+        </form>
       </Modal>
 
       {/* Profiles Modal */}

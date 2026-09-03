@@ -87,13 +87,20 @@ export function AuthProvider({ children }) {
       if (mounted) setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    let profileRefreshTimer = null
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return
       if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
         setUser(session.user)
-        // Only re-fetch profile on sign-in, not every token refresh
+        // Never await a Supabase call inside onAuthStateChange. The auth client
+        // waits for subscribers before it releases its own initialization work;
+        // a nested query here can therefore deadlock every later API call.
+        // Defer the profile read until the callback has returned.
         if (event === 'SIGNED_IN') {
-          await fetchProfile(session.user.id).catch(() => {})
+          if (profileRefreshTimer) clearTimeout(profileRefreshTimer)
+          profileRefreshTimer = setTimeout(() => {
+            if (mounted) fetchProfile(session.user.id).catch(() => {})
+          }, 0)
         }
       } else if (event === 'SIGNED_OUT') {
         clearAppCaches()
@@ -153,6 +160,7 @@ export function AuthProvider({ children }) {
 
     return () => {
       mounted = false
+      if (profileRefreshTimer) clearTimeout(profileRefreshTimer)
       subscription.unsubscribe()
       document.removeEventListener('visibilitychange', handleVisibility)
       window.removeEventListener('focus', handleFocus)
