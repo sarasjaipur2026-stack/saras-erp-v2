@@ -64,12 +64,12 @@ const DEFAULT_ORDER = {
 export default function OrderForm() {
   const navigate = useNavigate();
   const { id: orderId } = useParams();
-  // eslint-disable-next-line no-unused-vars
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const { products, materials, machines, colors, orderTypes, paymentTerms, chargeTypes, currencies, brokers, hsnCodes, ensureDeferred } = useApp();
   useEffect(() => { ensureDeferred() }, [ensureDeferred]);
   const toast = useToast();
   const isEdit = !!orderId;
+  const companyStateCode = profile?.gst_company_state_code || profile?.state_code || '08';
 
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(isEdit);
@@ -118,15 +118,16 @@ export default function OrderForm() {
     } else if (!isEdit) {
       setLoading(false);
     }
-  }, [isEdit, orderId]);
+  }, [isEdit, loading, navigate, orderId, toast]);
 
   const handleCustomerSelect = async (customer) => {
+    const customerStateCode = customer.state_code || customer.gstin?.substring(0, 2);
     setSelectedCustomer(customer);
     setFormData((prev) => ({
       ...prev,
       customer_id: customer.id,
       shipping_address: customer.shipping_addresses?.[0] || null,
-      gst_type: customer.state_code === prev.state_code ? 'intra_state' : 'inter_state',
+      gst_type: customerStateCode && customerStateCode !== companyStateCode ? 'inter_state' : 'intra_state',
     }));
 
     // Smart defaults — pre-fill order_type / payment_terms / broker /
@@ -257,8 +258,7 @@ export default function OrderForm() {
       //  which was the biggest page-load cost. Now selectedCustomer is populated
       //  by CustomerSearch / order load and carries state_code + gstin directly.)
       const customerState = selectedCustomer?.state_code || selectedCustomer?.gstin?.substring(0, 2);
-      const companyState = '08'; // Rajasthan — pull from app_settings later
-      const isInterstate = customerState && customerState !== companyState;
+      const isInterstate = customerState && customerState !== companyStateCode;
 
       // Calculate tax per line item using HSN-based GST rates
       items.forEach((item) => {
@@ -268,7 +268,12 @@ export default function OrderForm() {
         // Look up GST rate: product -> hsn_code -> hsnCodes table -> gst_rate
         const product = products?.find((p) => p.id === item.product_id);
         const hsnCode = hsnCodes?.find((h) => h.code === product?.hsn_code);
-        const gstRate = hsnCode?.gst_rate ?? product?.gst_rate ?? 18; // default 18%
+        const hsnRate = hsnCode
+          ? (isInterstate
+              ? Number(hsnCode.igst_pct || 0)
+              : Number(hsnCode.cgst_pct || 0) + Number(hsnCode.sgst_pct || 0))
+          : null;
+        const gstRate = hsnRate ?? product?.gst_rate ?? 18; // default 18%
 
         const itemTaxable = (item.amount || 0) - (item.item_discount_amount || 0);
         const itemTax = itemTaxable * (gstRate / 100);
@@ -320,7 +325,7 @@ export default function OrderForm() {
         balance_due: grandTotal - (prev.advance_paid || 0),
       };
     });
-  }, [selectedCustomer, products, hsnCodes]);
+  }, [selectedCustomer, products, hsnCodes, companyStateCode]);
 
   const validateStep = (step) => {
     const errors = {};

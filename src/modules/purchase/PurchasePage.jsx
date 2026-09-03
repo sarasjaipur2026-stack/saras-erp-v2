@@ -45,6 +45,7 @@ export default function PurchasePage() {
     po_date: new Date().toISOString().slice(0, 10),
     expected_date: '',
     notes: '',
+    request_id: crypto.randomUUID(),
     items: [emptyLine()],
   })
 
@@ -56,6 +57,7 @@ export default function PurchasePage() {
     vehicle_number: '',
     warehouse_id: '',
     notes: '',
+    request_id: crypto.randomUUID(),
   })
 
   // Detail modal
@@ -88,6 +90,7 @@ export default function PurchasePage() {
       po_date: new Date().toISOString().slice(0, 10),
       expected_date: '',
       notes: '',
+      request_id: crypto.randomUUID(),
       items: [emptyLine()],
     })
     setShowCreatePo(true)
@@ -160,6 +163,7 @@ export default function PurchasePage() {
       items: valid,
       cgst_amount: poCgst,
       sgst_amount: poSgst,
+      request_id: poForm.request_id,
     })
     if (error) {
       toast.error(error.message || 'Failed to create PO')
@@ -178,6 +182,7 @@ export default function PurchasePage() {
       vehicle_number: '',
       warehouse_id: '',
       notes: '',
+      request_id: crypto.randomUUID(),
     })
     setShowCreateGrn(true)
   }
@@ -190,6 +195,7 @@ export default function PurchasePage() {
       vehicle_number: grnForm.vehicle_number,
       warehouse_id: grnForm.warehouse_id || null,
       notes: grnForm.notes,
+      request_id: grnForm.request_id,
     })
     if (error) {
       toast.error(error.message || 'Failed to record GRN')

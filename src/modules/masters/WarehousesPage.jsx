@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { warehouses } from '../../lib/db'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
@@ -17,15 +17,16 @@ export default function WarehousesPage() {
   const emptyForm = { name: '', code: '', address: '', city: '', active: true }
   const [form, setForm] = useState(emptyForm)
 
-  useEffect(() => { if (user?.id) fetchData() }, [user?.id])
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    if (!user?.id) return
     setIsLoading(true)
     const { data, error } = await warehouses.list(user.id)
     if (error) toast.error('Failed to load warehouses')
     else setList(data || [])
     setIsLoading(false)
-  }
+  }, [toast, user?.id])
+
+  useEffect(() => { fetchData() }, [fetchData])
 
   const openModal = (warehouse = null) => {
     if (warehouse) { setEditingId(warehouse.id); setForm({ ...warehouse }) }

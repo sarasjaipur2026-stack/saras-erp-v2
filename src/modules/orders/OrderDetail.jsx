@@ -31,14 +31,17 @@ import { Button, Modal, Input, StatusBadge, Badge, Currency, Spinner } from '../
 export default function OrderDetail() {
   const { id: orderId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const toast = useToast();
+  const attachmentInputRef = React.useRef(null);
+  const deliveryRequestRef = React.useRef(crypto.randomUUID());
 
   const [order, setOrder] = useState(null);
   const [orderDeliveries, setOrderDeliveries] = useState([]);
   const [timeline, setTimeline] = useState([]);
   const [orderAttachments, setOrderAttachments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
 
   const [showAddDelivery, setShowAddDelivery] = useState(false);
   const [showAddComment, setShowAddComment] = useState(false);
@@ -73,6 +76,29 @@ export default function OrderDetail() {
     loadOrderData();
   }, [loadOrderData]);
 
+  const handleAttachmentUpload = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !user?.id) return;
+    setUploadingAttachment(true);
+    const { error } = await attachments.upload('order', orderId, file, user.id);
+    if (error) toast.error(error.message || 'Attachment upload failed');
+    else {
+      toast.success('Attachment uploaded');
+      await loadOrderData();
+    }
+    setUploadingAttachment(false);
+  };
+
+  const handleAttachmentOpen = async (attachment) => {
+    const { data, error } = await attachments.createSignedUrl(attachment.storage_path);
+    if (error || !data?.signedUrl) {
+      toast.error(error?.message || 'Unable to open attachment');
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  };
+
   const getStatusProgression = () => {
     const states = ['draft', 'booking', 'approved', 'production', 'qc', 'dispatch', 'completed'];
     const currentIndex = states.indexOf(order?.status);
@@ -90,22 +116,18 @@ export default function OrderDetail() {
       return;
     }
     try {
-      await deliveries.create({
+      const { error } = await deliveries.recordLine({
         order_id: orderId,
         line_item_id: deliveryForm.lineId,
         delivery_date: deliveryForm.date,
-        delivered_qty: parseFloat(deliveryForm.qty),
-        note: deliveryForm.note,
+        quantity: parseFloat(deliveryForm.qty),
+        delivery_note: deliveryForm.note,
         challan_number: deliveryForm.challan,
         vehicle_number: deliveryForm.vehicle,
+        request_id: deliveryRequestRef.current,
       });
-      await activityLog.create({
-        entity_type: 'order',
-        entity_id: orderId,
-        action: 'delivery',
-        comment: `Delivery of ${deliveryForm.qty} units recorded`,
-        staff_id: user.id,
-      });
+      if (error) throw error;
+      deliveryRequestRef.current = crypto.randomUUID();
       setDeliveryForm({ lineId: '', date: '', qty: '', note: '', challan: '', vehicle: '' });
       setShowAddDelivery(false);
       await loadOrderData();
@@ -119,13 +141,14 @@ export default function OrderDetail() {
   const handleAddComment = async () => {
     if (!commentText.trim()) return;
     try {
-      await activityLog.create({
+      const { error } = await activityLog.create({
         entity_type: 'order',
         entity_id: orderId,
         action: 'comment',
         comment: commentText,
         staff_id: user.id,
       });
+      if (error) throw error;
       setCommentText('');
       setShowAddComment(false);
       await loadOrderData();
@@ -140,14 +163,16 @@ export default function OrderDetail() {
     const progression = getStatusProgression();
     if (!progression) return;
     try {
-      await orders.update(orderId, { status: progression.nextState });
-      await activityLog.create({
+      const { error: statusError } = await orders.updateStatus(orderId, progression.nextState);
+      if (statusError) throw statusError;
+      const { error: logError } = await activityLog.create({
         entity_type: 'order',
         entity_id: orderId,
         action: 'status_change',
         comment: `Status changed from ${progression.current} to ${progression.nextState}${cancelReason ? ': ' + cancelReason : ''}`,
         staff_id: user.id,
       });
+      if (logError) throw logError;
       setShowStatusModal(false);
       setCancelReason('');
       await loadOrderData();
@@ -362,7 +387,7 @@ export default function OrderDetail() {
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 mb-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-bold text-slate-900">Per-Line Delivery Progress</h2>
-            <Button size="sm" onClick={() => setShowAddDelivery(true)}>
+            <Button size="sm" onClick={() => { deliveryRequestRef.current = crypto.randomUUID(); setShowAddDelivery(true); }}>
               <Plus size={16} /> Add Delivery
             </Button>
           </div>
@@ -481,14 +506,32 @@ export default function OrderDetail() {
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-bold text-slate-900">Attachments</h2>
-              <Button size="sm" variant="secondary">
-                <Upload size={16} /> Upload
-              </Button>
+              {hasPermission('orders', 'edit') && (
+                <>
+                  <input
+                    ref={attachmentInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+                    className="hidden"
+                    onChange={handleAttachmentUpload}
+                  />
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={uploadingAttachment}
+                    onClick={() => attachmentInputRef.current?.click()}
+                  >
+                    <Upload size={16} /> Upload
+                  </Button>
+                </>
+              )}
             </div>
             <div className="space-y-3">
               {orderAttachments.map(att => (
-                <div
+                <button
+                  type="button"
                   key={att.id}
+                  onClick={() => handleAttachmentOpen(att)}
                   className="border border-slate-200 rounded-lg p-3 flex items-center gap-3 hover:bg-slate-50 cursor-pointer transition-colors"
                 >
                   <FileText className="w-5 h-5 text-indigo-600" />
@@ -497,7 +540,7 @@ export default function OrderDetail() {
                     <p className="text-xs text-slate-500">{(att.file_size / 1024).toFixed(1)} KB</p>
                   </div>
                   <Download className="w-4 h-4 text-slate-600 flex-shrink-0" />
-                </div>
+                </button>
               ))}
             </div>
           </div>

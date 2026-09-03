@@ -26,7 +26,7 @@ export default function EnquiryForm() {
     stage: 'new', probability: 10,
     expected_close_date: '',
     priority: 'normal',
-    assigned_to: user?.id || null,
+    assigned_to: null,
     notes: '',
   })
   const [items, setItems] = useState([])
@@ -71,7 +71,7 @@ export default function EnquiryForm() {
         probability: data.probability ?? 10,
         expected_close_date: data.expected_close_date || '',
         priority: data.priority || 'normal',
-        assigned_to: data.assigned_to || user.id,
+        assigned_to: data.assigned_to || null,
         notes: data.notes || '',
       })
       const { data: liData } = await enquiryLineItems.listByEnquiry(id)
@@ -134,19 +134,23 @@ export default function EnquiryForm() {
       const existingIds = items.filter(r => r.id).map(r => r.id)
       if (id) {
         // Delete rows that were removed from the editor
-        const { data: oldRows } = await enquiryLineItems.listByEnquiry(id)
+        const { data: oldRows, error: oldRowsError } = await enquiryLineItems.listByEnquiry(id)
+        if (oldRowsError) throw oldRowsError
         for (const oldRow of oldRows || []) {
           if (!existingIds.includes(oldRow.id)) {
-            await enquiryLineItems.delete(oldRow.id)
+            const { error } = await enquiryLineItems.delete(oldRow.id)
+            if (error) throw error
           }
         }
       }
       for (let i = 0; i < items.length; i++) {
         const row = { ...normalize(items[i]), position: i }
         if (items[i].id) {
-          await enquiryLineItems.update(items[i].id, row)
+          const { error } = await enquiryLineItems.update(items[i].id, row)
+          if (error) throw error
         } else {
-          await enquiryLineItems.create(row)
+          const { error } = await enquiryLineItems.create(row)
+          if (error) throw error
         }
       }
 

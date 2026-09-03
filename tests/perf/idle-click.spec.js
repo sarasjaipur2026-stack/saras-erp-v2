@@ -33,9 +33,17 @@ const metrics = {
   expired_jwt_orders_ms: null,
   token_refreshes_in_post_idle: null,
   errors: [],
+  failed: false,
 }
 
 test('post-idle perf monitor', async ({ page }) => {
+  if (!EMAIL || !PASSWORD) {
+    metrics.failed = true
+    metrics.errors.push('SARAS_TEST_EMAIL and SARAS_TEST_PASSWORD are required')
+    console.log(JSON.stringify(metrics))
+    throw new Error(metrics.errors[0])
+  }
+
   page.on('pageerror', (err) => metrics.errors.push(`pageerror: ${err.message}`))
   page.on('console', (msg) => {
     if (msg.type() === 'error') metrics.errors.push(`console: ${msg.text().slice(0, 200)}`)
@@ -45,12 +53,6 @@ test('post-idle perf monitor', async ({ page }) => {
   const t0 = Date.now()
   await page.goto(PROD_URL, { waitUntil: 'load' })
   metrics.dashboard_load_ms = Date.now() - t0
-
-  if (!EMAIL || !PASSWORD) {
-    // No creds — just emit what we have
-    console.log(JSON.stringify(metrics))
-    return
-  }
 
   // ─── Phase 2: Log in ────────────────────────────────────
   // Look for email / password inputs if we're on a login page
@@ -122,5 +124,7 @@ test('post-idle perf monitor', async ({ page }) => {
   metrics.token_refreshes_in_post_idle = supabaseRequests.filter((r) => r.url.includes('/auth/v1/token')).length
 
   // Emit single JSON line for the workflow to capture
+  metrics.failed = metrics.errors.length > 0
   console.log(JSON.stringify(metrics))
+  expect(metrics.errors, 'browser console/page errors').toEqual([])
 })

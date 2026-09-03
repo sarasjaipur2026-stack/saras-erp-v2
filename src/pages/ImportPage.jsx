@@ -1,11 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { Button, Modal, Input, Select, DataTable, Spinner } from '../components/ui'
 import { supabase } from '../lib/supabase'
 import { Upload, FileText, Users, Package, Boxes, Palette, Truck, UserCheck, Calendar, Eye, AlertCircle } from 'lucide-react'
 import * as Papa from 'papaparse'
-// XLSX is lazy-loaded on first use to avoid 360KB in the initial bundle
+import {
+  MAX_IMPORT_ROWS,
+  sanitizeImportText,
+  validateImportFile,
+} from '../lib/importSafety'
+// The XLSX parser is lazy-loaded so it does not affect the initial bundle.
 
 const IMPORT_TYPES = [
   { id: 'customers', label: 'Customers', icon: Users, color: 'indigo' },
@@ -28,12 +33,12 @@ const COLOR_MAP = {
 }
 
 const TABLE_SCHEMAS = {
-  customers: ['firm_name', 'contact_name', 'phone', 'email', 'city', 'address', 'gstin', 'pan', 'state_code', 'shipping_addresses', 'requires_advance', 'busy_code'],
-  products: ['name', 'code', 'hsn_code', 'unit', 'default_rate', 'gst_rate', 'description', 'busy_code'],
-  materials: ['name', 'code', 'unit', 'description', 'busy_code'],
-  machines: ['name', 'code', 'description'],
-  colors: ['name', 'code'],
-  suppliers: ['firm_name', 'contact_name', 'phone', 'email', 'city', 'address', 'gstin', 'pan', 'busy_code'],
+  customers: ['firm_name', 'contact_name', 'phone', 'email', 'city', 'state', 'address', 'gstin', 'pan', 'credit_limit'],
+  products: ['name', 'code', 'name_hi', 'hsn_code', 'gst_rate', 'default_rate_unit', 'uses_filler'],
+  materials: ['name', 'category', 'price_per_kg', 'hsn_code', 'gst_rate'],
+  machines: ['name', 'code', 'name_hi', 'spindles', 'machine_count'],
+  colors: ['name', 'hex_code'],
+  suppliers: ['name', 'firm', 'phone', 'email', 'city', 'state', 'address', 'gstin'],
   brokers: ['name', 'phone', 'email', 'commission_rate', 'city'],
 }
 
@@ -52,18 +57,16 @@ const BUSY_WIN_DEFAULTS = {
     'Item Name': 'name',
     'Item Code': 'code',
     'HSN': 'hsn_code',
-    'Unit': 'unit',
-    'Rate': 'default_rate',
     'GST%': 'gst_rate',
   },
   materials: {
     'Item Name': 'name',
-    'Item Code': 'code',
-    'Unit': 'unit',
+    'Category': 'category',
+    'Rate': 'price_per_kg',
   },
   suppliers: {
-    'Party Name': 'firm_name',
-    'Contact': 'contact_name',
+    'Party Name': 'firm',
+    'Contact': 'name',
     'Mobile': 'phone',
     'City': 'city',
     'GSTIN': 'gstin',
@@ -71,12 +74,6 @@ const BUSY_WIN_DEFAULTS = {
 }
 
 // Sanitize a string value: trim, limit length, strip control chars
-const sanitizeString = (val, maxLen = 500) => {
-  if (typeof val !== 'string') return val
-  // eslint-disable-next-line no-control-regex
-  return val.trim().replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').slice(0, maxLen)
-}
-
 export default function ImportPage() {
   const { user, isAdmin } = useAuth()
   const toast = useToast()
@@ -94,27 +91,9 @@ export default function ImportPage() {
   const [isImporting, setIsImporting] = useState(false)
   const [importLogs, setImportLogs] = useState([])
   const [recordCounts, setRecordCounts] = useState({})
+  const [importRequestId, setImportRequestId] = useState(() => crypto.randomUUID())
 
-  useEffect(() => {
-    if (user?.id) {
-      fetchImportLogs()
-      fetchRecordCounts()
-    }
-  }, [user?.id])
-
-  // Admin-only gate
-  if (!isAdmin) {
-    return (
-      <div className="max-w-md mx-auto py-16 px-4 text-center">
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8">
-          <h2 className="text-lg font-bold text-amber-900 mb-2">Admin Only</h2>
-          <p className="text-sm text-amber-700">Only administrators can import data. Contact your admin for access.</p>
-        </div>
-      </div>
-    )
-  }
-
-  const fetchRecordCounts = async () => {
+  const fetchRecordCounts = useCallback(async () => {
     try {
       const counts = {}
       const tableNames = Object.keys(TABLE_SCHEMAS)
@@ -136,9 +115,10 @@ export default function ImportPage() {
     } catch (err) {
       if (import.meta.env.DEV) console.error('Failed to fetch record counts:', err)
     }
-  }
+  }, [])
 
-  const fetchImportLogs = async () => {
+  const fetchImportLogs = useCallback(async () => {
+    if (!user?.id) return
     try {
       const { data, error } = await supabase
         .from('import_log')
@@ -152,6 +132,25 @@ export default function ImportPage() {
     } catch (err) {
       if (import.meta.env.DEV) console.error('Failed to fetch import logs:', err)
     }
+  }, [user?.id])
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchImportLogs()
+      fetchRecordCounts()
+    }
+  }, [fetchImportLogs, fetchRecordCounts, user?.id])
+
+  // Admin-only gate
+  if (!isAdmin) {
+    return (
+      <div className="max-w-md mx-auto py-16 px-4 text-center">
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8">
+          <h2 className="text-lg font-bold text-amber-900 mb-2">Admin Only</h2>
+          <p className="text-sm text-amber-700">Only administrators can import data. Contact your admin for access.</p>
+        </div>
+      </div>
+    )
   }
 
   const parseFile = async (file) => {
@@ -168,22 +167,19 @@ export default function ImportPage() {
           },
         })
       } else if (file.name.endsWith('.xlsx')) {
-        const reader = new FileReader()
-        reader.onload = async (e) => {
+        import('read-excel-file/browser').then(async ({ default: readXlsxFile }) => {
           try {
-            const XLSX = await import('xlsx')
-            const data = new Uint8Array(e.target.result)
-            const workbook = XLSX.read(data, { type: 'array' })
-            const sheetName = workbook.SheetNames[0]
-            const worksheet = workbook.Sheets[sheetName]
-            const rows = XLSX.utils.sheet_to_json(worksheet)
-            resolve(rows || [])
+            const matrix = await readXlsxFile(file)
+            const [headerRow = [], ...dataRows] = matrix
+            const headers = headerRow.map((value, index) => sanitizeImportText(String(value ?? `Column ${index + 1}`), 100))
+            const rows = dataRows.map(row => Object.fromEntries(
+              headers.map((header, index) => [header, row[index] ?? '']),
+            ))
+            resolve(rows)
           } catch (error) {
             reject(new Error(`XLSX parsing error: ${error.message}`))
           }
-        }
-        reader.onerror = () => reject(new Error('Failed to read file'))
-        reader.readAsArrayBuffer(file)
+        }).catch(error => reject(new Error(`XLSX parser failed to load: ${error.message}`)))
       } else {
         reject(new Error('Unsupported file format'))
       }
@@ -194,9 +190,9 @@ export default function ImportPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    const isValidType = file.name.endsWith('.csv') || file.name.endsWith('.xlsx')
-    if (!isValidType) {
-      toast.error('Please select a CSV or XLSX file')
+    const validationError = validateImportFile(file)
+    if (validationError) {
+      toast.error(validationError)
       return
     }
 
@@ -204,6 +200,10 @@ export default function ImportPage() {
       const parsed = await parseFile(file)
       if (parsed.length === 0) {
         toast.error('File is empty')
+        return
+      }
+      if (parsed.length > MAX_IMPORT_ROWS) {
+        toast.error(`Too many rows (max ${MAX_IMPORT_ROWS} per import). Split your file and try again.`)
         return
       }
 
@@ -283,13 +283,13 @@ export default function ImportPage() {
           if (sourceCol !== '') {
             let value = row[sourceCol] || ''
             // Type conversion for specific fields
-            if ((dbCol === 'default_rate' || dbCol === 'gst_rate' || dbCol === 'commission_rate') && value) {
+            if (['credit_limit', 'gst_rate', 'price_per_kg', 'spindles', 'machine_count', 'commission_rate'].includes(dbCol) && value) {
               value = parseFloat(value) || value
             }
-            if (dbCol === 'requires_advance' && typeof value === 'string') {
+            if (['uses_filler'].includes(dbCol) && typeof value === 'string') {
               value = value.toLowerCase() === 'true' || value === '1' || value === 'yes'
             }
-            mappedRow[dbCol] = typeof value === 'string' ? sanitizeString(value) : value
+            mappedRow[dbCol] = typeof value === 'string' ? sanitizeImportText(value) : value
           }
         })
         return mappedRow
@@ -300,9 +300,8 @@ export default function ImportPage() {
         return Object.values(row).some(v => v !== '' && v !== null && v !== undefined)
       })
 
-      // Guard: max 1000 rows per import to prevent abuse
-      if (cleanedRows.length > 1000) {
-        toast.error('Too many rows (max 1000 per import). Split your file and try again.')
+      if (cleanedRows.length > MAX_IMPORT_ROWS) {
+        toast.error(`Too many rows (max ${MAX_IMPORT_ROWS} per import). Split your file and try again.`)
         setIsImporting(false)
         return
       }
@@ -313,26 +312,16 @@ export default function ImportPage() {
         return
       }
 
-      // Bulk insert into the target table
-      const { error: insertError } = await supabase
-        .from(selectedType)
-        .insert(cleanedRows)
+      // The database function validates the allow-listed table and commits the
+      // imported rows plus audit log as one transaction.
+      const { error: insertError } = await supabase.rpc('import_master_rows', {
+        p_table: selectedType,
+        p_rows: cleanedRows,
+        p_filename: sanitizeImportText(uploadedFile.name, 180),
+        p_request_id: importRequestId,
+      })
 
       if (insertError) throw insertError
-
-      // Create import log entry
-      const { error: logError } = await supabase
-        .from('import_log')
-        .insert({
-          user_id: user.id,
-          import_type: selectedType,
-          filename: uploadedFile.name,
-          record_count: cleanedRows.length,
-          status: 'completed',
-          created_at: new Date().toISOString(),
-        })
-
-      if (logError && import.meta.env.DEV) console.error('Failed to create import log:', logError)
 
       toast.success(`Successfully imported ${cleanedRows.length} ${selectedType}`)
       resetImportFlow()
@@ -359,6 +348,7 @@ export default function ImportPage() {
 
   const handleOpenUpload = (typeId) => {
     setSelectedType(typeId)
+    setImportRequestId(crypto.randomUUID())
     setUploadedFile(null)
     setFullParsedData([])
     setSourceHeaders([])

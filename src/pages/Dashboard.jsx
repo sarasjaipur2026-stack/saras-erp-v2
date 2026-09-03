@@ -33,7 +33,7 @@ const fmtRelativeTime = (ts) => {
 }
 
 export default function Dashboard() {
-  const { profile } = useAuth()
+  const { profile, user } = useAuth()
   const navigate = useNavigate()
   const [loadError, setLoadError] = useState(null)
   const { recents } = useRecentSearches()
@@ -54,7 +54,10 @@ export default function Dashboard() {
   const {
     data: dataArray,
     loading,
-  } = useSWRList('saras_dash_v1', fetcher, { staleAfterMs: 5 * 60 * 1000 })
+  } = useSWRList(user?.id ? `saras_dash_v2_${user.id}` : null, fetcher, {
+    staleAfterMs: 5 * 60 * 1000,
+    enabled: Boolean(user?.id),
+  })
   const data = dataArray?.[0] || null
 
   const firstName = profile?.full_name?.split(' ')[0] || 'User'

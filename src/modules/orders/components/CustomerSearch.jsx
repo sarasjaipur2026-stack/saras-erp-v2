@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { customers } from '../../../lib/db'
 import { useAuth } from '../../../contexts/AuthContext'
 import { useToast } from '../../../contexts/ToastContext'
@@ -7,6 +7,7 @@ import { Plus, Search, X, Building2, Phone, MapPin } from 'lucide-react'
 
 export const CustomerSearch = ({ value, onChange, onSelect }) => {
   const { user } = useAuth()
+  const userId = user?.id
   const toast = useToast()
   const [allCustomers, setAllCustomers] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -17,18 +18,18 @@ export const CustomerSearch = ({ value, onChange, onSelect }) => {
   const [newForm, setNewForm] = useState(emptyForm)
   const ref = useRef(null)
 
-  const fetchCustomers = async () => {
-    const { data } = await customers.list(user.id)
+  const valueId = typeof value === 'object' ? value?.id : value
+  const fetchCustomers = useCallback(async () => {
+    if (!userId) return
+    const { data } = await customers.list(userId)
     if (data) {
       setAllCustomers(data)
-      // value can be a customer_id (string) or a customer object
-      const valueId = typeof value === 'object' ? value?.id : value
       if (valueId) setSelected(data.find(c => c.id === valueId) || null)
     }
-  }
+  }, [userId, valueId])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { if (user?.id) fetchCustomers() }, [user?.id])
+  useEffect(() => { fetchCustomers() }, [fetchCustomers])
 
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setIsOpen(false) }
@@ -55,7 +56,7 @@ export const CustomerSearch = ({ value, onChange, onSelect }) => {
 
   const handleAddNew = async () => {
     if (!newForm.firm_name || !newForm.contact_name) { toast.error('Name and firm required'); return }
-    const { data, error } = await customers.create({ ...newForm, user_id: user.id })
+    const { data, error } = await customers.create({ ...newForm, user_id: userId })
     if (error) { toast.error('Failed to add customer'); return }
     toast.success('Customer added')
     setShowNewModal(false)

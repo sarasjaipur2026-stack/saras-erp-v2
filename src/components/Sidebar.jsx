@@ -20,7 +20,7 @@ import {
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard, category: 'main' },
   { path: '/orders', label: 'Orders', icon: ShoppingCart, category: 'main', badge: true, perm: 'orders' },
-  { path: '/enquiries', label: 'Enquiries', icon: MessageSquare, category: 'main', perm: 'orders' },
+  { path: '/enquiries', label: 'Enquiries', icon: MessageSquare, category: 'main', perm: 'enquiries' },
   { path: '/calculator', label: 'Calculator', icon: Calculator, category: 'production', perm: 'calculator' },
   { path: '/production', label: 'Production', icon: Factory, category: 'production', perm: 'production' },
   { path: '/jobwork', label: 'Jobwork', icon: Briefcase, category: 'production', perm: 'jobwork' },
@@ -181,7 +181,9 @@ export default function Sidebar({ isOpen, onClose }) {
 
       {/* Footer */}
       <div className="px-4 py-3 border-t border-slate-100">
-        <div className="text-[10px] text-slate-300 text-center font-medium tracking-wide">sarasERP v2.0</div>
+        <div className="text-[10px] text-slate-300 text-center font-medium tracking-wide">
+          sarasERP v2.0 · {import.meta.env.VITE_GIT_COMMIT_SHA.slice(0, 7)}
+        </div>
       </div>
     </aside>
   )

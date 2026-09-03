@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { colors } from '../../lib/db'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
@@ -7,22 +7,24 @@ import { Plus, Palette } from 'lucide-react'
 
 export default function ColorsPage() {
   const { user } = useAuth()
+  const userId = user?.id
   const toast = useToast()
   const [list, setList] = useState([])
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ name: '', hex_code: '#6366f1' })
 
-  const fetchData = async () => {
-    const { data, error } = await colors.list(user.id)
+  const fetchData = useCallback(async () => {
+    if (!userId) return
+    const { data, error } = await colors.list(userId)
     if (!error) setList(data || [])
-  }
+  }, [userId])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { if (user?.id) fetchData() }, [user?.id])
+  useEffect(() => { fetchData() }, [fetchData])
 
   const handleAdd = async () => {
     if (!form.name) { toast.error('Enter a color name'); return }
-    const { error } = await colors.create({ ...form, user_id: user.id })
+    const { error } = await colors.create({ ...form, user_id: userId })
     if (error) toast.error('Failed to add color')
     else { toast.success('Color added'); setShowModal(false); setForm({ name: '', hex_code: '#6366f1' }); fetchData() }
   }

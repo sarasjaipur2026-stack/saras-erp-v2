@@ -27,3 +27,7 @@ e2e/.auth/
 npm-debug.log*
 
 .vercel
+
+# Local audit/tool caches
+.npm-cache/
+.docker-config/

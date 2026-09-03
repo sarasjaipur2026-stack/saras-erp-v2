@@ -1,5 +1,6 @@
 import { supabase } from '../supabase'
 import { ensureFreshSession } from '../authGate'
+import { isJwtStaleError } from './requestPolicy'
 
 // ─── GENERIC CRUD FACTORY ──────────────────────────────────
 // Creates list/get/create/update/delete for ANY Supabase table.
@@ -9,37 +10,25 @@ const REQUEST_TIMEOUT_MS = 15000
 
 const safeOnce = async (fn) => {
   let timeoutId
-  const result = await Promise.race([
-    fn(),
-    new Promise((_, reject) => {
-      timeoutId = setTimeout(
-        () => reject(new Error('Request timed out — check your connection')),
-        REQUEST_TIMEOUT_MS,
-      )
-    }),
-  ])
-  if (timeoutId) clearTimeout(timeoutId)
-  return result
+  try {
+    return await Promise.race([
+      fn(),
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error('Request timed out — check your connection')),
+          REQUEST_TIMEOUT_MS,
+        )
+      }),
+    ])
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
 }
 
 // Detects PostgREST / Supabase Auth errors that mean "your JWT is stale".
 // On background-tab throttled Chrome, auto-refresh timers don't fire — so
 // users coming back after idle hit 401 on their first click. This function
 // is used by `safe()` to silently refresh + retry.
-const isJwtStaleError = (err) => {
-  if (!err) return false
-  const status = err.status ?? err.statusCode ?? err.cause?.status
-  const code = (err.code || err.cause?.code || '').toString()
-  const msg = String(err.message || err.error_description || '').toLowerCase()
-  return status === 401 || status === 403
-    || code === 'PGRST301' || code === 'PGRST302'
-    || msg.includes('jwt expired')
-    || msg.includes('jwt is expired')
-    || msg.includes('invalid jwt')
-    || msg.includes('not authenticated')
-    || msg.includes('token has expired')
-}
-
 // Coalesce concurrent refresh calls so 10 parallel queries getting 401
 // don't trigger 10 refresh RPCs.
 let inFlightRefresh = null
@@ -58,9 +47,8 @@ export const safe = async (fn) => {
   // the authoritative fix for the post-idle lag: it eliminates the race
   // where a user's click fires a query with a stale JWT while a separate
   // refresh is in flight.
-  await ensureFreshSession()
-
   try {
+    await ensureFreshSession()
     const result = await safeOnce(fn)
     // Belt-and-braces: if the gate missed (e.g. server clock skew, token
     // rotated mid-flight), still self-heal on 401.
@@ -75,13 +63,9 @@ export const safe = async (fn) => {
       try { return await safeOnce(fn) }
       catch { return { data: null, error: firstErr } }
     }
-    // Non-auth transient — short pause + retry once for stale connections
-    try {
-      await new Promise(r => setTimeout(r, 400))
-      return await safeOnce(fn)
-    } catch {
-      return { data: null, error: firstErr }
-    }
+    // Never retry an ambiguous network/timeout failure here. The server may
+    // already have committed a write even though its response was lost.
+    return { data: null, error: firstErr }
   }
 }
 
@@ -98,8 +82,8 @@ const withUid = async (data, shouldInject) => {
   if (!shouldInject) return data
   const uid = await getUid()
   if (!uid) return data
-  if (Array.isArray(data)) return data.map(row => ({ user_id: uid, ...row }))
-  return { user_id: uid, ...data }
+  if (Array.isArray(data)) return data.map(row => ({ ...row, user_id: uid }))
+  return { ...data, user_id: uid }
 }
 
 // Page through all rows in chunks. PostgREST enforces a server-side
@@ -110,7 +94,7 @@ const withUid = async (data, shouldInject) => {
 const PAGE_SIZE = 1000
 const HARD_CAP = 50000
 
-const fetchAll = async (buildQuery) => {
+export const fetchAll = async (buildQuery) => {
   const all = []
   for (let from = 0; from < HARD_CAP; from += PAGE_SIZE) {
     const to = from + PAGE_SIZE - 1
@@ -119,6 +103,12 @@ const fetchAll = async (buildQuery) => {
     if (!data || data.length === 0) break
     all.push(...data)
     if (data.length < PAGE_SIZE) break
+    if (all.length >= HARD_CAP) {
+      return {
+        data: null,
+        error: new Error(`Result exceeds the ${HARD_CAP.toLocaleString('en-IN')} row safety limit. Narrow the query or use a server-side report.`),
+      }
+    }
   }
   return { data: all, error: null }
 }

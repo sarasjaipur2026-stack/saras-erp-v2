@@ -39,6 +39,7 @@ export default function QualityPage() {
     inspector: '',
     sample_size: '',
     notes: '',
+    request_id: crypto.randomUUID(),
   })
   const [sourceOptions, setSourceOptions] = useState([])
 
@@ -103,6 +104,7 @@ export default function QualityPage() {
       inspector: '',
       sample_size: '',
       notes: '',
+      request_id: crypto.randomUUID(),
     })
     setShowCreate(true)
   }
@@ -114,6 +116,7 @@ export default function QualityPage() {
       inspector: createForm.inspector || null,
       sample_size: createForm.sample_size ? Number(createForm.sample_size) : null,
       notes: createForm.notes || null,
+      request_id: createForm.request_id,
     })
     if (error) {
       toast.error(error.message || 'Failed to create inspection')

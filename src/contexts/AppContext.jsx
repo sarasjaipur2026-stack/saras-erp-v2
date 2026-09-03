@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import * as db from '../lib/db'
+import { useAuth } from './AuthContext'
 
 const AppContext = createContext(null)
 
@@ -20,13 +21,14 @@ const whenIdle = (fn, timeout = 100) =>
 //
 // New behaviour: ALWAYS return cached masters synchronously regardless of
 // age. Background refresh is throttled and explicit (see refreshIfStale).
-const CACHE_KEY = 'saras_masters_v2'
+const CACHE_KEY_PREFIX = 'saras_masters_v3'
 const STALE_AFTER_MS = 30 * 60 * 1000  // refresh in background if >30min old
 const VIS_REFRESH_MIN_IDLE_MS = 10 * 60 * 1000  // only refresh on visibility after ≥10min idle
 
-function readCache() {
+function readCache(userId) {
+  if (!userId) return null
   try {
-    const raw = sessionStorage.getItem(CACHE_KEY)
+    const raw = sessionStorage.getItem(`${CACHE_KEY_PREFIX}_${userId}`)
     if (!raw) return null
     const parsed = JSON.parse(raw)
     return { data: parsed.data, ts: Number(parsed.ts) || 0 }
@@ -62,9 +64,10 @@ function trimForCache(data) {
   return trimmed
 }
 
-function writeCache(data) {
+function writeCache(userId, data) {
+  if (!userId) return
   try {
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data: trimForCache(data) }))
+    sessionStorage.setItem(`${CACHE_KEY_PREFIX}_${userId}`, JSON.stringify({ ts: Date.now(), data: trimForCache(data) }))
   } catch {
     // sessionStorage full or unavailable — ignore
   }
@@ -124,15 +127,16 @@ const LIST_ROUTES_NO_MASTERS = [
 const routeNeedsMasters = (path) => !!path && !LIST_ROUTES_NO_MASTERS.includes(path)
 
 export function AppProvider({ children }) {
+  const { user } = useAuth()
   // Single state object for all masters — one setState call = one re-render
   const [masters, setMasters] = useState(() => {
     // Hydrate from cache on first render — zero network wait, ANY age OK.
-    const cached = readCache()
+    const cached = readCache(user?.id)
     return cached?.data || { ...EMPTY_MASTERS }
   })
-  const [loading, setLoading] = useState(() => !readCache()?.data)
-  const loaded = useRef(!!readCache()?.data)
-  const lastRefreshRef = useRef(readCache()?.ts || 0)
+  const [loading, setLoading] = useState(() => Boolean(user?.id) && !readCache(user?.id)?.data)
+  const loaded = useRef(!!readCache(user?.id)?.data)
+  const lastRefreshRef = useRef(readCache(user?.id)?.ts || 0)
 
   // Coalesce concurrent loadCritical calls onto one in-flight promise
   const criticalInFlightRef = useRef(null)
@@ -157,7 +161,7 @@ export function AppProvider({ children }) {
         }
         setMasters(prev => {
           const next = { ...prev, ...collected }
-          writeCache(next)
+          writeCache(user?.id, next)
           return next
         })
         lastRefreshRef.current = Date.now()
@@ -166,7 +170,7 @@ export function AppProvider({ children }) {
       }
     })()
     return criticalInFlightRef.current
-  }, [])
+  }, [user?.id])
 
   // Phase 2: Secondary masters — same batched pattern
   const deferredInFlightRef = useRef(null)
@@ -186,7 +190,7 @@ export function AppProvider({ children }) {
         }
         setMasters(prev => {
           const next = { ...prev, ...collected }
-          writeCache(next)
+          writeCache(user?.id, next)
           return next
         })
       } finally {
@@ -194,7 +198,7 @@ export function AppProvider({ children }) {
       }
     })()
     return deferredInFlightRef.current
-  }, [])
+  }, [user?.id])
 
   // Track whether deferred masters have been loaded
   const deferredLoaded = useRef(false)
@@ -305,6 +309,17 @@ export function AppProvider({ children }) {
   // demand via db.customers.get(id) and cache inside AppContext so repeated
   // lookups for the same id stay cheap.
   const customerCache = useRef(new Map())
+
+  // Never carry in-memory or sessionStorage-backed data across accounts.
+  useEffect(() => {
+    const cached = readCache(user?.id)
+    setMasters(cached?.data || { ...EMPTY_MASTERS })
+    setLoading(Boolean(user?.id) && !cached?.data)
+    loaded.current = !!cached?.data
+    lastRefreshRef.current = cached?.ts || 0
+    deferredLoaded.current = false
+    customerCache.current.clear()
+  }, [user?.id])
   const paymentTermsById = useMemo(() => new Map(masters.paymentTerms.map(pt => [pt.id, pt])), [masters.paymentTerms])
   const currenciesByCode = useMemo(() => new Map(masters.currencies.map(c => [c.code, c])), [masters.currencies])
 

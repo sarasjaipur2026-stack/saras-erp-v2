@@ -11,6 +11,7 @@ import {
 // preset shapes below. Kept in sync with hasPermission() in AuthContext.
 const PERMISSION_MODULES = [
   { key: 'orders',     label: 'Orders',       actions: ['view', 'create', 'edit', 'approve', 'delete'] },
+  { key: 'enquiries',  label: 'Enquiries',    actions: ['view', 'create', 'edit'] },
   { key: 'calculator', label: 'Calculator',   actions: ['view'] },
   { key: 'production', label: 'Production',   actions: ['view', 'manage'] },
   { key: 'purchase',   label: 'Purchase',     actions: ['view', 'create', 'receive'] },
@@ -165,14 +166,11 @@ export default function UsersPage() {
     if (!editing || !editForm) return
     setSaving(true)
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          role: editForm.role,
-          permissions: editForm.permissions,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', editing.id)
+      const { error } = await supabase.rpc('admin_update_user_permissions', {
+        p_user_id: editing.id,
+        p_role: editForm.role,
+        p_permissions: editForm.permissions,
+      })
       if (error) {
         toast.error(error.message || 'Failed to save')
         return

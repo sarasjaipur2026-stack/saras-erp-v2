@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { customers } from '../../lib/db'
 import { supabase } from '../../lib/supabase'
-import { safe } from '../../lib/db/core'
+import { safe, fetchAll } from '../../lib/db/core'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, Input, DataTable, Modal } from '../../components/ui'
@@ -15,32 +15,22 @@ const LIST_COLUMNS = 'id, firm_name, contact_name, phone, city, gstin'
 
 export default function CustomersPage() {
   const { user } = useAuth()
+  const userId = user?.id
   const toast = useToast()
 
-  // Paginated fetcher with just the display fields. Uses the same
-  // PAGE/HARD_CAP guard-rails as db/core.js::fetchAll so we never hit the
-  // PostgREST 1000-row silent-truncation cap.
-  const fetcher = async () => {
-    if (!user?.id) return { data: [] }
-    const PAGE = 1000
-    const HARD_CAP = 20000
-    const all = []
-    for (let from = 0; from < HARD_CAP; from += PAGE) {
-      const { data, error } = await safe(() =>
-        supabase.from('customers').select(LIST_COLUMNS)
-          .eq('user_id', user.id)
-          .order('firm_name', { ascending: true })
-          .range(from, from + PAGE - 1),
-      )
-      if (error) return { data: null, error }
-      if (!data || data.length === 0) break
-      all.push(...data)
-      if (data.length < PAGE) break
-    }
-    return { data: all, error: null }
-  }
+  // Paginated fetcher with just the display fields. Customers are shared
+  // company master data; RLS controls access, while user_id records who
+  // created a row rather than hiding it from other authorised staff.
+  const fetcher = useCallback(async () => {
+    if (!userId) return { data: [] }
+    return safe(() => fetchAll(() => supabase
+      .from('customers')
+      .select(LIST_COLUMNS)
+      .order('firm_name', { ascending: true })
+    ))
+  }, [userId])
 
-  const cacheKey = user?.id ? `saras_customers_list_v2_${user.id}` : null
+  const cacheKey = userId ? `saras_customers_list_v2_${userId}` : null
   const {
     data: list,
     loading: isLoading,

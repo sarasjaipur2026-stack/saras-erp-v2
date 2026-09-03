@@ -1,9 +1,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import process from 'node:process'
+
+const buildSha = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || 'local'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: {
+    'import.meta.env.VITE_GIT_COMMIT_SHA': JSON.stringify(buildSha),
+  },
   resolve: {
     alias: { '@': '/src' }
   },
@@ -18,13 +24,8 @@ export default defineConfig({
           if (id.includes('node_modules/react-router')) return 'vendor-router'
           if (id.includes('node_modules/@supabase')) return 'vendor-supabase'
           if (id.includes('node_modules/lucide-react')) return 'vendor-icons'
-          if (id.includes('node_modules/xlsx')) return 'xlsx'
         },
       },
     },
-  },
-  // Faster dev server startup — exclude heavy deps from pre-bundling scan
-  optimizeDeps: {
-    exclude: ['xlsx'],
   },
 })

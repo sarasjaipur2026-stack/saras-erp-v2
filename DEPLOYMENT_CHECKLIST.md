@@ -4,19 +4,21 @@
 
 - Supabase project created at https://supabase.com
 - Vercel account with GitHub repo connected
-- Node.js 18+ locally for testing builds
+- Node.js 20+ locally for testing builds
 
 ---
 
 ## 1. Supabase Setup
 
 ### Database
-1. Run `src/db/schema.sql` in the Supabase SQL Editor to create all tables, enums, and RLS policies
-2. Verify all tables are created: profiles, customers, products, materials, machines, colors, suppliers, brokers, orders, order_line_items, order_charges, enquiries, deliveries, invoices, payments, stock_movements, purchase_orders, purchase_order_items, goods_receipts, goods_receipt_items, production_plans, jobwork_jobs, jobwork_items, quality_inspections, quality_inspection_results, notifications, activity_log, app_settings, attachments, import_log, custom_field_definitions, calculator_profiles, stock (+ all master tables)
-3. Verify RLS is enabled on all tables that contain user data
+1. Take a Supabase database backup before upgrading an existing installation.
+2. Apply every file in `supabase/migrations` in filename order. Prefer `supabase db push`; if using the SQL Editor, run one complete file at a time and stop on the first error.
+3. Never deploy `src/db/schema.sql`; it is retained only as a legacy reference.
+4. Run `npm test` locally. The migration tests execute both a clean install and an upgrade from the original v2 schema in PostgreSQL.
+5. Verify RLS is enabled and the `saras_*` policies exist on business tables.
 
 ### RPC Functions
-These must exist (created by schema.sql):
+These must exist after the migrations:
 - `generate_order_number(p_user_id uuid, p_prefix text)`
 - `next_invoice_number()`
 - `next_challan_number()`
@@ -24,16 +26,17 @@ These must exist (created by schema.sql):
 - `next_grn_number()`
 - `next_qi_number()`
 - `next_jobwork_number()`
+- Transactional RPCs ending in `_transactional`, plus `stock_balances()` and the three `report_*` functions
 
 ### Auth
 1. Enable Email/Password auth provider in Authentication > Providers
 2. Disable email confirmation for initial setup (or configure SMTP)
 3. Create the first admin user via Authentication > Users > Add User
-4. Insert a matching `profiles` row: `INSERT INTO profiles (id, full_name, role) VALUES ('<user-uuid>', 'Admin Name', 'admin')`
+4. New Auth users receive a profile automatically. Promote only the first trusted operator from the SQL Editor: `UPDATE public.profiles SET role = 'admin' WHERE id = '<user-uuid>';`
 
 ### Storage Buckets
 1. Create bucket: `company-logos` (public)
-2. Create bucket: `order-attachments` (public or authenticated)
+2. Create bucket: `order-attachments` (**private**)
 3. Create bucket: `quality-photos` (public or authenticated)
 4. Set file size limit: 5MB per file
 5. Allowed MIME types: image/jpeg, image/png, image/webp, image/gif, application/pdf
@@ -57,9 +60,12 @@ Add these in Vercel Dashboard > Project > Settings > Environment Variables:
 - **Install Command:** `npm install`
 
 ### Deployment
-1. Push to the connected Git branch
-2. Vercel auto-builds and deploys
-3. Verify the deployment URL loads correctly
+1. Apply and verify the database migrations **before** deploying the matching frontend.
+2. Run `npm run check` and require a green result.
+3. Push to the connected Git branch; merge to `main` only after CI passes.
+4. Vercel auto-builds and deploys.
+5. Verify the canonical production URL: https://saras-erp-v2-rebuild.vercel.app
+6. Confirm the seven-character build SHA shown in the sidebar footer matches the deployed Git commit.
 
 ---
 

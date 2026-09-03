@@ -1,9 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { Button, Input, Select, Textarea, PhotoUpload, Tabs } from '../components/ui'
 import { supabase, uploadPhoto, deletePhoto } from '../lib/supabase'
 import { Settings, Building2, Package, Printer, Percent } from 'lucide-react'
+
+const DEFAULT_PRICE_SUMMARY_FIELDS = {
+  subtotal: true,
+  charges: true,
+  itemDiscount: true,
+  orderDiscount: true,
+  taxable: true,
+  cgst: true,
+  sgst: true,
+  igst: true,
+  total: true,
+}
 
 export default function SettingsPage() {
   const { user } = useAuth()
@@ -31,17 +43,7 @@ export default function SettingsPage() {
   const [orderNumberFormat, setOrderNumberFormat] = useState('ORD-YYYY-MM-[SEQ]')
 
   // Price Summary Config
-  const [priceSummaryFields, setPriceSummaryFields] = useState({
-    subtotal: true,
-    charges: true,
-    itemDiscount: true,
-    orderDiscount: true,
-    taxable: true,
-    cgst: true,
-    sgst: true,
-    igst: true,
-    total: true,
-  })
+  const [priceSummaryFields, setPriceSummaryFields] = useState(DEFAULT_PRICE_SUMMARY_FIELDS)
 
   // Print Settings
   const [printLetterhead, setPrintLetterhead] = useState(true)
@@ -54,11 +56,8 @@ export default function SettingsPage() {
   const [defaultIgstRate, setDefaultIgstRate] = useState('18')
   const [autoSplitGst, setAutoSplitGst] = useState(true)
 
-  useEffect(() => {
-    if (user?.id) fetchProfile()
-  }, [user?.id])
-
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
+    if (!user?.id) return
     setIsLoading(true)
     try {
       const { data, error } = await supabase
@@ -83,7 +82,7 @@ export default function SettingsPage() {
         setDefaultOrderType(data.default_order_type || 'standard')
         setDefaultPaymentTerms(data.default_payment_terms || 'net30')
         setOrderNumberFormat(data.order_number_format || 'ORD-YYYY-MM-[SEQ]')
-        setPriceSummaryFields(data.price_summary_fields || priceSummaryFields)
+        setPriceSummaryFields(data.price_summary_fields || DEFAULT_PRICE_SUMMARY_FIELDS)
         setPrintLetterhead(data.print_letterhead !== false)
         setPrintTermsConditions(data.print_terms_conditions || '')
         setGstCompanyStateCode(data.gst_company_state_code || '')
@@ -97,7 +96,11 @@ export default function SettingsPage() {
       if (import.meta.env.DEV) console.error(err)
     }
     setIsLoading(false)
-  }
+  }, [toast, user?.id])
+
+  useEffect(() => {
+    fetchProfile()
+  }, [fetchProfile])
 
   const handleLogoUpload = async (file) => {
     setIsUploadingLogo(true)
@@ -122,9 +125,8 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setIsSaving(true)
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
+      const { error } = await supabase.rpc('update_own_profile', {
+        p_profile: {
           company_name: companyName,
           gstin,
           pan,
@@ -146,8 +148,8 @@ export default function SettingsPage() {
           default_sgst_rate: defaultSgstRate,
           default_igst_rate: defaultIgstRate,
           auto_split_gst: autoSplitGst,
-        })
-        .eq('id', user.id)
+        },
+      })
 
       if (error) throw error
       toast.success('Settings saved')

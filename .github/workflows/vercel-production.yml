@@ -12,6 +12,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 # Prevent concurrent production deploys — newer push cancels older in-flight one
 concurrency:
   group: vercel-production
@@ -29,6 +32,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+          cache: npm
+
+      - name: Install project dependencies
+        run: npm ci --no-fund
+
+      - name: Verify lint, tests, build, and dependency audit
+        run: npm run check
 
       - name: Install Vercel CLI
         run: npm install --global vercel@latest

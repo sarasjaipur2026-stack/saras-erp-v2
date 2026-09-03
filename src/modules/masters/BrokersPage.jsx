@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { brokers } from '../../lib/db'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
@@ -17,15 +17,15 @@ export default function BrokersPage() {
   const emptyForm = { name: '', phone: '', email: '', commission_rate: '', city: '', active: true }
   const [form, setForm] = useState(emptyForm)
 
-  useEffect(() => { fetchData() }, [])
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true)
     const { data, error } = await brokers.getAll()
     if (error) toast.error('Failed to load brokers')
     else setList(data || [])
     setIsLoading(false)
-  }
+  }, [toast])
+
+  useEffect(() => { fetchData() }, [fetchData])
 
   const openModal = (broker = null) => {
     if (broker) { setEditingId(broker.id); setForm({ ...broker }) }

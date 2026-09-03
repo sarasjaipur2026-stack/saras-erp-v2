@@ -372,7 +372,7 @@ export const PhotoUpload = ({ onUpload, isLoading = false }) => {
           <>
             <Upload size={22} className="text-slate-400 mx-auto mb-2" />
             <p className="text-sm text-slate-600 font-medium">Drop photo here or click to select</p>
-            <p className="text-xs text-slate-400 mt-1">PNG, JPG up to 10MB</p>
+            <p className="text-xs text-slate-400 mt-1">PNG, JPG, WebP or GIF up to 5MB</p>
           </>
         )}
       </label>

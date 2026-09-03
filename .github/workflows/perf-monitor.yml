@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: write     # to commit perf-log.ndjson
+      contents: read
       issues: write       # to open regression issue
     steps:
       - uses: actions/checkout@v4
@@ -40,8 +40,17 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install chromium --with-deps
 
+      - name: Verify monitor credentials
+        env:
+          SARAS_TEST_EMAIL: ${{ secrets.SARAS_TEST_EMAIL }}
+          SARAS_TEST_PASSWORD: ${{ secrets.SARAS_TEST_PASSWORD }}
+        run: |
+          test -n "$SARAS_TEST_EMAIL" || { echo 'SARAS_TEST_EMAIL is missing'; exit 1; }
+          test -n "$SARAS_TEST_PASSWORD" || { echo 'SARAS_TEST_PASSWORD is missing'; exit 1; }
+
       - name: Run idle-click perf test
         id: perf
+        continue-on-error: true
         env:
           PROD_URL:             ${{ vars.PROD_URL || 'https://saras-erp-v2-rebuild.vercel.app' }}
           SARAS_TEST_EMAIL:     ${{ secrets.SARAS_TEST_EMAIL }}
@@ -50,8 +59,10 @@ jobs:
           GITHUB_REF_NAME:      ${{ github.ref_name }}
         run: |
           set +e
+          set -o pipefail
           npx playwright test --config=playwright.perf.config.js 2>&1 | tee playwright-output.txt
           EXIT=$?
+          set -e
           # The test prints one JSON line; grep it out cleanly
           grep -oE '^\{"timestamp".*\}$' playwright-output.txt | tail -1 > perf-run.json || true
           if [ ! -s perf-run.json ]; then
@@ -59,6 +70,7 @@ jobs:
             echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"commit\":\"${GITHUB_SHA}\",\"failed\":true,\"errors\":[\"playwright exit $EXIT\"]}" > perf-run.json
           fi
           cat perf-run.json
+          exit "$EXIT"
 
       - name: Append to perf log
         run: |
@@ -97,13 +109,15 @@ jobs:
             console.log(regressed ? 'REGRESSION: ' + reason : 'OK — post_idle_orders_ms=' + latest.post_idle_orders_ms + 'ms median=' + (ms || 'n/a'));
           "
 
-      - name: Commit perf log
-        run: |
-          git config user.name 'perf-monitor[bot]'
-          git config user.email 'perf-monitor@users.noreply.github.com'
-          git add docs/perf-log.ndjson
-          git diff --cached --quiet || git commit -m "chore(perf): log run $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          git push
+      - name: Upload performance result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-result-${{ github.run_id }}
+          path: |
+            perf-run.json
+            playwright-output.txt
+          retention-days: 30
 
       - name: Open regression issue
         if: steps.regression.outputs.regressed == 'true'
@@ -146,3 +160,11 @@ jobs:
               body,
               labels: ['perf', 'regression', 'auto-detected'],
             });
+
+      - name: Fail on monitor error or regression
+        if: steps.perf.outcome == 'failure' || steps.regression.outputs.regressed == 'true'
+        env:
+          REASON: ${{ steps.regression.outputs.reason }}
+        run: |
+          echo "Performance monitor failed: ${REASON:-Playwright test failed}"
+          exit 1

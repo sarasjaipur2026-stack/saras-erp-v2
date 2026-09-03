@@ -41,6 +41,9 @@ export const orders = {
       if (!data || data.length === 0) break
       all.push(...data)
       if (data.length < PAGE) break
+      if (all.length >= HARD_CAP) {
+        return { data: null, error: new Error(`Orders exceed the ${HARD_CAP.toLocaleString('en-IN')} row safety limit. Use filters or server pagination.`) }
+      }
     }
     return { data: all, error: null }
   },
@@ -257,6 +260,9 @@ export const enquiries = {
       if (!data || data.length === 0) break
       all.push(...data)
       if (data.length < PAGE) break
+      if (all.length >= HARD_CAP) {
+        return { data: null, error: new Error(`Enquiries exceed the ${HARD_CAP.toLocaleString('en-IN')} row safety limit. Use filters or server pagination.`) }
+      }
     }
     return { data: all, error: null }
   },

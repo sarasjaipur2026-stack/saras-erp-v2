@@ -1,13 +1,14 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, supabaseAuthStorageKey } from '../lib/supabase'
 import { prewarmSession, resetAuthGate } from '../lib/authGate'
+import { clearAppCaches } from '../lib/cache'
 
 const AuthContext = createContext(null)
 
 // Attempt synchronous session read from localStorage — avoids the loading flash
 function peekSession() {
   try {
-    const raw = localStorage.getItem('sb-kcnujpvzewtuttfcrtyz-auth-token')
+    const raw = localStorage.getItem(supabaseAuthStorageKey)
     if (!raw) return null
     const parsed = JSON.parse(raw)
     // Supabase stores { currentSession: { user, ... }, expiresAt: ... }
@@ -95,6 +96,7 @@ export function AuthProvider({ children }) {
           await fetchProfile(session.user.id).catch(() => {})
         }
       } else if (event === 'SIGNED_OUT') {
+        clearAppCaches()
         setUser(null)
         setProfile(null)
       }
@@ -161,6 +163,7 @@ export function AuthProvider({ children }) {
   const signIn = useCallback(async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) return { error }
+    clearAppCaches()
     resetAuthGate()
     setUser(data.user)
     await fetchProfile(data.user.id)
@@ -169,6 +172,7 @@ export function AuthProvider({ children }) {
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()
+    clearAppCaches()
     resetAuthGate()
     setUser(null)
     setProfile(null)
@@ -191,8 +195,8 @@ export function AuthProvider({ children }) {
   //
   // Resolution order:
   //   1. Admins always yes
-  //   2. Viewers: only 'view' actions allowed, and only for modules where perms[module]?.view is not false
-  //   3. Staff: explicit permission entry wins, otherwise default to true (permissive baseline)
+  //   2. Viewers: only explicitly granted 'view' actions are allowed
+  //   3. Staff: actions must also be explicitly granted
   //   4. Unknown role: default to false (deny)
   const hasPermission = useCallback((module, action) => {
     if (isAdmin) return true
@@ -201,7 +205,7 @@ export function AuthProvider({ children }) {
 
     // Module-level check (no action supplied) — used by the sidebar
     if (!action) {
-      if (isViewer) return modPerms?.view !== false
+      if (isViewer) return modPerms?.view === true
       if (isStaff) {
         if (!modPerms) return false // deny by default — staff must have explicit permissions
         // Any truthy entry means they can see it
@@ -211,7 +215,7 @@ export function AuthProvider({ children }) {
     }
 
     // Action-level check
-    if (isViewer) return action === 'view' && modPerms?.view !== false
+    if (isViewer) return action === 'view' && modPerms?.view === true
     if (isStaff) {
       if (!modPerms) return false // deny by default — staff must have explicit permissions
       return modPerms[action] === true

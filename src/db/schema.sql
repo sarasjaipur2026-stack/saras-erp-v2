@@ -1,3 +1,6 @@
+-- LEGACY REFERENCE ONLY. Do not deploy this file.
+-- The authoritative, tested schema is supabase/migrations/*.sql and must be
+-- applied in filename order (prefer `supabase db push`).
 -- PostgreSQL Schema for SARAS ERP
 
 -- Enums

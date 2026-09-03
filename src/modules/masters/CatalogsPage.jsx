@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../../contexts/AuthContext'
 import {
   Settings, Palette, Briefcase, DollarSign, Archive, CreditCard,
   Building2, Layers, Sparkles, Cog, Workflow, UserCog, Hash, Ruler,
@@ -25,7 +26,7 @@ const CATALOGS = [
     { path: '/masters/chaal-types',       label: 'Chaal Types',       icon: Workflow,  description: 'Weave / pattern variants' },
     { path: '/masters/process-types',     label: 'Process Types',     icon: Workflow,  description: 'Manufacturing processes' },
     { path: '/masters/operators',         label: 'Operators',         icon: UserCog,   description: 'Machine operators' },
-    { path: '/masters/quality-parameters', label: 'Quality Params',   icon: ShieldCheck, description: 'QC inspection criteria' },
+    { path: '/masters/quality-parameters', label: 'Quality Params',   icon: ShieldCheck, description: 'QC inspection criteria', perm: 'quality' },
   ]},
   { group: 'Commercial', items: [
     { path: '/masters/brokers',           label: 'Brokers',           icon: Briefcase, description: 'Trade brokers & commission' },
@@ -44,6 +45,7 @@ const CATALOGS = [
 
 export default function CatalogsPage() {
   const navigate = useNavigate()
+  const { hasPermission } = useAuth()
   return (
     <div className="fade-in max-w-6xl mx-auto">
       <div className="mb-6">
@@ -59,7 +61,7 @@ export default function CatalogsPage() {
           <section key={group.group}>
             <h2 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-3">{group.group}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {group.items.map((item) => {
+              {group.items.filter(item => !item.perm || hasPermission(item.perm)).map((item) => {
                 const Icon = item.icon
                 return (
                   <button

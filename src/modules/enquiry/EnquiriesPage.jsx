@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useCallback, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { enquiries } from '../../lib/db'
 import { useAuth } from '../../contexts/AuthContext'
@@ -17,13 +17,16 @@ const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numer
 export default function EnquiriesPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const userId = user?.id
   const toast = useToast()
 
   // Stale-while-revalidate — cached list renders instantly on first paint,
   // even after long idles. Revalidation happens silently in the background.
-  // React Compiler memoizes these automatically — no useCallback/useMemo needed.
-  const fetcher = () => user?.id ? enquiries.list(user.id) : Promise.resolve({ data: [] })
-  const cacheKey = user?.id ? `saras_enquiries_v2_${user.id}` : null
+  const fetcher = useCallback(
+    () => userId ? enquiries.list(userId) : Promise.resolve({ data: [] }),
+    [userId],
+  )
+  const cacheKey = userId ? `saras_enquiries_v2_${userId}` : null
   const {
     data: list,
     loading: isLoading,

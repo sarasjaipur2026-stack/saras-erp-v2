@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { banks } from '../../lib/db'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
@@ -17,15 +17,16 @@ export default function BanksPage() {
   const emptyForm = { name: '', account_number: '', ifsc_code: '', branch: '', account_type: 'current', active: true }
   const [form, setForm] = useState(emptyForm)
 
-  useEffect(() => { if (user?.id) fetchData() }, [user?.id])
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    if (!user?.id) return
     setIsLoading(true)
     const { data, error } = await banks.list(user.id)
     if (error) toast.error('Failed to load banks')
     else setList(data || [])
     setIsLoading(false)
-  }
+  }, [toast, user?.id])
+
+  useEffect(() => { fetchData() }, [fetchData])
 
   const openModal = (bank = null) => {
     if (bank) { setEditingId(bank.id); setForm({ ...bank }) }

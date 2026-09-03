@@ -23,7 +23,7 @@ export default function PaymentsPage() {
   const [form, setForm] = useState({
     order_id: '', amount: 0, payment_mode: 'neft',
     payment_date: new Date().toISOString().slice(0, 10),
-    reference_number: '', bank_id: '', notes: '',
+    reference_number: '', bank_id: '', notes: '', request_id: crypto.randomUUID(),
   })
 
   const [loadError, setLoadError] = useState(null)
@@ -48,7 +48,14 @@ export default function PaymentsPage() {
       const { data, error } = await ordersApi.getAll()
       if (error) { toast.error('Failed to load orders'); return }
       setOrderOptions((data || []).filter(o => (o.balance_due || 0) > 0))
-      setForm(f => ({ ...f, order_id: '', amount: 0, reference_number: '', notes: '' }))
+      setForm(f => ({
+        ...f,
+        order_id: '',
+        amount: 0,
+        reference_number: '',
+        notes: '',
+        request_id: crypto.randomUUID(),
+      }))
       setShowCreate(true)
     } catch {
       toast.error('Failed to load orders — check connection')

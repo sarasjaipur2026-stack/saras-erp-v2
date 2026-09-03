@@ -37,15 +37,18 @@ import { useQueryState } from '../../hooks/useQueryState';
 const OrdersPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const userId = user?.id;
   const toast = useToast();
 
   // Single stale-while-revalidate data source. Cached data renders
   // synchronously on first paint regardless of age — loading spinner only
   // appears on a genuine first visit with no cache at all. Tab-return and
   // mount revalidation are centralised in the hook.
-  // React Compiler handles memoization; no manual useCallback/useMemo.
-  const fetcher = () => user?.id ? ordersDb.list(user.id) : Promise.resolve({ data: [] })
-  const cacheKey = user?.id ? `saras_orders_v1_${user.id}` : null
+  const fetcher = useCallback(
+    () => userId ? ordersDb.list(userId) : Promise.resolve({ data: [] }),
+    [userId],
+  )
+  const cacheKey = userId ? `saras_orders_v1_${userId}` : null
   const {
     data: ordersList,
     loading,

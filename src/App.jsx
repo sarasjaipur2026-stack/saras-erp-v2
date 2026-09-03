@@ -209,7 +209,7 @@ export default function App() {
       <Route path="/masters/chaal-types" element={<ProtectedRoute perm="masters"><ChaalTypesPage /></ProtectedRoute>} />
       <Route path="/masters/packaging-types" element={<ProtectedRoute perm="masters"><PackagingTypesPage /></ProtectedRoute>} />
       <Route path="/masters/transports" element={<ProtectedRoute perm="masters"><TransportsPage /></ProtectedRoute>} />
-      <Route path="/masters/quality-parameters" element={<ProtectedRoute perm="masters"><QualityParametersPage /></ProtectedRoute>} />
+      <Route path="/masters/quality-parameters" element={<ProtectedRoute perm="quality"><QualityParametersPage /></ProtectedRoute>} />
 
       {/* Settings & Import */}
       <Route path="/settings" element={<ProtectedRoute perm="settings"><SettingsPage /></ProtectedRoute>} />

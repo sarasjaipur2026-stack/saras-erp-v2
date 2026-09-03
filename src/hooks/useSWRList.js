@@ -71,11 +71,19 @@ export function useSWRList(
   // Synchronous initial read — guarantees cache is shown on first paint.
   const initial = useMemo(() => (enabled && cacheKey ? readCache(cacheKey) : null), [cacheKey, enabled])
 
-  const [data, setData] = useState(initial?.data || [])
-  const [loading, setLoading] = useState(!initial?.data)
-  const [error, setError] = useState(null)
+  const [snapshot, setSnapshot] = useState({
+    key: cacheKey,
+    data: initial?.data || [],
+    loading: !initial?.data,
+    error: null,
+  })
   const lastRevalidatedRef = useRef(initial?.ts || 0)
   const mountedRef = useRef(true)
+
+  // Never expose the previous account/key's snapshot for even one render.
+  const visible = snapshot.key === cacheKey
+    ? snapshot
+    : { key: cacheKey, data: initial?.data || [], loading: !initial?.data, error: null }
 
   const revalidate = useCallback(async (opts = {}) => {
     if (!cacheKey || !enabled) return
@@ -100,24 +108,37 @@ export function useSWRList(
         if (!mountedRef.current) return
         const rows = Array.isArray(result?.data) ? result.data : []
         if (result?.error) {
-          setError(result.error)
+          setSnapshot(prev => ({
+            key: cacheKey,
+            data: prev.key === cacheKey ? prev.data : (initial?.data || []),
+            loading: false,
+            error: result.error,
+          }))
         } else {
-          setError(null)
-          setData(rows)
+          setSnapshot({ key: cacheKey, data: rows, loading: false, error: null })
           writeCache(cacheKey, rows)
           lastRevalidatedRef.current = Date.now()
         }
       } catch (err) {
-        if (mountedRef.current) setError(err)
+        if (mountedRef.current) {
+          setSnapshot(prev => ({
+            key: cacheKey,
+            data: prev.key === cacheKey ? prev.data : (initial?.data || []),
+            loading: false,
+            error: err,
+          }))
+        }
       } finally {
-        if (mountedRef.current) setLoading(false)
+        if (mountedRef.current) {
+          setSnapshot(prev => prev.key === cacheKey ? { ...prev, loading: false } : prev)
+        }
       }
     })()
 
     inFlightByKey.set(cacheKey, p)
     p.finally(() => { inFlightByKey.delete(cacheKey) })
     return p
-  }, [cacheKey, enabled, fetcher])
+  }, [cacheKey, enabled, fetcher, initial])
 
   // First-mount: reveal cache; revalidate only if cache is missing OR the
   // cache timestamp is older than staleAfterMs.
@@ -130,13 +151,19 @@ export function useSWRList(
     if (!enabled || !cacheKey) return
     mountedRef.current = true
     const hasCacheEntry = !!initial && Array.isArray(initial.data)
+    setSnapshot({
+      key: cacheKey,
+      data: hasCacheEntry ? initial.data : [],
+      loading: !hasCacheEntry,
+      error: null,
+    })
+    lastRevalidatedRef.current = initial?.ts || 0
     const cacheAge = hasCacheEntry ? Date.now() - initial.ts : Infinity
     if (!hasCacheEntry || cacheAge > staleAfterMs) {
       revalidate({ force: true })
     }
     return () => { mountedRef.current = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cacheKey, enabled])
+  }, [cacheKey, enabled, initial, revalidate, staleAfterMs])
 
   // Visibility return: revalidate if we've been hidden long enough.
   useEffect(() => {
@@ -155,6 +182,13 @@ export function useSWRList(
   }, [enabled, cacheKey, revalidate, revalidateOnFocusAfterMs])
 
   const refresh = useCallback(() => revalidate({ force: true }), [revalidate])
+  const setData = useCallback((value) => {
+    setSnapshot(prev => {
+      const current = prev.key === cacheKey ? prev.data : (initial?.data || [])
+      const next = typeof value === 'function' ? value(current) : value
+      return { key: cacheKey, data: next, loading: false, error: null }
+    })
+  }, [cacheKey, initial])
 
-  return { data, loading, error, refresh, setData }
+  return { data: visible.data, loading: visible.loading, error: visible.error, refresh, setData }
 }

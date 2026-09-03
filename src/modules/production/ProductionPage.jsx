@@ -26,6 +26,7 @@ export default function ProductionPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [availableOrders, setAvailableOrders] = useState([])
   const [pickedOrder, setPickedOrder] = useState('')
+  const [createRequestId, setCreateRequestId] = useState(() => crypto.randomUUID())
   const [detailJob, setDetailJob] = useState(null)
 
   const [loadError, setLoadError] = useState(null)
@@ -51,6 +52,7 @@ export default function ProductionPage() {
       if (error) { toast.error('Failed to load orders'); return }
       setAvailableOrders((data || []).filter(o => ['approved', 'booking'].includes(o.status)))
       setPickedOrder('')
+      setCreateRequestId(crypto.randomUUID())
       setShowCreate(true)
     } catch {
       toast.error('Failed to load orders')
@@ -59,7 +61,7 @@ export default function ProductionPage() {
 
   const createFromOrder = async () => {
     if (!pickedOrder) { toast.error('Select an order'); return }
-    const { error } = await productionPlans.createFromOrder(pickedOrder)
+    const { error } = await productionPlans.createFromOrder(pickedOrder, createRequestId)
     if (error) { toast.error(error.message || 'Failed to create production job'); return }
     toast.success('Production job created — order moved to production')
     setShowCreate(false)

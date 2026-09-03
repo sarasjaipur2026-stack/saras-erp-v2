@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { orderTypes } from '../../lib/db'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
@@ -17,15 +17,16 @@ export default function OrderTypesPage() {
   const emptyForm = { name: '', prefix: '', gst_treatment: '', description: '', active: true }
   const [form, setForm] = useState(emptyForm)
 
-  useEffect(() => { if (user?.id) fetchData() }, [user?.id])
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    if (!user?.id) return
     setIsLoading(true)
     const { data, error } = await orderTypes.list(user.id)
     if (error) toast.error('Failed to load order types')
     else setList(data || [])
     setIsLoading(false)
-  }
+  }, [toast, user?.id])
+
+  useEffect(() => { fetchData() }, [fetchData])
 
   const openModal = (orderType = null) => {
     if (orderType) { setEditingId(orderType.id); setForm({ ...orderType }) }

@@ -52,7 +52,9 @@ export default function JobworkPage() {
 
   const [detail, setDetail] = useState(null)
   const [addItemKind, setAddItemKind] = useState(null)
-  const [addItemForm, setAddItemForm] = useState({ yarn_type_id: '', product_type_id: '', quantity: 0, unit: 'kg' })
+  const [addItemForm, setAddItemForm] = useState({
+    yarn_type_id: '', product_type_id: '', quantity: 0, unit: 'kg', request_id: crypto.randomUUID(),
+  })
 
   const load = async () => {
     setLoading(true)
@@ -101,6 +103,7 @@ export default function JobworkPage() {
       due_date: '',
       rate_per_unit: 0,
       notes: '',
+      request_id: crypto.randomUUID(),
       items: [emptyLine(direction === 'inward' ? 'material_received' : 'material_sent')],
     })
     setShowCreate(true)
@@ -139,6 +142,7 @@ export default function JobworkPage() {
         rate_per_unit: Number(form.rate_per_unit) || null,
         notes: form.notes,
         items: form.items,
+        request_id: form.request_id,
       })
       if (error) {
         toast.error(error.message || 'Failed to create jobwork')
@@ -156,7 +160,9 @@ export default function JobworkPage() {
   // ─── ADD ITEM TO EXISTING JOB ─────────────────────────────
   const openAddItem = (kind) => {
     setAddItemKind(kind)
-    setAddItemForm({ yarn_type_id: '', product_type_id: '', quantity: 0, unit: 'kg' })
+    setAddItemForm({
+      yarn_type_id: '', product_type_id: '', quantity: 0, unit: 'kg', request_id: crypto.randomUUID(),
+    })
   }
 
   const submitAddItem = async () => {
@@ -169,6 +175,7 @@ export default function JobworkPage() {
       product_type_id: isFinishedGoods ? addItemForm.product_type_id || null : null,
       quantity: addItemForm.quantity,
       unit: addItemForm.unit,
+      request_id: addItemForm.request_id,
     }
     if (!payload.yarn_type_id && !payload.product_type_id) {
       toast.error('Select an item'); return

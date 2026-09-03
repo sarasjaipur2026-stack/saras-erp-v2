@@ -111,6 +111,7 @@ export const markEnquiryLost = async (id, { lost_reason, lost_reason_note, compe
       lost_reason,
       lost_reason_note: lost_reason_note || null,
       competitor_info: competitor_info || null,
+      lost_at: new Date().toISOString(),
     }).eq('id', id).select().single()
   )
 }

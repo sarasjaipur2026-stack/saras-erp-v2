@@ -12,7 +12,9 @@ export default function DispatchPage() {
   const [loading, setLoading] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [availableOrders, setAvailableOrders] = useState([])
-  const [form, setForm] = useState({ order_id: '', vehicle_number: '', driver_name: '', delivery_note: '' })
+  const [form, setForm] = useState({
+    order_id: '', vehicle_number: '', driver_name: '', delivery_note: '', request_id: crypto.randomUUID(),
+  })
   const [saving, setSaving] = useState(false)
   const [loadError, setLoadError] = useState(null)
 
@@ -36,7 +38,9 @@ export default function DispatchPage() {
       const { data, error } = await ordersApi.getAll()
       if (error) { toast.error('Failed to load orders'); return }
       setAvailableOrders((data || []).filter(o => ['approved', 'production', 'qc', 'booking'].includes(o.status)))
-      setForm({ order_id: '', vehicle_number: '', driver_name: '', delivery_note: '' })
+      setForm({
+        order_id: '', vehicle_number: '', driver_name: '', delivery_note: '', request_id: crypto.randomUUID(),
+      })
       setShowCreate(true)
     } catch {
       toast.error('Failed to load orders')

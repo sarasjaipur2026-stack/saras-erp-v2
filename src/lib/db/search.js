@@ -67,7 +67,7 @@ export const search = {
 
 // Map entity_type -> route builder so the palette knows where to navigate on click.
 export const ENTITY_ROUTES = {
-  customer: (id) => `/customers/${id}`,
+  customer: (id) => `/masters/customers?highlight=${id}`,
   order: (id) => `/orders/${id}`,
   enquiry: (id) => `/enquiries/${id}`,
   invoice: (id) => `/invoices?highlight=${id}`,
