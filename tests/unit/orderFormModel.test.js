@@ -35,6 +35,14 @@ test('order payload excludes server relations and immutable columns', () => {
   assert.deepEqual(payload, { customer_id: 'customer', grand_total: 25, status: 'booking' })
 })
 
+test('normalizes the legacy percent discount value to the database enum', () => {
+  const payload = buildOrderPayload({ order_discount_type: 'percent' }, 'draft')
+  assert.equal(payload.order_discount_type, 'percentage')
+
+  const form = normalizeOrderForForm({ order_discount_type: 'percent' })
+  assert.equal(form.order_discount_type, 'percentage')
+})
+
 test('select-all works only on visible rows while preserving hidden selections', () => {
   const visible = [{ id: 'a' }, { id: 'b' }]
   const selected = new Set(['hidden', 'a'])

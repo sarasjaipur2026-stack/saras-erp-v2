@@ -101,17 +101,17 @@ export function StepPricingCharges({
             }}
             options={[
               { value: 'flat', label: 'Flat Amount' },
-              { value: 'percent', label: 'Percentage' },
+              { value: 'percentage', label: 'Percentage' },
             ]}
           />
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
-              {formData.order_discount_type === 'percent' ? 'Percentage (%)' : 'Amount'}
+              {formData.order_discount_type === 'percentage' ? 'Percentage (%)' : 'Amount'}
             </label>
             <Input
               type="number"
               min="0"
-              max={formData.order_discount_type === 'percent' ? "100" : undefined}
+              max={formData.order_discount_type === 'percentage' ? "100" : undefined}
               value={formData.order_discount_value || 0}
               onChange={(e) => {
                 const val = parseFloat(e.target.value);

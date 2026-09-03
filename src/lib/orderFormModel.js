@@ -48,10 +48,11 @@ const pick = (source, fields) => Object.fromEntries(
   fields.filter(key => source?.[key] !== undefined).map(key => [key, source[key]]),
 )
 
-export const buildOrderPayload = (formData, status) => ({
-  ...pick(formData, ORDER_FIELDS),
-  status,
-})
+export const buildOrderPayload = (formData, status) => {
+  const payload = pick(formData, ORDER_FIELDS)
+  if (payload.order_discount_type === 'percent') payload.order_discount_type = 'percentage'
+  return { ...payload, status }
+}
 
 export const buildLinePayload = (line, orderId) => ({
   order_id: orderId,
@@ -78,6 +79,8 @@ export const normalizeOrderForForm = (order, { duplicate = false, now = Date.now
       id: duplicate ? `temp_duplicate_charge_${now}_${index}` : charge.id,
     })),
   }
+
+  if (normalized.order_discount_type === 'percent') normalized.order_discount_type = 'percentage'
 
   if (duplicate) normalized.status = 'draft'
   return normalized

@@ -268,7 +268,7 @@ export default function OrderForm() {
       const totalCharges = chargesList.reduce((sum, charge) => sum + (charge.amount || 0), 0);
 
       let orderDiscountAmount = prev.order_discount_amount || 0;
-      if (prev.order_discount_type === 'percent') {
+      if (prev.order_discount_type === 'percentage') {
         orderDiscountAmount = (subtotal * (prev.order_discount_value || 0)) / 100;
       }
 
