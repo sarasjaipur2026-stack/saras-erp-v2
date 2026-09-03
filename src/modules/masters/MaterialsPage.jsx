@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useApp } from '../../contexts/AppContext'
 import { useAuth } from '../../contexts/AuthContext'
 import { materials as matDb } from '../../lib/db'
@@ -9,7 +9,7 @@ import { Plus, Edit2 } from 'lucide-react'
 const CATEGORIES = ['Cotton', 'PolyCotton', 'Polyester DTY', 'Spun Polyester', 'Viscose', 'Filler', 'Other']
 
 export default function MaterialsPage() {
-  const { materials, loadMasterData } = useApp()
+  const { materials, loadMasterData, ensureCritical } = useApp()
   const { user } = useAuth()
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -18,6 +18,8 @@ export default function MaterialsPage() {
   const [saving, setSaving] = useState(false)
   const [filter, setFilter] = useState('')
   const toast = useToast()
+
+  useEffect(() => { ensureCritical() }, [ensureCritical])
 
   const filtered = filter ? materials.filter(m => m.category === filter) : materials
 

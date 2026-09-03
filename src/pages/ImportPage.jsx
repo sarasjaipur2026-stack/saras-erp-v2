@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { useApp } from '../contexts/AppContext'
 import { useToast } from '../contexts/ToastContext'
 import { Button, Modal, Input, Select, DataTable, Spinner } from '../components/ui'
 import { supabase } from '../lib/supabase'
@@ -10,6 +11,7 @@ import {
   sanitizeImportText,
   validateImportFile,
 } from '../lib/importSafety'
+import { clearAppCaches } from '../lib/cache'
 // The XLSX parser is lazy-loaded so it does not affect the initial bundle.
 
 const IMPORT_TYPES = [
@@ -76,6 +78,7 @@ const BUSY_WIN_DEFAULTS = {
 // Sanitize a string value: trim, limit length, strip control chars
 export default function ImportPage() {
   const { user, isAdmin } = useAuth()
+  const { loadMasterData } = useApp()
   const toast = useToast()
 
   // Import flow state — all hooks must be called before any conditional return
@@ -324,6 +327,10 @@ export default function ImportPage() {
       if (insertError) throw insertError
 
       toast.success(`Successfully imported ${cleanedRows.length} ${selectedType}`)
+      // Invalidate every master/list snapshot before repopulating AppContext.
+      // Without this, a successful import can remain invisible for 15–30 min.
+      clearAppCaches()
+      loadMasterData().catch(() => {})
       resetImportFlow()
       fetchImportLogs()
       fetchRecordCounts()

@@ -30,7 +30,7 @@ export default function CustomersPage() {
     ))
   }, [userId])
 
-  const cacheKey = userId ? `saras_customers_list_v2_${userId}` : null
+  const cacheKey = userId ? `saras_customers_list_v3_${userId}` : null
   const {
     data: list,
     loading: isLoading,

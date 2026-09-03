@@ -21,7 +21,7 @@ const whenIdle = (fn, timeout = 100) =>
 //
 // New behaviour: ALWAYS return cached masters synchronously regardless of
 // age. Background refresh is throttled and explicit (see refreshIfStale).
-const CACHE_KEY_PREFIX = 'saras_masters_v3'
+const CACHE_KEY_PREFIX = 'saras_masters_v4'
 const STALE_AFTER_MS = 30 * 60 * 1000  // refresh in background if >30min old
 const VIS_REFRESH_MIN_IDLE_MS = 10 * 60 * 1000  // only refresh on visibility after ≥10min idle
 
@@ -37,10 +37,14 @@ function readCache(userId) {
   }
 }
 
-// Trim each master to only cache essential dropdown fields (id, name, code, etc.)
-// This keeps cache under ~500KB instead of ~4MB
+// Cache only fields consumed by list screens, forms, calculators, and dropdowns.
+// Keep this allow-list versioned with CACHE_KEY_PREFIX: omitting a field here can
+// make a warm reload silently render incomplete business data.
 const CACHE_FIELDS = new Set([
   'id', 'name', 'code', 'firm_name', 'contact_name', 'city', 'phone',
+  'name_hi', 'hsn_code', 'gst_rate', 'rate_unit', 'default_rate_unit',
+  'uses_filler', 'product_type_id', 'price_per_kg',
+  'machine_type_id', 'spindles', 'compatible_products', 'machine_count',
   'prefix', 'symbol', 'hex_code', 'hindi_name', 'category', 'days',
   'description', 'charge_mode', 'default_value', 'applies_to', 'is_taxable',
   'commission_pct', 'order_mode', 'unit_type', 'active', 'state_code',

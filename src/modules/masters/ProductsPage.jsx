@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useApp } from '../../contexts/AppContext'
 import { useAuth } from '../../contexts/AuthContext'
 import { products as productDb } from '../../lib/db'
@@ -7,7 +7,7 @@ import { Button, Input, Select, Modal, DataTable, Badge } from '../../components
 import { Plus, Edit2 } from 'lucide-react'
 
 export default function ProductsPage() {
-  const { products, loadMasterData } = useApp()
+  const { products, loadMasterData, ensureCritical } = useApp()
   const { user } = useAuth()
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -15,6 +15,8 @@ export default function ProductsPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const toast = useToast()
+
+  useEffect(() => { ensureCritical() }, [ensureCritical])
 
   const handleSave = async () => {
     if (!form.code || !form.name) { toast.error('Code and Name required'); return }
