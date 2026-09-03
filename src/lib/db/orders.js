@@ -63,7 +63,7 @@ export const orders = {
           materials(*),
           machines(*),
           colors(*),
-          calculator_profiles(*)
+          calculator_profiles!order_line_items_calculator_profile_id_fkey(*)
         ),
         order_charges(*, charge_types(*)),
         deliveries(*),
