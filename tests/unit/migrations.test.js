@@ -195,6 +195,43 @@ test('database migrations upgrade the original v2 schema without SQL errors', as
   }
 })
 
+test('duplicate calculator profile relationships are removed idempotently', async () => {
+  const db = new PGlite()
+  try {
+    await db.waitReady
+    await createSupabaseHarness(db)
+    await runMigrations(db)
+    await db.exec(`
+      alter table public.order_line_items
+        add constraint line_items_calc_profile_fkey
+        foreign key (calculator_profile_id)
+        references public.calculator_profiles(id)
+        on delete set null;
+    `)
+
+    const migration = await readFile(
+      new URL('../../supabase/migrations/202609020009_dedupe_calculator_profile_fk.sql', import.meta.url),
+      'utf8',
+    )
+    await db.exec(migration)
+    await db.exec(migration)
+
+    const { rows } = await db.query(`
+      select conname
+      from pg_constraint
+      where conrelid = 'public.order_line_items'::regclass
+        and contype = 'f'
+        and confrelid = 'public.calculator_profiles'::regclass
+      order by conname
+    `)
+    assert.deepEqual(rows, [
+      { conname: 'order_line_items_calculator_profile_id_fkey' },
+    ])
+  } finally {
+    await db.close()
+  }
+})
+
 test('compatible order status enums remain intact when status triggers exist', async () => {
   const db = new PGlite()
   try {
