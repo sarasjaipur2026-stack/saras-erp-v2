@@ -127,6 +127,10 @@ const LIST_ROUTES_NO_MASTERS = [
   '/reports',
   '/notifications',
   '/masters/customers',     // 3,400-row customer list — no other masters read
+  '/masters/suppliers',     // server-paginated standalone list
+  '/masters/staff',         // standalone list; no shared masters consumed
+  '/settings',              // profile-only screen
+  '/settings/users',        // profile-only admin screen
 ]
 const routeNeedsMasters = (path) => !!path && !LIST_ROUTES_NO_MASTERS.includes(path)
 

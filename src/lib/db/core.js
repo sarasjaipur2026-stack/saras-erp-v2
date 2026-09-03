@@ -127,6 +127,14 @@ export function createTable(table, opts = {}) {
       supabase.from(table).select(select).order(orderBy, { ascending: orderAsc })
     )),
 
+    getPage: async ({ page = 0, pageSize = 50, userId = null } = {}) => safe(() => {
+      const from = Math.max(0, page) * pageSize
+      const to = from + pageSize - 1
+      let q = supabase.from(table).select(select, { count: 'exact' })
+      if (ownerFilter && userId) q = q.eq('user_id', userId)
+      return q.order(orderBy, { ascending: orderAsc }).range(from, to)
+    }),
+
     get: async (id) => safe(() =>
       supabase.from(table).select(select).eq('id', id).single()
     ),

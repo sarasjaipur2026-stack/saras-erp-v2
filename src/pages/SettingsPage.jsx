@@ -3,7 +3,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../contexts/ToastContext'
 import { Button, Input, Select, Textarea, PhotoUpload, Tabs } from '../components/ui'
 import { supabase, uploadPhoto, deletePhoto } from '../lib/supabase'
-import { Settings, Building2, Package, Printer, Percent } from 'lucide-react'
+import { safe } from '../lib/db/core'
+import { Settings } from 'lucide-react'
 
 const DEFAULT_PRICE_SUMMARY_FIELDS = {
   subtotal: true,
@@ -18,9 +19,9 @@ const DEFAULT_PRICE_SUMMARY_FIELDS = {
 }
 
 export default function SettingsPage() {
-  const { user } = useAuth()
+  const { user, profile, fetchProfile: refreshAuthProfile } = useAuth()
   const toast = useToast()
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(!profile)
   const [isSaving, setIsSaving] = useState(false)
   const [isUploadingLogo, setIsUploadingLogo] = useState(false)
   const [activeTab, setActiveTab] = useState(0)
@@ -56,51 +57,55 @@ export default function SettingsPage() {
   const [defaultIgstRate, setDefaultIgstRate] = useState('18')
   const [autoSplitGst, setAutoSplitGst] = useState(true)
 
-  const fetchProfile = useCallback(async () => {
-    if (!user?.id) return
-    setIsLoading(true)
+  const applyProfile = useCallback((data) => {
+    setCompanyName(data.company_name || data.firm_name || data.full_name || '')
+    setGstin(data.gstin || '')
+    setPan(data.pan || '')
+    setAddress(data.address || '')
+    setCity(data.city || '')
+    setState(data.state || '')
+    setStateCode(data.state_code || data.gst_company_state_code || '')
+    setPhone(data.phone || '')
+    setEmail(data.email || '')
+    setLogoUrl(data.logo_url || '')
+    setDefaultOrderType(data.default_order_type || 'standard')
+    setDefaultPaymentTerms(data.default_payment_terms || 'net30')
+    setOrderNumberFormat(data.order_number_format || 'ORD-YYYY-MM-[SEQ]')
+    setPriceSummaryFields(data.price_summary_fields || DEFAULT_PRICE_SUMMARY_FIELDS)
+    setPrintLetterhead(data.print_letterhead !== false)
+    setPrintTermsConditions(data.print_terms_conditions || '')
+    setGstCompanyStateCode(data.gst_company_state_code || data.state_code || '')
+    setDefaultCgstRate(String(data.default_cgst_rate ?? '9'))
+    setDefaultSgstRate(String(data.default_sgst_rate ?? '9'))
+    setDefaultIgstRate(String(data.default_igst_rate ?? '18'))
+    setAutoSplitGst(data.auto_split_gst !== false)
+  }, [])
+
+  const loadSettings = useCallback(async () => {
+    if (!user?.id) { setIsLoading(false); return }
+    if (profile) applyProfile(profile)
+    setIsLoading(!profile)
     try {
-      const { data, error } = await supabase
+      const { data, error } = await safe(() => supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single()
+        .maybeSingle())
 
       if (error) throw error
-
-      if (data) {
-        setCompanyName(data.company_name || '')
-        setGstin(data.gstin || '')
-        setPan(data.pan || '')
-        setAddress(data.address || '')
-        setCity(data.city || '')
-        setState(data.state || '')
-        setStateCode(data.state_code || '')
-        setPhone(data.phone || '')
-        setEmail(data.email || '')
-        setLogoUrl(data.logo_url || '')
-        setDefaultOrderType(data.default_order_type || 'standard')
-        setDefaultPaymentTerms(data.default_payment_terms || 'net30')
-        setOrderNumberFormat(data.order_number_format || 'ORD-YYYY-MM-[SEQ]')
-        setPriceSummaryFields(data.price_summary_fields || DEFAULT_PRICE_SUMMARY_FIELDS)
-        setPrintLetterhead(data.print_letterhead !== false)
-        setPrintTermsConditions(data.print_terms_conditions || '')
-        setGstCompanyStateCode(data.gst_company_state_code || '')
-        setDefaultCgstRate(data.default_cgst_rate || '9')
-        setDefaultSgstRate(data.default_sgst_rate || '9')
-        setDefaultIgstRate(data.default_igst_rate || '18')
-        setAutoSplitGst(data.auto_split_gst !== false)
-      }
+      if (!data) throw new Error('Profile not found')
+      applyProfile(data)
     } catch (err) {
       toast.error('Failed to load settings')
       if (import.meta.env.DEV) console.error(err)
+    } finally {
+      setIsLoading(false)
     }
-    setIsLoading(false)
-  }, [toast, user?.id])
+  }, [applyProfile, profile, toast, user?.id])
 
   useEffect(() => {
-    fetchProfile()
-  }, [fetchProfile])
+    loadSettings()
+  }, [loadSettings])
 
   const handleLogoUpload = async (file) => {
     setIsUploadingLogo(true)
@@ -125,7 +130,7 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setIsSaving(true)
     try {
-      const { error } = await supabase.rpc('update_own_profile', {
+      const { data, error } = await safe(() => supabase.rpc('update_own_profile', {
         p_profile: {
           company_name: companyName,
           gstin,
@@ -149,9 +154,11 @@ export default function SettingsPage() {
           default_igst_rate: defaultIgstRate,
           auto_split_gst: autoSplitGst,
         },
-      })
+      }))
 
       if (error) throw error
+      if (data) applyProfile(data)
+      await refreshAuthProfile(user.id)
       toast.success('Settings saved')
     } catch (err) {
       toast.error('Failed to save settings')
@@ -202,7 +209,7 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-[55vh]" role="status" aria-live="polite">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-indigo-100 border-t-indigo-600 rounded-full mx-auto" style={{ animation: 'spin 0.6s linear infinite' }} />
           <p className="mt-3 text-sm text-slate-400 font-medium">Loading settings...</p>
@@ -213,7 +220,7 @@ export default function SettingsPage() {
 
   return (
     <div className="fade-in max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <Settings size={24} className="text-indigo-600" /> Settings
@@ -229,16 +236,25 @@ export default function SettingsPage() {
             label: 'Company Profile',
             content: (
               <div className="space-y-5">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input label="Company Name" required value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="e.g., Saras Textiles" />
                   <Input label="GSTIN" value={gstin} onChange={e => setGstin(e.target.value)} placeholder="27XXXXX0000X1Z5" />
                   <Input label="PAN" value={pan} onChange={e => setPan(e.target.value)} placeholder="AAAPL0000A" />
-                  <Select label="State" options={indian_states} value={stateCode} onChange={e => setStateCode(e.target.value)} />
+                  <Select
+                    label="State"
+                    options={[{ value: '', label: 'Select state' }, ...indian_states]}
+                    value={stateCode}
+                    onChange={e => {
+                      const code = e.target.value
+                      setStateCode(code)
+                      setState(indian_states.find(item => item.value === code)?.label.replace(/ \([A-Z]{2}\)$/, '') || '')
+                    }}
+                  />
                 </div>
 
                 <Textarea label="Address" value={address} onChange={e => setAddress(e.target.value)} placeholder="Street address" rows={3} />
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <Input label="City" value={city} onChange={e => setCity(e.target.value)} placeholder="e.g., Surat" />
                   <Input label="Phone" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+91 9999999999" />
                   <Input label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="info@company.com" />
@@ -250,6 +266,8 @@ export default function SettingsPage() {
                     <div className="mb-4 relative w-24 h-24 bg-slate-50 rounded-2xl border border-slate-200 overflow-hidden">
                       <img src={logoUrl} alt="Company logo" className="w-full h-full object-contain p-2" />
                       <button
+                        type="button"
+                        aria-label="Remove company logo"
                         onClick={() => setLogoUrl('')}
                         className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 text-xs"
                       >
@@ -266,7 +284,7 @@ export default function SettingsPage() {
             label: 'Order Settings',
             content: (
               <div className="space-y-5">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Select
                     label="Default Order Type"
                     options={[
@@ -310,7 +328,7 @@ export default function SettingsPage() {
             content: (
               <div className="space-y-4">
                 <p className="text-sm text-slate-600 mb-4">Choose which fields to display in the price summary</p>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
                     { key: 'subtotal', label: 'Subtotal' },
                     { key: 'charges', label: 'Charges' },
@@ -374,12 +392,12 @@ export default function SettingsPage() {
               <div className="space-y-5">
                 <Select
                   label="Company State (for GST)"
-                  options={indian_states}
+                  options={[{ value: '', label: 'Select state' }, ...indian_states]}
                   value={gstCompanyStateCode}
                   onChange={e => setGstCompanyStateCode(e.target.value)}
                 />
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <Input
                     label="Default CGST Rate (%)"
                     type="number"

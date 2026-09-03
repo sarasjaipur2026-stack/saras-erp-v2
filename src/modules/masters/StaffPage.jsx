@@ -14,14 +14,19 @@ export default function StaffPage() {
   const [editingId, setEditingId] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState('')
   const emptyForm = { name: '', phone: '', email: '', role: '', department: '', active: true }
   const [form, setForm] = useState(emptyForm)
 
   const fetchData = useCallback(async () => {
-    if (!user?.id) return
+    if (!user?.id) { setIsLoading(false); return }
     setIsLoading(true)
+    setLoadError('')
     const { data, error } = await staff.list(user.id)
-    if (error) toast.error('Failed to load staff')
+    if (error) {
+      setLoadError(error.message || 'Could not load staff')
+      toast.error('Failed to load staff')
+    }
     else setList(data || [])
     setIsLoading(false)
   }, [toast, user?.id])
@@ -70,15 +75,15 @@ export default function StaffPage() {
     { key: 'active', label: 'Active', render: v => <span className={`text-[12px] font-medium ${v ? 'text-green-600' : 'text-slate-400'}`}>{v ? 'Yes' : 'No'}</span> },
     { key: 'actions', label: '', render: (_, r) => (
       <div className="flex gap-0.5">
-        <button onClick={() => openModal(r)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors"><Edit2 size={14} /></button>
-        <button onClick={(e) => handleDelete(e, r.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
+        <button type="button" aria-label={`Edit staff member ${r.name}`} onClick={() => openModal(r)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors"><Edit2 size={14} /></button>
+        <button type="button" aria-label={`Delete staff member ${r.name}`} onClick={(e) => handleDelete(e, r.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
       </div>
     )},
   ]
 
   return (
     <div className="fade-in max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
         <div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">Staff</h1>
           <p className="text-[13px] text-slate-400 mt-0.5">{list.length} staff members</p>
@@ -92,12 +97,21 @@ export default function StaffPage() {
         <Input placeholder="Search by name, role, or department..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
       </div>
 
-      <DataTable columns={columns} data={filtered} isLoading={isLoading} emptyMessage="No staff members found" />
+      <DataTable
+        columns={columns}
+        data={filtered}
+        isLoading={isLoading}
+        emptyTitle={loadError ? 'Staff could not be loaded' : searchTerm ? 'No matching staff members' : 'No staff members yet'}
+        emptyDescription={loadError || (searchTerm ? 'Try a different name, role, or department.' : 'The staff table is empty. Add the first team member to get started.')}
+        emptyAction={loadError
+          ? <Button variant="secondary" onClick={fetchData}>Retry</Button>
+          : !searchTerm && <Button onClick={() => openModal()}><Plus size={15} /> Add Staff Member</Button>}
+      />
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editingId ? 'Edit Staff Member' : 'Add Staff Member'} size="lg"
         footer={<><Button variant="secondary" size="sm" onClick={() => setShowModal(false)}>Cancel</Button><Button size="sm" onClick={handleSave} loading={saving}>{editingId ? 'Update' : 'Add'}</Button></>}
       >
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input label="Name" required value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
           <Input label="Phone" value={form.phone || ''} onChange={e => setForm(p => ({ ...p, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))} />
           <Input label="Email" type="email" value={form.email || ''} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
