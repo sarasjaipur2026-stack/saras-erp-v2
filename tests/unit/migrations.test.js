@@ -134,6 +134,34 @@ test('all database migrations execute in filename order on a clean database', as
         )
     `)
     assert.deepEqual(unindexedForeignKeys.rows, [], 'public foreign keys need supporting indexes')
+
+    const perRowAuthPolicies = await db.query(`
+      select policyname
+      from pg_policies
+      where schemaname = 'public'
+        and (
+          coalesce(qual, '') ~ 'auth\\.(uid|role|jwt|email)\\(\\)'
+          or coalesce(with_check, '') ~ 'auth\\.(uid|role|jwt|email)\\(\\)'
+        )
+        and not (
+          coalesce(qual, '') ~ '\\( SELECT auth\\.'
+          or coalesce(with_check, '') ~ '\\( SELECT auth\\.'
+        )
+    `)
+    assert.deepEqual(perRowAuthPolicies.rows, [], 'RLS auth helpers should use init plans')
+
+    const duplicateIndexes = await db.query(`
+      select i.indrelid
+      from pg_index i
+      join pg_class c on c.oid = i.indrelid
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and i.indisvalid and i.indisready
+      group by i.indrelid, i.indisunique, i.indisprimary, i.indkey,
+        i.indclass, i.indcollation, i.indoption,
+        pg_get_expr(i.indexprs, i.indrelid), pg_get_expr(i.indpred, i.indrelid)
+      having count(*) > 1
+    `)
+    assert.deepEqual(duplicateIndexes.rows, [], 'public tables should not have duplicate indexes')
   } finally {
     await db.close()
   }
