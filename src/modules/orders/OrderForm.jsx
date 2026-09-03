@@ -76,38 +76,45 @@ export default function OrderForm() {
   // Load an existing order for editing or pre-fill a safe, unsaved duplicate.
   useEffect(() => {
     const sourceId = orderId || duplicateId;
-    if (sourceId && loading) {
-      const loadOrder = async () => {
-        try {
-          const { data: order, error } = await orders.get(sourceId);
-          if (error) throw error;
-          if (order) {
-            const normalized = normalizeOrderForForm(order, { duplicate: isDuplicate });
-            persistedLineIds.current = new Set(
-              isDuplicate ? [] : normalized.line_items.map(item => item.id).filter(Boolean),
-            );
-            persistedChargeIds.current = new Set(
-              isDuplicate ? [] : normalized.charges.map(charge => charge.id).filter(Boolean),
-            );
-            initialFormRef.current = isDuplicate
-              ? JSON.stringify(DEFAULT_ORDER)
-              : JSON.stringify(normalized);
-            setFormData(normalized);
-            setSelectedCustomer(order.customers || null);
-            setDirty(isDuplicate);
-          }
-        } catch {
+    if (!sourceId) {
+      setLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const loadOrder = async () => {
+      setLoading(true);
+      try {
+        const { data: order, error } = await orders.get(sourceId);
+        if (error) throw error;
+        if (order && !cancelled) {
+          const normalized = normalizeOrderForForm(order, { duplicate: isDuplicate });
+          persistedLineIds.current = new Set(
+            isDuplicate ? [] : normalized.line_items.map(item => item.id).filter(Boolean),
+          );
+          persistedChargeIds.current = new Set(
+            isDuplicate ? [] : normalized.charges.map(charge => charge.id).filter(Boolean),
+          );
+          initialFormRef.current = isDuplicate
+            ? JSON.stringify(DEFAULT_ORDER)
+            : JSON.stringify(normalized);
+          setFormData(normalized);
+          setSelectedCustomer(order.customers || null);
+          setDirty(isDuplicate);
+        }
+      } catch {
+        if (!cancelled) {
           toast.error(isDuplicate ? 'Failed to load order to duplicate' : 'Failed to load order');
           navigate('/orders');
-        } finally {
-          setLoading(false);
         }
-      };
-      loadOrder();
-    } else if (!sourceId) {
-      setLoading(false);
-    }
-  }, [duplicateId, isDuplicate, loading, navigate, orderId, toast]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    loadOrder();
+    return () => { cancelled = true; };
+  }, [duplicateId, isDuplicate, navigate, orderId, toast]);
 
   const handleCustomerSelect = async (customer) => {
     const customerStateCode = customer.state_code || customer.gstin?.substring(0, 2);
