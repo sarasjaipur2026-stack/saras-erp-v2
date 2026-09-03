@@ -47,9 +47,9 @@ const OrdersPage = () => {
   const toast = useToast();
 
   // Single stale-while-revalidate data source. Cached data renders
-  // synchronously on first paint regardless of age — loading spinner only
-  // appears on a genuine first visit with no cache at all. Tab-return and
-  // mount revalidation are centralised in the hook.
+  // synchronously on first paint, while every mount refreshes in the
+  // background so create/edit navigation never leaves order status or line
+  // counts stale.
   const fetcher = useCallback(
     () => userId ? ordersDb.list(userId) : Promise.resolve({ data: [] }),
     [userId],
@@ -59,7 +59,7 @@ const OrdersPage = () => {
     data: ordersList,
     loading,
     refresh: reloadOrders,
-  } = useSWRList(cacheKey, fetcher, { staleAfterMs: 10 * 60 * 1000 })
+  } = useSWRList(cacheKey, fetcher, { staleAfterMs: 0 })
   const [selectedOrders, setSelectedOrders] = useState(new Set());
   // Filter state is URL-backed so sharing / bookmarking a view works.
   const [activeTab, setActiveTab] = useQueryState('tab', 'all');
