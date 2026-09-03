@@ -28,7 +28,6 @@ export const CustomerSearch = ({ value, onChange, onSelect }) => {
     }
   }, [userId, valueId])
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { fetchCustomers() }, [fetchCustomers])
 
   useEffect(() => {

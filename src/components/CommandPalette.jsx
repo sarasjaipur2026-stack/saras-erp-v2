@@ -83,10 +83,8 @@ function CommandPaletteInner({ hide }) {
   useEffect(() => {
     const q = debounced.trim()
     if (!q) {
-      /* eslint-disable react-hooks/set-state-in-effect */
       setResults([])
       setLoading(false)
-      /* eslint-enable react-hooks/set-state-in-effect */
       return
     }
     let cancelled = false

@@ -270,9 +270,7 @@ function ProductionDetailBody({ job, onPatch }) {
   const [notes, setNotes] = useState(job.notes || '')
 
   // Sync state when job prop changes (e.g. after status update or re-open)
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setCompleted(job.completed_qty || 0) }, [job.completed_qty])
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setNotes(job.notes || '') }, [job.notes])
   const pct = job.planned_qty > 0 ? Math.min(100, (completed / job.planned_qty) * 100) : 0
 

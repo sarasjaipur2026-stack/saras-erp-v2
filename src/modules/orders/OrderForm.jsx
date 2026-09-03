@@ -247,11 +247,7 @@ export default function OrderForm() {
 
       let subtotal = 0;
       let totalItemDiscount = 0;
-      let totalTaxable = 0;
       let totalTax = 0;
-      let cgst = 0;
-      let sgst = 0;
-      let igst = 0;
 
       // Determine interstate vs intrastate from the locally-selected customer.
       // (Previously this did customers.find(...) on a 3,400-row preloaded array,
@@ -287,7 +283,7 @@ export default function OrderForm() {
         orderDiscountAmount = (subtotal * (prev.order_discount_value || 0)) / 100;
       }
 
-      totalTaxable = subtotal - totalItemDiscount - orderDiscountAmount + totalCharges;
+      const totalTaxable = subtotal - totalItemDiscount - orderDiscountAmount + totalCharges;
 
       // Tax on charges/order-level adjustments using weighted average rate
       const itemSubtotalNet = subtotal - totalItemDiscount;
@@ -296,15 +292,9 @@ export default function OrderForm() {
       totalTax += adjustmentTaxable * avgGstRate;
 
       // Split tax into CGST/SGST or IGST based on interstate determination
-      if (isInterstate) {
-        cgst = 0;
-        sgst = 0;
-        igst = totalTax;
-      } else {
-        cgst = totalTax / 2;
-        sgst = totalTax / 2;
-        igst = 0;
-      }
+      const { cgst, sgst, igst } = isInterstate
+        ? { cgst: 0, sgst: 0, igst: totalTax }
+        : { cgst: totalTax / 2, sgst: totalTax / 2, igst: 0 };
 
       const grandTotal = totalTaxable + cgst + sgst + igst;
 

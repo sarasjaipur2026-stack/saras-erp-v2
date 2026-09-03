@@ -45,7 +45,7 @@ export const ensureFreshSession = async () => {
 
   // Verify freshness against the session stored in localStorage. This is
   // synchronous I/O under the hood, so it's cheap (~1 ms).
-  let session = null
+  let session
   try {
     const { data } = await supabase.auth.getSession()
     session = data?.session ?? null

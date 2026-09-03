@@ -50,7 +50,6 @@ export default function EnquiryDetail() {
 
   // Fetch data when the enquiry id changes. set-state in the async handler is
   // the intended pattern for syncing React state with an external data source.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadAll() }, [loadAll])
 
   const handleConvert = async () => {
