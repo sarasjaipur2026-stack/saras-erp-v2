@@ -33,7 +33,7 @@ export const orders = {
       const { data, error } = await safe(() =>
         supabase
           .from('orders')
-          .select('id, order_number, status, priority, grand_total, balance_due, advance_paid, delivery_date_1, created_at, nature, customers(firm_name, contact_name)')
+          .select('id, order_number, status, priority, grand_total, balance_due, advance_paid, delivery_date_1, created_at, nature, customers(firm_name, contact_name), order_line_items(id)')
           .order('created_at', { ascending: false })
           .range(from, from + PAGE - 1)
       )
