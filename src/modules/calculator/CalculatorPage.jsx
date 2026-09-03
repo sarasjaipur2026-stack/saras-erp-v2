@@ -398,12 +398,14 @@ export default function CalculatorPage() {
     processes: s.processes.map(p => p.id === id ? { ...p, ...patch } : p)
   }))
 
-  const handleOrderChange = async (orderId) => {
+  const fetchLinkedOrder = async (orderId, { hydrateInputs = false, notify = false } = {}) => {
     const requestId = ++orderRequestRef.current
     setOrderLoadError('')
     setLinkedOrder(null)
-    patch({ order_id: orderId })
-    if (!orderId) return
+    if (!orderId) {
+      setLinkedOrderLoading(false)
+      return
+    }
 
     setLinkedOrderLoading(true)
     const { data, error } = await ordersApi.get(orderId)
@@ -415,19 +417,26 @@ export default function CalculatorPage() {
     }
 
     const { statePatch, summary } = deriveCalculatorLinkFromOrder(data)
-    const productType = (productTypes || []).find(item => item.id === statePatch.product_type_id)
-    const machineType = (machineTypes || []).find(item => item.id === statePatch.machine_type_id)
-    setState(current => ({
-      ...current,
-      ...statePatch,
-      order_id: orderId,
-      chaal_type_id: productType?.default_chaal_id || '',
-      waste_pct: num(productType?.default_waste_pct ?? current.waste_pct),
-      carriers: num(machineType?.default_carriers),
-      speed_m_per_min: num(machineType?.default_speed_m_per_min),
-    }))
+    if (hydrateInputs) {
+      const productType = (productTypes || []).find(item => item.id === statePatch.product_type_id)
+      const machineType = (machineTypes || []).find(item => item.id === statePatch.machine_type_id)
+      setState(current => ({
+        ...current,
+        ...statePatch,
+        order_id: orderId,
+        chaal_type_id: productType?.default_chaal_id || '',
+        waste_pct: num(productType?.default_waste_pct ?? current.waste_pct),
+        carriers: num(machineType?.default_carriers),
+        speed_m_per_min: num(machineType?.default_speed_m_per_min),
+      }))
+    }
     setLinkedOrder(summary)
-    toast.success(`Loaded ${summary.orderNumber}`)
+    if (notify) toast.success(`Loaded ${summary.orderNumber}`)
+  }
+
+  const handleOrderChange = (orderId) => {
+    patch({ order_id: orderId })
+    fetchLinkedOrder(orderId, { hydrateInputs: true, notify: true })
   }
 
   const reset = () => {
@@ -487,12 +496,14 @@ export default function CalculatorPage() {
   }
 
   const loadProfile = (p) => {
+    const linkedOrderId = p.payload?.order_id || p.order_id || ''
     if (p.payload && Object.keys(p.payload).length) {
-      setState({ ...defaultState(), ...p.payload })
+      setState({ ...defaultState(), ...p.payload, order_id: linkedOrderId })
     } else {
       // legacy v1 profile
       setState(s => ({
         ...s,
+        order_id: linkedOrderId,
         sample: { ...s.sample, length_m: num(p.sample_length_m), total_wt_g: num(p.sample_weight_kg) * 1000 },
         waste_pct: num(p.waste_percentage),
         labor_per_kg: num(p.labor_cost_per_kg),
@@ -502,6 +513,7 @@ export default function CalculatorPage() {
     }
     setShowProfilesModal(false)
     toast.success(`Loaded "${p.profile_name}"`)
+    fetchLinkedOrder(linkedOrderId)
   }
 
   // ─── OPTIONS ──────────────────────────────────────────────
