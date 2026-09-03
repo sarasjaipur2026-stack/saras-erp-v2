@@ -3,7 +3,7 @@ import { useApp } from '../../contexts/AppContext'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { calculatorProfiles, orders as ordersApi } from '../../lib/db'
-import { deriveCalculatorLinkFromOrder } from '../../lib/calculatorOrderLink'
+import { deriveCalculatorLinkFromOrder, deriveEffectiveOrderQuantity } from '../../lib/calculatorOrderLink'
 import { Button, Input, Modal, Badge } from '../../components/ui'
 import {
   Save, RotateCcw, Plus, X, Link2, Camera, TrendingUp, TrendingDown,
@@ -87,8 +87,11 @@ function calculate(state, masters) {
   const fil_fraction = sample.total_wt_g > 0 ? (sample.fil_wt_g || 0) / sample.total_wt_g : 0
 
   // Order qty — bidirectional derivation
-  const effective_meters = order_meters > 0 ? order_meters : (order_kgs * meters_per_kg)
-  const effective_kgs = order_kgs > 0 ? order_kgs : (order_meters / Math.max(meters_per_kg, 1e-9))
+  const { effectiveMeters: effective_meters, effectiveKgs: effective_kgs } = deriveEffectiveOrderQuantity({
+    orderMeters: order_meters,
+    orderKgs: order_kgs,
+    metersPerKg: meters_per_kg,
+  })
 
   // Waste-adjusted totals
   const waste_mult = 1 + waste_pct / 100

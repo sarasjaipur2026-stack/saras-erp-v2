@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { deriveCalculatorLinkFromOrder } from '../../src/lib/calculatorOrderLink.js'
+import { deriveCalculatorLinkFromOrder, deriveEffectiveOrderQuantity } from '../../src/lib/calculatorOrderLink.js'
 
 test('hydrates calculator quantities and mapped master types from an order', () => {
   const result = deriveCalculatorLinkFromOrder({
@@ -42,4 +42,24 @@ test('uses unit quantities and leaves unavailable mappings explicit', () => {
   assert.equal(result.statePatch.actual_sell_per_kg, 100)
   assert.equal(result.statePatch.product_type_id, '')
   assert.equal(result.summary.productTypeMapped, false)
+})
+
+test('does not invent kilograms before a sample conversion exists', () => {
+  assert.deepEqual(deriveEffectiveOrderQuantity({
+    orderMeters: 100,
+    orderKgs: 0,
+    metersPerKg: 0,
+  }), {
+    effectiveMeters: 100,
+    effectiveKgs: 0,
+  })
+
+  assert.deepEqual(deriveEffectiveOrderQuantity({
+    orderMeters: 100,
+    orderKgs: 0,
+    metersPerKg: 20,
+  }), {
+    effectiveMeters: 100,
+    effectiveKgs: 5,
+  })
 })

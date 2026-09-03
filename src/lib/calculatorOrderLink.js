@@ -25,6 +25,17 @@ const uniqueLabels = (items, keys) => [...new Set(items
   .map(item => keys.map(key => item?.[key]?.name).find(Boolean))
   .filter(Boolean))]
 
+export function deriveEffectiveOrderQuantity({ orderMeters, orderKgs, metersPerKg }) {
+  const meters = asNumber(orderMeters)
+  const kgs = asNumber(orderKgs)
+  const conversion = asNumber(metersPerKg)
+
+  return {
+    effectiveMeters: meters > 0 ? meters : (kgs > 0 && conversion > 0 ? kgs * conversion : 0),
+    effectiveKgs: kgs > 0 ? kgs : (meters > 0 && conversion > 0 ? meters / conversion : 0),
+  }
+}
+
 export function deriveCalculatorLinkFromOrder(order) {
   const items = Array.isArray(order?.order_line_items) ? order.order_line_items : []
   const orderMeters = items.reduce((total, line) => total + lineMeters(line), 0)
