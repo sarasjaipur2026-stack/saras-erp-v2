@@ -7,8 +7,6 @@ export const LineItemRow = ({ item, onUpdate, onRemove }) => {
   const { products: productList, materials: materialList, machines: machineList, colors: colorList } = useApp()
   const [expanded, setExpanded] = useState(false)
 
-  const calcAmount = (qty, rate) => onUpdate({ amount: (qty || 0) * (rate || 0) })
-
   const productOptions = useMemo(() => productList.map(p => ({ value: p.id, label: `${p.code} - ${p.name}` })), [productList])
   const materialOptions = useMemo(() => materialList.map(m => ({ value: m.id, label: m.name })), [materialList])
   const machineOptions = useMemo(() => machineList.map(m => ({ value: m.id, label: `${m.code} - ${m.name}` })), [machineList])
@@ -53,9 +51,9 @@ export const LineItemRow = ({ item, onUpdate, onRemove }) => {
 
           <div className="grid grid-cols-4 gap-3">
             <Input label="Width (cm)" type="number" min="0" value={item.width_cm || ''} onChange={e => onUpdate({ width_cm: parseFloat(e.target.value) || 0 })} />
-            <Input label="Meters" type="number" min="0" value={item.meters || ''} onChange={e => { const v = parseFloat(e.target.value) || 0; onUpdate({ meters: v }); calcAmount(v, item.rate_per_unit) }} />
-            <Input label="Weight (kg)" type="number" min="0" value={item.weight_kg || ''} onChange={e => { const v = parseFloat(e.target.value) || 0; onUpdate({ weight_kg: v }); calcAmount(v, item.rate_per_unit) }} />
-            <Input label="Rate/Unit" type="number" min="0.01" value={item.rate_per_unit || ''} onChange={e => { const v = parseFloat(e.target.value) || 0; onUpdate({ rate_per_unit: v }); calcAmount(item.meters || item.weight_kg, v) }} />
+            <Input label="Meters" type="number" min="0" value={item.meters || ''} onChange={e => { const v = parseFloat(e.target.value) || 0; onUpdate({ meters: v, amount: v * (item.rate_per_unit || 0) }) }} />
+            <Input label="Weight (kg)" type="number" min="0" value={item.weight_kg || ''} onChange={e => { const v = parseFloat(e.target.value) || 0; onUpdate({ weight_kg: v, amount: v * (item.rate_per_unit || 0) }) }} />
+            <Input label="Rate/Unit" type="number" min="0.01" value={item.rate_per_unit || ''} onChange={e => { const v = parseFloat(e.target.value) || 0; onUpdate({ rate_per_unit: v, amount: (item.meters || item.weight_kg || 0) * v }) }} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
