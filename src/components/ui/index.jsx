@@ -107,7 +107,7 @@ export const Select = ({
 // ─── SEARCH SELECT ─────────────────────────────────────────
 export const SearchSelect = ({
   label, error, required, options = [], onSearch, onChange,
-  value, placeholder = 'Search...', renderOption, className = '',
+  value, placeholder = 'Search...', renderOption, className = '', maxVisible = 100,
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -119,11 +119,16 @@ export const SearchSelect = ({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const filtered = useMemo(() => {
+  const matches = useMemo(() => {
     if (!searchTerm) return options
     const term = searchTerm.toLowerCase()
     return options.filter(opt => opt.label.toLowerCase().includes(term))
   }, [options, searchTerm])
+  const visibleOptions = useMemo(() => matches.slice(0, maxVisible), [matches, maxVisible])
+  const selectedLabel = useMemo(
+    () => options.find(option => option.value === value)?.label,
+    [options, value],
+  )
 
   return (
     <div className={`relative ${className}`} ref={ref}>
@@ -142,14 +147,14 @@ export const SearchSelect = ({
             value={searchTerm}
             onChange={e => { setSearchTerm(e.target.value); onSearch?.(e.target.value); setIsOpen(true) }}
             onFocus={() => setIsOpen(true)}
-            placeholder={placeholder}
+            placeholder={selectedLabel || placeholder}
             className="w-full outline-none text-sm bg-transparent placeholder:text-slate-400"
           />
         </div>
       </div>
-      {isOpen && filtered.length > 0 && (
+      {isOpen && (
         <div role="listbox" className="absolute top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 z-20 max-h-60 overflow-auto dropdown-in">
-          {filtered.map(opt => (
+          {visibleOptions.map(opt => (
             <div
               key={opt.value}
               role="option"
@@ -167,6 +172,14 @@ export const SearchSelect = ({
               {renderOption ? renderOption(opt) : opt.label}
             </div>
           ))}
+          {matches.length === 0 && (
+            <div className="px-3 py-3 text-sm text-slate-400 text-center">No matches found</div>
+          )}
+          {matches.length > maxVisible && (
+            <div className="sticky bottom-0 px-3 py-2 text-xs text-slate-500 bg-slate-50 border-t border-slate-100">
+              Showing {maxVisible} of {matches.length}. Type to narrow results.
+            </div>
+          )}
         </div>
       )}
       {error && <span className="text-xs text-red-500 font-medium block mt-1">{error}</span>}

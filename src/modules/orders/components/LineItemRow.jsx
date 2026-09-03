@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useApp } from '../../../contexts/AppContext'
-import { Select, Input } from '../../../components/ui'
+import { Select, SearchSelect, Input } from '../../../components/ui'
 import { ChevronDown, X } from 'lucide-react'
 
 export const LineItemRow = ({ item, onUpdate, onRemove }) => {
@@ -9,10 +9,10 @@ export const LineItemRow = ({ item, onUpdate, onRemove }) => {
 
   const calcAmount = (qty, rate) => onUpdate({ amount: (qty || 0) * (rate || 0) })
 
-  const productOptions = [{ value: '', label: 'Select...' }, ...productList.map(p => ({ value: p.id, label: `${p.code} - ${p.name}` }))]
-  const materialOptions = [{ value: '', label: 'Select...' }, ...materialList.map(m => ({ value: m.id, label: m.name }))]
-  const machineOptions = [{ value: '', label: 'Select...' }, ...machineList.map(m => ({ value: m.id, label: `${m.code} - ${m.name}` }))]
-  const colorOptions = [{ value: '', label: 'Select...' }, ...colorList.map(c => ({ value: c.id, label: c.name }))]
+  const productOptions = useMemo(() => productList.map(p => ({ value: p.id, label: `${p.code} - ${p.name}` })), [productList])
+  const materialOptions = useMemo(() => materialList.map(m => ({ value: m.id, label: m.name })), [materialList])
+  const machineOptions = useMemo(() => machineList.map(m => ({ value: m.id, label: `${m.code} - ${m.name}` })), [machineList])
+  const colorOptions = useMemo(() => colorList.map(c => ({ value: c.id, label: c.name })), [colorList])
 
   return (
     <div className="border border-slate-200 rounded-xl overflow-hidden">
@@ -41,13 +41,13 @@ export const LineItemRow = ({ item, onUpdate, onRemove }) => {
             <Select label="Type" value={item.line_type} onChange={e => onUpdate({ line_type: e.target.value })}
               options={[{ value: 'production', label: 'Production' }, { value: 'trading', label: 'Trading' }, { value: 'jobwork', label: 'Jobwork' }, { value: 'stock', label: 'Stock' }]} />
             {['production', 'trading', 'jobwork'].includes(item.line_type) && (
-              <Select label="Product" value={item.product_id || ''} onChange={e => { const p = productList.find(x => x.id === e.target.value); onUpdate({ product_id: e.target.value, products: p }) }} options={productOptions} />
+              <SearchSelect label="Product" value={item.product_id || ''} placeholder="Search product..." onChange={option => { const p = productList.find(x => x.id === option.value); onUpdate({ product_id: option.value, products: p }) }} options={productOptions} />
             )}
             {item.line_type === 'stock' && (
-              <Select label="Material" value={item.material_id || ''} onChange={e => { const m = materialList.find(x => x.id === e.target.value); onUpdate({ material_id: e.target.value, materials: m }) }} options={materialOptions} />
+              <SearchSelect label="Material" value={item.material_id || ''} placeholder="Search material..." onChange={option => { const m = materialList.find(x => x.id === option.value); onUpdate({ material_id: option.value, materials: m }) }} options={materialOptions} />
             )}
             {item.line_type === 'production' && (
-              <Select label="Machine" value={item.machine_id || ''} onChange={e => { const m = machineList.find(x => x.id === e.target.value); onUpdate({ machine_id: e.target.value, machines: m }) }} options={machineOptions} />
+              <SearchSelect label="Machine" value={item.machine_id || ''} placeholder="Search machine..." onChange={option => { const m = machineList.find(x => x.id === option.value); onUpdate({ machine_id: option.value, machines: m }) }} options={machineOptions} />
             )}
           </div>
 
@@ -59,7 +59,7 @@ export const LineItemRow = ({ item, onUpdate, onRemove }) => {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Select label="Color" value={item.color_id || ''} onChange={e => onUpdate({ color_id: e.target.value })} options={colorOptions} />
+            <SearchSelect label="Color" value={item.color_id || ''} placeholder="Search color..." onChange={option => onUpdate({ color_id: option.value })} options={colorOptions} />
             <Input label="Amount" type="number" disabled value={(item.amount || 0).toFixed(2)} />
           </div>
 

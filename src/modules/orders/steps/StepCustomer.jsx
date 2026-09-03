@@ -1,4 +1,4 @@
-import { Select, Input } from '../../../components/ui';
+import { Select, SearchSelect, Input } from '../../../components/ui';
 import { CustomerSearch } from '../components/CustomerSearch';
 
 export function StepCustomer({
@@ -62,14 +62,12 @@ export function StepCustomer({
             ]}
           />
 
-          <Select
+          <SearchSelect
             label="Broker"
             value={formData.broker_id || ''}
-            onChange={(e) => setFormData({ ...formData, broker_id: e.target.value })}
-            options={[
-              { value: '', label: 'Select broker (optional)' },
-              ...(brokers || []).map((broker) => ({ value: broker.id, label: broker.name })),
-            ]}
+            placeholder="Search broker (optional)..."
+            onChange={(option) => setFormData({ ...formData, broker_id: option.value })}
+            options={(brokers || []).map((broker) => ({ value: broker.id, label: broker.name }))}
           />
 
           <Select

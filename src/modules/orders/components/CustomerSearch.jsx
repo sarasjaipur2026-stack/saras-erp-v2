@@ -37,12 +37,12 @@ export const CustomerSearch = ({ value, onChange, onSelect }) => {
   }, [])
 
   const filtered = useMemo(() => {
-    if (!searchTerm) return allCustomers
+    if (!searchTerm) return allCustomers.slice(0, 50)
     const term = searchTerm.toLowerCase()
     return allCustomers.filter(c =>
       (c.contact_name || '').toLowerCase().includes(term) ||
       (c.firm_name || '').toLowerCase().includes(term)
-    )
+    ).slice(0, 50)
   }, [allCustomers, searchTerm])
 
   const handleSelect = (customer) => {
