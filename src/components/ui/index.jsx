@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useId, useRef, useMemo } from 'react'
 import { ChevronDown, ChevronLeft, ChevronRight, X, Upload, Loader2, Search } from 'lucide-react'
 
 // ─── BUTTON ────────────────────────────────────────────────
@@ -37,72 +37,96 @@ export const Button = ({
 // ─── INPUT ─────────────────────────────────────────────────
 export const Input = ({
   label, error, required, className = '', icon: Icon, ...props
-}) => (
-  <div className={`flex flex-col gap-1.5 ${className}`}>
-    {label && (
-      <label className="text-[13px] font-medium text-slate-600">
-        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
-      </label>
-    )}
-    <div className="relative">
-      {Icon && <Icon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />}
-      <input
-        className={`w-full ${Icon ? 'pl-9' : 'pl-3'} pr-3 py-2 text-sm bg-white border rounded-xl transition-all duration-200 placeholder:text-slate-400
-          ${error ? 'border-red-300 focus:border-red-400 focus:ring-2 focus:ring-red-50' : 'border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10'}
-          focus:outline-none disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed`}
-        {...props}
-      />
+}) => {
+  const generatedId = useId()
+  const inputId = props.id || generatedId
+  const errorId = error ? `${inputId}-error` : undefined
+  return (
+    <div className={`flex flex-col gap-1.5 ${className}`}>
+      {label && (
+        <label htmlFor={inputId} className="text-[13px] font-medium text-slate-600">
+          {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+        </label>
+      )}
+      <div className="relative">
+        {Icon && <Icon size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />}
+        <input
+          {...props}
+          id={inputId}
+          aria-invalid={Boolean(error)}
+          aria-describedby={errorId}
+          className={`w-full ${Icon ? 'pl-9' : 'pl-3'} pr-3 py-2 text-sm bg-white border rounded-xl transition-all duration-200 placeholder:text-slate-400
+            ${error ? 'border-red-300 focus:border-red-400 focus:ring-2 focus:ring-red-50' : 'border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10'}
+            focus:outline-none disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed`}
+        />
+      </div>
+      {error && <span id={errorId} className="text-xs text-red-500 font-medium">{error}</span>}
     </div>
-    {error && <span className="text-xs text-red-500 font-medium">{error}</span>}
-  </div>
-)
+  )
+}
 
 // ─── TEXTAREA ──────────────────────────────────────────────
 export const Textarea = ({
   label, error, required, className = '', ...props
-}) => (
-  <div className={`flex flex-col gap-1.5 ${className}`}>
-    {label && (
-      <label className="text-[13px] font-medium text-slate-600">
-        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
-      </label>
-    )}
-    <textarea
-      className={`w-full px-3 py-2 text-sm bg-white border rounded-xl transition-all duration-200 placeholder:text-slate-400 resize-none
-        ${error ? 'border-red-300 focus:border-red-400 focus:ring-2 focus:ring-red-50' : 'border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10'}
-        focus:outline-none disabled:bg-slate-50 disabled:text-slate-400`}
-      {...props}
-    />
-    {error && <span className="text-xs text-red-500 font-medium">{error}</span>}
-  </div>
-)
+}) => {
+  const generatedId = useId()
+  const inputId = props.id || generatedId
+  const errorId = error ? `${inputId}-error` : undefined
+  return (
+    <div className={`flex flex-col gap-1.5 ${className}`}>
+      {label && (
+        <label htmlFor={inputId} className="text-[13px] font-medium text-slate-600">
+          {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+        </label>
+      )}
+      <textarea
+        {...props}
+        id={inputId}
+        aria-invalid={Boolean(error)}
+        aria-describedby={errorId}
+        className={`w-full px-3 py-2 text-sm bg-white border rounded-xl transition-all duration-200 placeholder:text-slate-400 resize-none
+          ${error ? 'border-red-300 focus:border-red-400 focus:ring-2 focus:ring-red-50' : 'border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10'}
+          focus:outline-none disabled:bg-slate-50 disabled:text-slate-400`}
+      />
+      {error && <span id={errorId} className="text-xs text-red-500 font-medium">{error}</span>}
+    </div>
+  )
+}
 
 // ─── SELECT ────────────────────────────────────────────────
 export const Select = ({
   label, error, required, options = [], className = '', ...props
-}) => (
-  <div className={`flex flex-col gap-1.5 ${className}`}>
-    {label && (
-      <label className="text-[13px] font-medium text-slate-600">
-        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
-      </label>
-    )}
-    <div className="relative">
-      <select
-        className={`w-full appearance-none px-3 py-2 pr-8 text-sm bg-white border rounded-xl transition-all duration-200
-          ${error ? 'border-red-300 focus:border-red-400 focus:ring-2 focus:ring-red-50' : 'border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10'}
-          focus:outline-none disabled:bg-slate-50 disabled:text-slate-400 cursor-pointer`}
-        {...props}
-      >
-        {options.map(opt => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
-      <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+}) => {
+  const generatedId = useId()
+  const inputId = props.id || generatedId
+  const errorId = error ? `${inputId}-error` : undefined
+  return (
+    <div className={`flex flex-col gap-1.5 ${className}`}>
+      {label && (
+        <label htmlFor={inputId} className="text-[13px] font-medium text-slate-600">
+          {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+        </label>
+      )}
+      <div className="relative">
+        <select
+          {...props}
+          id={inputId}
+          aria-invalid={Boolean(error)}
+          aria-describedby={errorId}
+          className={`w-full appearance-none px-3 py-2 pr-8 text-sm bg-white border rounded-xl transition-all duration-200
+            ${error ? 'border-red-300 focus:border-red-400 focus:ring-2 focus:ring-red-50' : 'border-slate-200 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10'}
+            focus:outline-none disabled:bg-slate-50 disabled:text-slate-400 cursor-pointer`}
+        >
+          {options.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+      </div>
+      {error && <span id={errorId} className="text-xs text-red-500 font-medium">{error}</span>}
     </div>
-    {error && <span className="text-xs text-red-500 font-medium">{error}</span>}
-  </div>
-)
+  )
+}
 
 // ─── SEARCH SELECT ─────────────────────────────────────────
 export const SearchSelect = ({
@@ -112,6 +136,8 @@ export const SearchSelect = ({
   const [isOpen, setIsOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const ref = useRef(null)
+  const inputId = useId()
+  const listboxId = `${inputId}-listbox`
 
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setIsOpen(false) }
@@ -133,7 +159,7 @@ export const SearchSelect = ({
   return (
     <div className={`relative ${className}`} ref={ref}>
       {label && (
-        <label className="text-[13px] font-medium text-slate-600 block mb-1.5">
+        <label htmlFor={inputId} className="text-[13px] font-medium text-slate-600 block mb-1.5">
           {label}{required && <span className="text-red-400 ml-0.5">*</span>}
         </label>
       )}
@@ -143,17 +169,23 @@ export const SearchSelect = ({
         <div className="flex items-center gap-2">
           <Search size={14} className="text-slate-400 shrink-0" />
           <input
+            id={inputId}
             type="text"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={isOpen}
+            aria-controls={isOpen ? listboxId : undefined}
             value={searchTerm}
             onChange={e => { setSearchTerm(e.target.value); onSearch?.(e.target.value); setIsOpen(true) }}
             onFocus={() => setIsOpen(true)}
+            onKeyDown={e => { if (e.key === 'Escape') setIsOpen(false) }}
             placeholder={selectedLabel || placeholder}
             className="w-full outline-none text-sm bg-transparent placeholder:text-slate-400"
           />
         </div>
       </div>
       {isOpen && (
-        <div role="listbox" className="absolute top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 z-20 max-h-60 overflow-auto dropdown-in">
+        <div id={listboxId} role="listbox" className="absolute top-full mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-200/50 z-20 max-h-60 overflow-auto dropdown-in">
           {visibleOptions.map(opt => (
             <div
               key={opt.value}
@@ -454,7 +486,7 @@ export const DataTable = ({
             <thead>
               <tr className="border-b border-slate-100">
                 {columns.map(col => (
-                  <th key={col.key} className="px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/70">
+                  <th key={col.key} className={`px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/70 ${col.headerClassName || col.className || ''}`}>
                     {col.label}
                   </th>
                 ))}
@@ -463,9 +495,9 @@ export const DataTable = ({
             <tbody>
               {Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i} className="border-b border-slate-50">
-                  {columns.map(col => (
-                    <td key={col.key} className="px-5 py-3.5">
-                      <div className="h-4 bg-slate-100 rounded-md animate-pulse" style={{ width: `${55 + Math.random() * 30}%` }} />
+                  {columns.map((col, colIdx) => (
+                    <td key={col.key} className={`px-5 py-3.5 ${col.cellClassName || col.className || ''}`}>
+                      <div className="h-4 bg-slate-100 rounded-md animate-pulse" style={{ width: `${55 + ((i + colIdx) % 4) * 10}%` }} />
                     </td>
                   ))}
                 </tr>
@@ -479,12 +511,14 @@ export const DataTable = ({
 
   if (!data || data.length === 0) {
     return (
-      <EmptyState
-        icon={emptyIcon}
-        title={emptyText}
-        description={emptyDescription || 'Try adjusting your search or filters'}
-        action={emptyAction}
-      />
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm shadow-slate-100">
+        <EmptyState
+          icon={emptyIcon}
+          title={emptyText}
+          description={emptyDescription || 'Try adjusting your search or filters'}
+          action={emptyAction}
+        />
+      </div>
     )
   }
 
@@ -497,11 +531,11 @@ export const DataTable = ({
   return (
     <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm shadow-slate-100">
       <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
+        <table className="min-w-full">
+          <thead className="sticky top-0 z-[1]">
             <tr className="border-b border-slate-100">
               {columns.map(col => (
-                <th key={col.key} className="px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/70">
+                <th key={col.key} className={`px-5 py-3 text-left text-[11px] font-semibold text-slate-400 uppercase tracking-wider bg-slate-50/95 backdrop-blur ${col.headerClassName || col.className || ''}`}>
                   {col.label}
                 </th>
               ))}
@@ -520,7 +554,7 @@ export const DataTable = ({
                 className={`${onRowClick ? 'cursor-pointer hover:bg-indigo-50/40 focus:outline-none focus:bg-indigo-50/40' : 'hover:bg-slate-50/50'} transition-colors`}
               >
                 {columns.map(col => (
-                  <td key={col.key} className="px-5 py-3 text-sm text-slate-600">
+                  <td key={col.key} className={`px-5 py-3 text-sm text-slate-600 ${col.cellClassName || col.className || ''}`}>
                     {col.render ? col.render(row[col.key], row) : row[col.key]}
                   </td>
                 ))}

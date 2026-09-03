@@ -6,7 +6,7 @@ export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div className="min-h-screen flex bg-slate-50">
+    <div className="min-h-screen flex bg-[#f6f8fc]">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       {/* Mobile overlay */}
@@ -18,9 +18,9 @@ export default function Layout({ children }) {
       )}
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col h-screen lg:ml-64">
+      <div className="flex-1 min-w-0 flex flex-col h-screen lg:ml-64">
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 p-4 lg:p-6 overflow-auto">
+        <main className="app-canvas flex-1 min-w-0 overflow-auto px-4 py-5 sm:px-6 sm:py-6 xl:px-8 xl:py-8">
           {children}
         </main>
       </div>

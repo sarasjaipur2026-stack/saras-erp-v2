@@ -19,7 +19,7 @@ import {
 //   removed, just demoted from the sidebar.
 const NAV_ITEMS = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard, category: 'main' },
-  { path: '/orders', label: 'Orders', icon: ShoppingCart, category: 'main', badge: true, perm: 'orders' },
+  { path: '/orders', label: 'Orders', icon: ShoppingCart, category: 'main', perm: 'orders' },
   { path: '/enquiries', label: 'Enquiries', icon: MessageSquare, category: 'main', perm: 'enquiries' },
   { path: '/calculator', label: 'Calculator', icon: Calculator, category: 'production', perm: 'calculator' },
   { path: '/production', label: 'Production', icon: Factory, category: 'production', perm: 'production' },
@@ -107,24 +107,24 @@ export default function Sidebar({ isOpen, onClose }) {
 
           return (
             <div key={cat.key}>
-              {cat.label && (
-                <div
-                  onClick={() => cat.collapsible && toggleCategory(cat.key)}
-                  className={`
-                    text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mt-6 mb-2
-                    flex items-center justify-between select-none
-                    ${cat.collapsible ? 'cursor-pointer hover:text-slate-600 transition-colors duration-150' : ''}
-                  `}
+              {cat.label && (cat.collapsible ? (
+                <button
+                  type="button"
+                  onClick={() => toggleCategory(cat.key)}
+                  aria-expanded={!isCollapsed}
+                  className="w-[calc(100%-0.75rem)] text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mt-6 mb-2 flex items-center justify-between select-none cursor-pointer hover:text-slate-600 rounded-lg focus-ring"
                 >
                   <span>{cat.label}</span>
-                  {cat.collapsible && (
-                    <ChevronDown
-                      size={14}
-                      className={`transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`}
-                    />
-                  )}
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform duration-200 ${isCollapsed ? '-rotate-90' : ''}`}
+                  />
+                </button>
+              ) : (
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mt-6 mb-2">
+                  {cat.label}
                 </div>
-              )}
+              ))}
               {!isCollapsed && items.map(item => {
                 const Icon = item.icon
                 const isActive = location.pathname === item.path ||
@@ -134,6 +134,7 @@ export default function Sidebar({ isOpen, onClose }) {
                   <NavLink
                     key={item.path}
                     to={item.coming ? '#' : item.path}
+                    aria-current={isActive ? 'page' : undefined}
                     onClick={(e) => {
                       if (item.coming) e.preventDefault()
                       else onClose?.()
@@ -165,12 +166,6 @@ export default function Sidebar({ isOpen, onClose }) {
                         Soon
                       </span>
                     )}
-                    {item.badge && (
-                      <span className="relative flex h-2 w-2">
-                        <span className="absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75 animate-ping" />
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-indigo-500" />
-                      </span>
-                    )}
                   </NavLink>
                 )
               })}
@@ -181,7 +176,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
       {/* Footer */}
       <div className="px-4 py-3 border-t border-slate-100">
-        <div className="text-[10px] text-slate-300 text-center font-medium tracking-wide">
+        <div className="text-[10px] text-slate-400 text-center font-medium tracking-wide">
           sarasERP v2.0 · {import.meta.env.VITE_GIT_COMMIT_SHA.slice(0, 7)}
         </div>
       </div>

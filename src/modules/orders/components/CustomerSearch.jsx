@@ -112,6 +112,10 @@ export const CustomerSearch = ({ value, onChange, onSelect }) => {
             <Search size={16} className="text-slate-400 shrink-0" />
             <input
               type="text"
+              role="combobox"
+              aria-label="Search customers"
+              aria-autocomplete="list"
+              aria-expanded={isOpen}
               value={searchTerm}
               onChange={e => { setSearchTerm(e.target.value); setIsOpen(true) }}
               onFocus={() => setIsOpen(true)}
@@ -119,7 +123,7 @@ export const CustomerSearch = ({ value, onChange, onSelect }) => {
               className="w-full outline-none text-sm bg-transparent placeholder:text-slate-400"
             />
             {searchTerm && (
-              <button onClick={() => { setSearchTerm(''); setIsOpen(false) }} className="text-slate-400 hover:text-slate-600">
+              <button type="button" aria-label="Clear customer search" onClick={() => { setSearchTerm(''); setIsOpen(false) }} className="text-slate-400 hover:text-slate-600">
                 <X size={14} />
               </button>
             )}
@@ -132,14 +136,15 @@ export const CustomerSearch = ({ value, onChange, onSelect }) => {
               ) : searchTerm.trim().length < 2 ? (
                 <div className="px-3 py-4 text-sm text-slate-400 text-center">Type at least 2 characters</div>
               ) : results.length > 0 ? results.map(result => (
-                <div
+                <button
+                  type="button"
                   key={result.entity_id}
                   onClick={() => handleResultSelect(result)}
-                  className="px-3 py-2.5 hover:bg-indigo-50 cursor-pointer transition-colors"
+                  className="block w-full px-3 py-2.5 hover:bg-indigo-50 cursor-pointer transition-colors text-left focus:bg-indigo-50 focus:outline-none"
                 >
                   <p className="text-sm font-medium text-slate-800">{result.primary_label}</p>
                   <p className="text-xs text-slate-500">{result.secondary || 'Customer'}</p>
-                </div>
+                </button>
               )) : (
                 <div className="px-3 py-4 text-sm text-slate-400 text-center">No customers found</div>
               )}
@@ -161,7 +166,7 @@ export const CustomerSearch = ({ value, onChange, onSelect }) => {
                   {selected.city && <div className="flex items-center gap-2 text-xs text-indigo-700"><MapPin size={12} /> {selected.city}</div>}
                 </div>
               </div>
-              <button onClick={handleClear} className="p-1 rounded hover:bg-indigo-100 text-indigo-400">
+              <button type="button" aria-label="Remove selected customer" onClick={handleClear} className="p-1 rounded hover:bg-indigo-100 text-indigo-400">
                 <X size={14} />
               </button>
             </div>

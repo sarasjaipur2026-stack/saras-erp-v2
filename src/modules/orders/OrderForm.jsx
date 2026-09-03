@@ -489,31 +489,42 @@ export default function OrderForm() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Spinner />
+      <div className="flex items-center justify-center min-h-[55vh]" role="status" aria-live="polite">
+        <div className="flex flex-col items-center gap-3 text-sm font-medium text-slate-500">
+          <Spinner />
+          Preparing order workspace…
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="fade-in max-w-6xl mx-auto pb-20 sm:pb-24">
         {/* Header */}
-        <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">
-            {isEdit ? 'Edit Order' : isDuplicate ? 'Duplicate Order' : 'Create New Order'}
-          </h1>
-          <p className="text-sm sm:text-base text-slate-600">
-            {isEdit
-              ? `Order #${formData.order_number || ''}`
-              : isDuplicate
-                ? 'Review the copied details, then save this as a new order'
-                : 'Follow the steps to create a new order'}
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-indigo-600 mb-2">Order workspace</div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-950 tracking-tight">
+              {isEdit ? 'Edit Order' : isDuplicate ? 'Duplicate Order' : 'Create New Order'}
+            </h1>
+            <p className="text-sm text-slate-500 mt-1">
+              {isEdit
+                ? `Order #${formData.order_number || ''}`
+                : isDuplicate
+                  ? 'Review the copied details, then save this as a new order'
+                  : 'Add the customer, line items and pricing in four guided steps.'}
+            </p>
+          </div>
+          <div className="inline-flex self-start sm:self-auto items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200/80 shadow-sm text-xs font-semibold text-slate-600">
+            <span className="w-2 h-2 rounded-full bg-indigo-500" /> Step {currentStep} of {STEPS.length}
+          </div>
         </div>
 
         {/* Step Indicator — scrollable on narrow screens so phone users can see all 4 steps */}
-        <div className="mb-6 sm:mb-8 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        <nav aria-label="Order creation progress" className="mb-6 sm:mb-8 bg-white border border-slate-200/80 rounded-2xl p-3 sm:p-4 shadow-sm shadow-slate-100 overflow-x-auto">
+          <div className="h-1 bg-slate-100 rounded-full overflow-hidden mb-4 min-w-[500px]" aria-hidden="true">
+            <div className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full transition-all duration-300" style={{ width: `${(currentStep / STEPS.length) * 100}%` }} />
+          </div>
           <div className="flex items-center justify-between min-w-[500px]">
             {STEPS.map((step, idx) => {
               const Icon = step.icon;
@@ -522,9 +533,13 @@ export default function OrderForm() {
 
               return (
                 <React.Fragment key={step.id}>
-                  <div
-                    className={`flex flex-col items-center cursor-pointer transition-all ${
-                      isActive ? 'opacity-100' : isCompleted ? 'opacity-100' : 'opacity-50'
+                  <button
+                    type="button"
+                    disabled={!isCompleted}
+                    aria-current={isActive ? 'step' : undefined}
+                    aria-label={`${step.name}${isActive ? ', current step' : isCompleted ? ', completed' : ', upcoming'}`}
+                    className={`flex flex-col items-center rounded-xl px-2 py-1 focus-ring transition-opacity ${
+                      isActive ? 'opacity-100' : isCompleted ? 'opacity-100 cursor-pointer' : 'opacity-50 cursor-default'
                     }`}
                     onClick={() => {
                       if (step.id < currentStep) {
@@ -544,12 +559,12 @@ export default function OrderForm() {
                       {isCompleted ? <CheckCircle size={20} /> : <Icon size={20} />}
                     </div>
                     <span className="text-[11px] sm:text-sm font-medium text-slate-900 whitespace-nowrap">{step.name}</span>
-                  </div>
+                  </button>
 
                   {idx < STEPS.length - 1 && (
                     <div
                       className={`flex-1 h-1 mx-2 sm:mx-4 mb-6 sm:mb-8 rounded-full transition-all ${
-                        isCompleted ? 'bg-green-600' : 'bg-slate-200'
+                        isCompleted ? 'bg-emerald-500' : 'bg-slate-200'
                       }`}
                     />
                   )}
@@ -557,11 +572,11 @@ export default function OrderForm() {
               );
             })}
           </div>
-        </div>
+        </nav>
 
         {/* Validation Errors */}
         {Object.keys(validationErrors).length > 0 && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl">
+          <div role="alert" className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl">
             <div className="flex gap-3">
               <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
               <div>
@@ -578,7 +593,7 @@ export default function OrderForm() {
 
         {/* Warnings */}
         {warnings.length > 0 && (
-          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+          <div role="status" className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
             <div className="flex gap-3">
               <AlertCircle className="text-amber-600 flex-shrink-0 mt-0.5" size={20} />
               <div>
@@ -594,7 +609,7 @@ export default function OrderForm() {
         )}
 
         {/* Step Content */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 mb-8">
+        <div className="bg-white rounded-2xl shadow-soft border border-slate-200/80 p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8">
           {currentStep === 1 && (
             <StepCustomer
               formData={formData}
@@ -649,7 +664,7 @@ export default function OrderForm() {
         </div>
 
         {/* Navigation Buttons */}
-        <div className="flex justify-between">
+        <div className="sticky bottom-3 z-10 -mx-2 sm:mx-0 px-3 sm:px-4 py-3 bg-white/90 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-soft-lg flex flex-col-reverse sm:flex-row gap-3 sm:items-center sm:justify-between">
           <Button
             onClick={handlePrevStep}
             disabled={currentStep === 1}
@@ -659,14 +674,14 @@ export default function OrderForm() {
             Previous
           </Button>
 
-          <div className="flex gap-4">
+          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3">
             {currentStep < STEPS.length && (
               <Button
                 onClick={handleSaveDraft}
                 variant="secondary"
                 disabled={saving}
               >
-                {saving ? 'Saving...' : 'Save as Draft'}
+                {saving ? 'Saving…' : 'Save draft'}
               </Button>
             )}
 
@@ -676,20 +691,19 @@ export default function OrderForm() {
                 disabled={saving}
                 className="bg-indigo-600 text-white hover:bg-indigo-700"
               >
-                {saving ? 'Creating...' : isEdit ? 'Update Order' : 'Create Order'}
+                {saving ? 'Saving…' : isEdit ? 'Update order' : 'Create order'}
               </Button>
             ) : (
               <Button
                 onClick={handleNextStep}
                 className="bg-indigo-600 text-white hover:bg-indigo-700"
               >
-                Next
+                Continue to {STEPS[currentStep].name}
                 <ChevronRight size={16} />
               </Button>
             )}
           </div>
         </div>
-      </div>
     </div>
   );
 }

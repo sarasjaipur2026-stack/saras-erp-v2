@@ -19,7 +19,7 @@ export function StepCustomer({
       </div>
 
       {selectedCustomer && (
-        <div className="grid grid-cols-2 gap-6 pt-6 border-t border-slate-200">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 pt-6 border-t border-slate-200">
           <Select
             label="Order Type"
             value={formData.order_type_id || ''}
@@ -82,7 +82,7 @@ export function StepCustomer({
 
           <div className="col-span-2 pt-6 border-t border-slate-200">
             <label className="block text-sm font-semibold text-slate-900 mb-4">Delivery Dates</label>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <Input
                   type="date"

@@ -75,7 +75,6 @@ const OrdersPage = () => {
     });
     return pipeline;
   }, [ordersList]);
-  const [selectedStatus, setSelectedStatus] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [bulkStatusModal, setBulkStatusModal] = useState(false);
@@ -138,9 +137,6 @@ const OrdersPage = () => {
     if (activeTab !== 'all') {
       filtered = filtered.filter((order) => (order.status || 'draft').toLowerCase() === activeTab);
     }
-    if (selectedStatus) {
-      filtered = filtered.filter((order) => order.status === selectedStatus);
-    }
     if (dateRange && dateRange !== 'custom') {
       const { start, end } = getDateRange(dateRange);
       if (start && end) {
@@ -159,7 +155,7 @@ const OrdersPage = () => {
       );
     }
     return filtered;
-  }, [ordersList, activeTab, selectedStatus, dateRange, customerFilter]);
+  }, [ordersList, activeTab, dateRange, customerFilter]);
 
   // Derived: statistics (computed from ordersList)
   const stats = useMemo(() => {
@@ -300,9 +296,11 @@ const OrdersPage = () => {
     const baseColumns = [
       {
         key: 'checkbox',
+        className: 'w-12 !px-4',
         label: (
           <input
             type="checkbox"
+            aria-label="Select all visible orders"
             checked={
               allVisibleRowsSelected(filteredOrders, selectedOrders)
             }
@@ -313,6 +311,7 @@ const OrdersPage = () => {
         render: (_value, row) => (
           <input
             type="checkbox"
+            aria-label={`Select order ${row.order_number || ''}`}
             checked={selectedOrders.has(row.id)}
             onChange={(e) => {
               e.stopPropagation()
@@ -326,13 +325,23 @@ const OrdersPage = () => {
       {
         key: 'order_number',
         label: 'Order #',
+        className: 'whitespace-nowrap',
         render: (value) => <span className="font-mono font-semibold text-indigo-700">{value || '—'}</span>,
       },
       {
         key: 'customers',
         label: 'Customer',
-        render: (_value, row) =>
-          row.customers?.firm_name || row.customers?.contact_name || '—',
+        className: 'min-w-[190px] max-w-[260px]',
+        render: (_value, row) => (
+          <div className="min-w-0">
+            <p className="font-medium text-slate-800 truncate">
+              {row.customers?.firm_name || row.customers?.contact_name || '—'}
+            </p>
+            {row.customers?.contact_name && row.customers.contact_name !== row.customers.firm_name && (
+              <p className="text-xs text-slate-400 truncate mt-0.5">{row.customers.contact_name}</p>
+            )}
+          </div>
+        ),
       },
     ];
 
@@ -340,6 +349,7 @@ const OrdersPage = () => {
       baseColumns.push({
         key: 'grand_total',
         label: 'Amount',
+        className: 'whitespace-nowrap',
         render: (value) => <Currency amount={value || 0} />,
       });
     }
@@ -349,40 +359,45 @@ const OrdersPage = () => {
         {
           key: 'priority',
           label: 'Priority',
+          className: 'hidden 2xl:table-cell',
           render: (value) => (
             <Badge
               variant={
-                value === 'High'
+                value === 'urgent'
                   ? 'danger'
-                  : value === 'Medium'
+                  : value === 'high'
                   ? 'warning'
                   : 'default'
               }
             >
-              {value || 'Normal'}
+              <span className="capitalize">{value || 'normal'}</span>
             </Badge>
           ),
         },
         {
           key: 'status',
           label: 'Status',
+          className: 'whitespace-nowrap',
           render: (value) => <StatusBadge status={value} />,
         },
         {
           key: 'created_at',
           label: 'Created',
+          className: 'hidden xl:table-cell whitespace-nowrap',
           render: (value) =>
             value ? new Date(value).toLocaleDateString('en-IN') : '—',
         },
         {
           key: 'delivery_date_1',
           label: 'Delivery',
+          className: 'hidden lg:table-cell whitespace-nowrap',
           render: (value) =>
             value ? new Date(value).toLocaleDateString('en-IN') : '—',
         },
         {
           key: 'order_line_items',
           label: 'Items',
+          className: 'hidden 2xl:table-cell',
           render: (value) => (
             <span className="text-sm text-slate-600 font-mono">
               {Array.isArray(value) ? value.length : 0}
@@ -403,13 +418,15 @@ const OrdersPage = () => {
     if (viewMode === 'finance') {
       baseColumns.push(
         {
-          key: 'balance_due',
-          label: 'Balance Due',
+        key: 'balance_due',
+        label: 'Balance Due',
+        className: 'whitespace-nowrap',
           render: (value) => <Currency amount={value || 0} />,
         },
         {
-          key: 'advance_paid',
-          label: 'Advance Paid',
+        key: 'advance_paid',
+        label: 'Advance Paid',
+        className: 'hidden xl:table-cell whitespace-nowrap',
           render: (value) => <Currency amount={value || 0} />,
         },
         {
@@ -424,9 +441,12 @@ const OrdersPage = () => {
     baseColumns.push({
       key: 'actions',
       label: 'Actions',
+      className: 'w-14 !px-3 text-right',
       render: (_value, row) => (
         <div className="relative" onClick={(e) => e.stopPropagation()}>
           <button
+            type="button"
+            aria-label={`Open actions for order ${row.order_number || ''}`}
             onClick={() =>
               setOpenMenuId(openMenuId === row.id ? null : row.id)
             }
@@ -492,17 +512,21 @@ const OrdersPage = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="fade-in max-w-[1500px] mx-auto space-y-5 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Orders</h1>
-        <Button onClick={() => navigate('/orders/new')}>
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-indigo-600 mb-2">Sales workspace</div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-950 tracking-tight">Orders</h1>
+          <p className="text-sm text-slate-500 mt-1">Track every booking from confirmation to dispatch.</p>
+        </div>
+        <Button size="lg" onClick={() => navigate('/orders/new')}>
           <Plus size={16} /> New Order
         </Button>
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-3 sm:gap-4">
         <StatCard
           label="Total Orders"
           value={stats.totalOrders}
@@ -536,19 +560,41 @@ const OrdersPage = () => {
       </div>
 
       {/* Status Pipeline Bar */}
-      <div className="bg-white p-4 rounded-lg border">
-        <h3 className="text-sm font-semibold mb-3">Status Pipeline</h3>
-        <div className="flex gap-2 flex-wrap">
+      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm shadow-slate-100">
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">Order pipeline</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Filter by the stage that needs attention</p>
+          </div>
+          <span className="text-xs font-semibold text-slate-500 bg-slate-100 rounded-full px-2.5 py-1 whitespace-nowrap">
+            {filteredOrders.length} shown
+          </span>
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Order status filters">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'all'}
+            onClick={() => setActiveTab('all')}
+            className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${
+              activeTab === 'all'
+                ? 'bg-slate-900 text-white shadow-sm'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            All ({ordersList.length})
+          </button>
           {statuses.map((status) => (
             <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === status}
               key={status}
-              onClick={() =>
-                setSelectedStatus(selectedStatus === status ? null : status)
-              }
-              className={`px-3 py-1 rounded text-sm font-medium transition ${
-                selectedStatus === status
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              onClick={() => setActiveTab(status)}
+              className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${
+                activeTab === status
+                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/20'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               {statusLabel(status)} ({statusPipeline[status] || 0})
@@ -557,59 +603,52 @@ const OrdersPage = () => {
         </div>
       </div>
 
-      {/* Tab Bar */}
-      <div className="border-b border-gray-200">
-        <div className="flex gap-6">
-          {['all', ...statuses].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => {
-                setActiveTab(tab);
-                setSelectedStatus(null);
-              }}
-              className={`px-2 py-3 border-b-2 font-medium text-sm transition ${
-                activeTab === tab
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              {tab === 'all' ? 'All' : statusLabel(tab)}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Select
-          label="Date Range"
-          value={dateRange}
-          onChange={(e) => setDateRange(e.target.value)}
-          options={[
-            { value: 'allTime', label: 'All Time' },
-            { value: 'today', label: 'Today' },
-            { value: 'thisWeek', label: 'This Week' },
-            { value: 'thisMonth', label: 'This Month' },
-            { value: 'thisFY', label: 'This Fiscal Year' },
-          ]}
-        />
-        <Input
-          placeholder="Search customer..."
-          value={customerFilter}
-          onChange={(e) => setCustomerFilter(e.target.value)}
-          icon={Search}
-        />
-        <Select
-          label="View Mode"
-          value={viewMode}
-          onChange={(e) => setViewMode(e.target.value)}
-          options={viewModes.map((v) => ({ value: v.id, label: v.label }))}
-        />
+      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm shadow-slate-100">
+        <div className="grid grid-cols-1 md:grid-cols-[minmax(190px,1fr)_minmax(240px,1.5fr)_minmax(190px,1fr)_auto] gap-3 items-end">
+          <Select
+            label="Date range"
+            value={dateRange}
+            onChange={(e) => setDateRange(e.target.value)}
+            options={[
+              { value: 'allTime', label: 'All Time' },
+              { value: 'today', label: 'Today' },
+              { value: 'thisWeek', label: 'This Week' },
+              { value: 'thisMonth', label: 'This Month' },
+              { value: 'thisFY', label: 'This Fiscal Year' },
+            ]}
+          />
+          <Input
+            label="Customer"
+            placeholder="Search firm or contact..."
+            value={customerFilter}
+            onChange={(e) => setCustomerFilter(e.target.value)}
+            icon={Search}
+          />
+          <Select
+            label="View"
+            value={viewMode}
+            onChange={(e) => setViewMode(e.target.value)}
+            options={viewModes.map((v) => ({ value: v.id, label: v.label }))}
+          />
+          <Button
+            variant="ghost"
+            disabled={activeTab === 'all' && dateRange === 'allTime' && !customerFilter && viewMode === 'allInfo'}
+            onClick={() => {
+              setActiveTab('all');
+              setDateRange('allTime');
+              setCustomerFilter('');
+              setViewMode('allInfo');
+            }}
+          >
+            Reset
+          </Button>
+        </div>
       </div>
 
       {/* Bulk Actions */}
       {selectedOrders.size > 0 && (
-        <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-xl flex items-center justify-between">
+        <div className="sticky top-2 z-10 bg-indigo-50/95 backdrop-blur border border-indigo-200 p-3 sm:p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm">
           <span className="text-sm font-medium text-indigo-900">
             {selectedOrders.size} order{selectedOrders.size !== 1 ? 's' : ''} selected
           </span>
@@ -632,13 +671,15 @@ const OrdersPage = () => {
       )}
 
       {/* Data Table */}
-      <div className="bg-white rounded-lg border">
-        <DataTable
-          columns={getTableColumns()}
-          data={filteredOrders}
-          onRowClick={handleRowClick}
-        />
-      </div>
+      <DataTable
+        columns={getTableColumns()}
+        data={filteredOrders}
+        onRowClick={handleRowClick}
+        emptyTitle="No orders match this view"
+        emptyDescription="Reset the filters or create a new order to get started."
+        emptyIcon={ShoppingCart}
+        emptyAction={<Button onClick={() => navigate('/orders/new')}><Plus size={15} /> New Order</Button>}
+      />
 
       {/* Delete Modal */}
       <Modal

@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { stats } from '../lib/db'
 import {
   ShoppingCart, MessageSquare, Users, AlertTriangle,
-  Clock, Plus, ArrowRight, TrendingUp, FileText, Receipt, CreditCard, Truck, Package,
+  Clock, Plus, ArrowRight, TrendingUp, FileText, Receipt, CreditCard, Truck, Package, CalendarDays,
 } from 'lucide-react'
 import { useSWRList } from '../hooks/useSWRList'
 import { useRecentSearches } from '../hooks/useRecentSearches'
@@ -64,6 +64,9 @@ export default function Dashboard() {
 
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
+  const todayLabel = new Intl.DateTimeFormat('en-IN', {
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+  }).format(new Date())
 
   if (loadError) {
     return (
@@ -84,32 +87,52 @@ export default function Dashboard() {
   const cardValue = (v) => (isInitialLoad ? null : (v || 0))
 
   const statCards = [
-    { label: 'Total Orders', value: cardValue(data?.totalOrders), icon: ShoppingCart, border: 'border-l-indigo-500', iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600' },
-    { label: 'New Enquiries', value: cardValue(data?.newEnquiries), icon: MessageSquare, border: 'border-l-amber-500', iconBg: 'bg-amber-50', iconColor: 'text-amber-600' },
-    { label: 'Pending Orders', value: cardValue(data?.pendingOrders), icon: Clock, border: 'border-l-orange-500', iconBg: 'bg-orange-50', iconColor: 'text-orange-600' },
-    { label: 'Total Customers', value: cardValue(data?.totalCustomers), icon: Users, border: 'border-l-emerald-500', iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600' },
+    { label: 'Total Orders', value: cardValue(data?.totalOrders), icon: ShoppingCart, path: '/orders', border: 'border-l-indigo-500', iconBg: 'bg-indigo-50', iconColor: 'text-indigo-600' },
+    { label: 'New Enquiries', value: cardValue(data?.newEnquiries), icon: MessageSquare, path: '/enquiries', border: 'border-l-amber-500', iconBg: 'bg-amber-50', iconColor: 'text-amber-600' },
+    { label: 'Pending Orders', value: cardValue(data?.pendingOrders), icon: Clock, path: '/orders?tab=booking', border: 'border-l-orange-500', iconBg: 'bg-orange-50', iconColor: 'text-orange-600' },
+    { label: 'Total Customers', value: cardValue(data?.totalCustomers), icon: Users, path: '/masters/customers', border: 'border-l-emerald-500', iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600' },
   ]
 
   return (
-    <div className="fade-in max-w-6xl mx-auto">
+    <div className="fade-in max-w-[1400px] mx-auto">
       {/* Welcome */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-          {greeting}, {firstName}
-        </h1>
-        <p className="text-sm text-slate-400 mt-1">
-          Here's what's happening at SARAS today
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6 sm:mb-8">
+        <div>
+          <div className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-indigo-600 mb-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Live operations
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-950 tracking-tight">
+            {greeting}, {firstName}
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Your production and finance snapshot for today.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="hidden md:flex items-center gap-2 px-3 py-2.5 bg-white border border-slate-200/80 rounded-xl text-xs font-medium text-slate-500 shadow-sm">
+            <CalendarDays size={15} className="text-indigo-500" /> {todayLabel}
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/orders/new')}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold shadow-sm shadow-indigo-600/20 hover:bg-indigo-700 focus-ring"
+          >
+            <Plus size={16} /> New order
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         {statCards.map(card => {
           const Icon = card.icon
           return (
-            <div
+            <button
+              type="button"
               key={card.label}
-              className={`bg-white rounded-2xl border border-slate-200/80 border-l-4 ${card.border} p-5 hover:shadow-md transition-shadow duration-200`}
+              onClick={() => navigate(card.path)}
+              className={`group w-full text-left bg-white rounded-2xl border border-slate-200/80 border-l-4 ${card.border} p-4 sm:p-5 card-hover focus-ring`}
+              aria-label={`Open ${card.label}`}
             >
               <div className="flex items-start justify-between mb-3">
                 <div className={`w-10 h-10 rounded-xl ${card.iconBg} flex items-center justify-center`}>
@@ -122,7 +145,10 @@ export default function Dashboard() {
                 <p className="text-3xl font-bold text-slate-900 tracking-tight">{card.value}</p>
               )}
               <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold mt-1">{card.label}</p>
-            </div>
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 mt-3 group-hover:text-indigo-600">
+                View details <ArrowRight size={11} />
+              </span>
+            </button>
           )
         })}
       </div>
@@ -135,7 +161,7 @@ export default function Dashboard() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-sm font-semibold text-amber-800">
-              {data.urgentOrders} urgent order{data.urgentOrders > 1 ? 's' : ''} need attention
+              {data.urgentOrders} urgent order{data.urgentOrders > 1 ? 's' : ''} {data.urgentOrders === 1 ? 'needs' : 'need'} attention
             </div>
             <button
               onClick={() => navigate('/orders?priority=urgent')}
@@ -150,7 +176,7 @@ export default function Dashboard() {
       {/* Quick Actions */}
       <div className="mb-8">
         <h2 className="text-sm font-semibold text-slate-800 mb-3">Quick Actions</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
           {[
             { label: 'New Order', icon: Plus, path: '/orders/new', gradient: 'from-indigo-500 to-indigo-600' },
             { label: 'New Enquiry', icon: Plus, path: '/enquiries/new', gradient: 'from-amber-500 to-orange-500' },
