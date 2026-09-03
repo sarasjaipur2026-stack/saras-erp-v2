@@ -118,6 +118,22 @@ test('all database migrations execute in filename order on a clean database', as
         and not has_table_privilege('authenticated', c.oid, 'SELECT')
     `)
     assert.deepEqual(authenticatedWithoutSelect.rows, [], 'authenticated users need Data API table grants')
+
+    const unindexedForeignKeys = await db.query(`
+      select c.conname
+      from pg_constraint c
+      join pg_namespace n on n.oid = c.connamespace
+      where c.contype = 'f' and n.nspname = 'public'
+        and not exists (
+          select 1
+          from pg_index i
+          where i.indrelid = c.conrelid
+            and i.indisvalid
+            and i.indisready
+            and i.indkey::smallint[] @> c.conkey
+        )
+    `)
+    assert.deepEqual(unindexedForeignKeys.rows, [], 'public foreign keys need supporting indexes')
   } finally {
     await db.close()
   }
