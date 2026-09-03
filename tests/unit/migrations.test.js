@@ -116,6 +116,45 @@ test('database migrations upgrade the original v2 schema without SQL errors', as
   }
 })
 
+test('compatible order status enums remain intact when status triggers exist', async () => {
+  const db = new PGlite()
+  try {
+    await db.waitReady
+    await createSupabaseHarness(db)
+    await db.exec(await readFile(legacySchema, 'utf8'))
+    await db.exec(`
+      alter type public.order_status add value if not exists 'draft';
+      alter type public.order_status add value if not exists 'booking';
+      alter type public.order_status add value if not exists 'approved';
+      alter type public.order_status add value if not exists 'production';
+      alter type public.order_status add value if not exists 'qc';
+      alter type public.order_status add value if not exists 'dispatch';
+      alter type public.order_status add value if not exists 'completed';
+
+      create function public.orders_update_search_text()
+      returns trigger language plpgsql as $$
+      begin
+        return new;
+      end
+      $$;
+      create trigger trg_orders_search_text
+        before insert or update of order_number, customer_id, status on public.orders
+        for each row execute function public.orders_update_search_text();
+    `)
+
+    await runMigrations(db)
+
+    const { rows } = await db.query(`
+      select data_type, udt_name
+      from information_schema.columns
+      where table_schema = 'public' and table_name = 'orders' and column_name = 'status'
+    `)
+    assert.deepEqual(rows[0], { data_type: 'USER-DEFINED', udt_name: 'order_status' })
+  } finally {
+    await db.close()
+  }
+})
+
 test('core transactional, import, dashboard, and search RPCs preserve invariants', async () => {
   const db = new PGlite()
   const userId = '00000000-0000-4000-8000-000000000001'

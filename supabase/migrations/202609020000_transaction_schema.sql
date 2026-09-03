@@ -4,12 +4,28 @@ begin;
 
 -- The legacy schema used a five-value enum, while the application workflow
 -- now has draft/booking/approved/production/qc/dispatch/completed states.
+-- Keep an already-compatible enum in place: changing its column type would
+-- require dropping every trigger that references orders.status. Convert only
+-- genuinely legacy enums that are missing one or more workflow values.
 do $$
 begin
   if exists (
-    select 1 from information_schema.columns
-    where table_schema = 'public' and table_name = 'orders'
-      and column_name = 'status' and udt_name <> 'text'
+    select 1
+    from information_schema.columns c
+    where c.table_schema = 'public' and c.table_name = 'orders'
+      and c.column_name = 'status' and c.udt_name <> 'text'
+      and exists (
+        select 1
+        from unnest(array['draft', 'booking', 'approved', 'production', 'qc', 'dispatch', 'completed', 'cancelled']) required(label)
+        where not exists (
+          select 1
+          from pg_type t
+          join pg_enum e on e.enumtypid = t.oid
+          join pg_namespace n on n.oid = t.typnamespace
+          where n.nspname = c.udt_schema
+            and t.typname = c.udt_name and e.enumlabel = required.label
+        )
+      )
   ) then
     alter table public.orders alter column status drop default;
     alter table public.orders alter column status type text using status::text;
