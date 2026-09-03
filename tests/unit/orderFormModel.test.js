@@ -11,12 +11,13 @@ import { ordersToCsv } from '../../src/lib/orderExport.js'
 
 test('normalizes database relation names for edit and duplicate forms', () => {
   const order = {
-    id: 'server-id', customer_id: 'customer', status: 'booking', grand_total: 10,
+    id: 'server-id', order_number: 'ORD-1', customer_id: 'customer', status: 'booking', grand_total: 10,
     order_line_items: [{ id: 'line-id', product_id: 'product', amount: 10, products: { name: 'Displayed product' } }],
     order_charges: [{ id: 'charge-id', charge_type_id: 'charge', amount: 2, charge_types: { name: 'ignored' } }],
     customers: { firm_name: 'Ignored relation' },
   }
   const edit = normalizeOrderForForm(order)
+  assert.equal(edit.order_number, 'ORD-1')
   assert.equal(edit.line_items[0].id, 'line-id')
   assert.equal(edit.line_items[0].products.name, 'Displayed product')
   assert.equal(edit.charges[0].id, 'charge-id')

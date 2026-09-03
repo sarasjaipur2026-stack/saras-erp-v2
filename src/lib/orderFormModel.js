@@ -72,6 +72,9 @@ export const normalizeOrderForForm = (order, { duplicate = false, now = Date.now
   const normalized = {
     ...DEFAULT_ORDER,
     ...pick(order, ORDER_FIELDS),
+    // Read-only display metadata. buildOrderPayload deliberately omits this,
+    // while the edit workspace still needs it for a useful page heading.
+    order_number: order?.order_number || null,
     line_items: lineItems.map((line, index) => ({
       ...pick(line, LINE_FIELDS),
       ...pick(line, LINE_DISPLAY_FIELDS),
