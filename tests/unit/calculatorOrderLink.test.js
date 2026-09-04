@@ -63,3 +63,43 @@ test('does not invent kilograms before a sample conversion exists', () => {
     effectiveKgs: 5,
   })
 })
+
+test('hydrates only the selected order line for item-level costing', () => {
+  const result = deriveCalculatorLinkFromOrder({
+    taxable_amount: 9999,
+    order_line_items: [
+      {
+        id: 'line-a',
+        meters: 100,
+        weight_kg: 10,
+        amount: 1200,
+        products: { name: 'Cord A', product_type_id: 'type-a' },
+      },
+      {
+        id: 'line-b',
+        meters: 250,
+        weight_kg: 25,
+        amount: 5000,
+        products: { name: 'Cord B', product_type_id: 'type-b' },
+      },
+    ],
+  }, 'line-b')
+
+  assert.equal(result.statePatch.order_meters, 250)
+  assert.equal(result.statePatch.order_kgs, 25)
+  assert.equal(result.statePatch.actual_sell_per_kg, 200)
+  assert.equal(result.statePatch.product_type_id, 'type-b')
+  assert.equal(result.summary.lineItemId, 'line-b')
+  assert.equal(result.summary.lineItemName, 'Cord B')
+  assert.equal(result.summary.lineItemOptions.length, 2)
+})
+
+test('does not silently aggregate when a requested order line is missing', () => {
+  const result = deriveCalculatorLinkFromOrder({
+    order_line_items: [{ id: 'line-a', meters: 100, amount: 500 }],
+  }, 'missing-line')
+
+  assert.equal(result.summary.selectedLineFound, false)
+  assert.equal(result.statePatch.order_meters, 0)
+  assert.equal(result.statePatch.order_kgs, 0)
+})

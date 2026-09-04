@@ -22,6 +22,7 @@ import {
   Clock,
   AlertCircle,
   TrendingUp,
+  Calculator,
 } from 'lucide-react';
 import { orders, deliveries, activityLog, attachments } from '../../lib/db';
 import { useAuth } from '../../contexts/AuthContext';
@@ -247,13 +248,14 @@ export default function OrderDetail() {
   const progression = getStatusProgression();
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
+    <div className="min-h-screen bg-slate-50 p-3 sm:p-4 lg:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-start justify-between mb-6">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between mb-6">
           <div className="flex items-start gap-4">
             <button
               onClick={() => navigate('/orders')}
+              aria-label="Back to orders"
               className="p-2 hover:bg-slate-200 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-5 h-5 text-slate-700" />
@@ -268,7 +270,7 @@ export default function OrderDetail() {
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {/* Send Update */}
             <div className="relative group">
               <Button variant="secondary" size="sm">
@@ -333,7 +335,7 @@ export default function OrderDetail() {
         </div>
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
             <div className="flex items-center justify-between">
               <div>
@@ -431,7 +433,7 @@ export default function OrderDetail() {
               const unit = line.meters ? 'meters' : 'kg';
               return (
                 <div key={line.id} className="border border-slate-200 rounded-xl p-4">
-                  <div className="flex items-start justify-between mb-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3">
                     <div>
                       <p className="font-semibold text-slate-900">{productName}</p>
                       {isJobwork && (
@@ -441,9 +443,19 @@ export default function OrderDetail() {
                         </div>
                       )}
                     </div>
-                    {line.line_type && <Badge variant="secondary">{line.line_type}</Badge>}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {line.calculator_profile_id && <Badge variant="success">Costing linked</Badge>}
+                      {line.line_type && <Badge variant="secondary">{line.line_type}</Badge>}
+                      <Button
+                        variant={line.calculator_profile_id ? 'secondary' : 'primary'}
+                        size="sm"
+                        onClick={() => navigate(`/calculator?order=${orderId}&item=${line.id}`)}
+                      >
+                        <Calculator size={14} /> {line.calculator_profile_id ? 'Edit Costing' : 'Calculate'}
+                      </Button>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-4 gap-4 text-sm">
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                     <div>
                       <p className="text-slate-600">Width</p>
                       <p className="font-semibold text-slate-900">{line.width_cm || 'N/A'} cm</p>
@@ -476,8 +488,8 @@ export default function OrderDetail() {
         </div>
 
         {/* Activity Timeline */}
-        <div className="grid grid-cols-3 gap-6">
-          <div className="col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="xl:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-bold text-slate-900">Activity Timeline</h2>
               <Button size="sm" variant="secondary" onClick={() => setShowAddComment(true)}>

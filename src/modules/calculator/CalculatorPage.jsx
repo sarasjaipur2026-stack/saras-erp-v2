@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useApp } from '../../contexts/AppContext'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
-import { calculatorProfiles, orders as ordersApi } from '../../lib/db'
+import { calculatorProfiles, lineItems, orders as ordersApi } from '../../lib/db'
 import { deriveCalculatorLinkFromOrder, deriveEffectiveOrderQuantity } from '../../lib/calculatorOrderLink'
 import { Button, Input, Modal, Badge } from '../../components/ui'
 import {
@@ -31,6 +32,7 @@ const emptyProcessRow = (processType = null) => ({
 const defaultState = () => ({
   // ⓪ Order link
   order_id: '',
+  line_item_id: '',
   booking_photo_url: '',
   actual_sell_per_kg: 0,
 
@@ -271,6 +273,7 @@ const OutRow = ({ label, value, sub, big, accent }) => (
 
 // ─── MAIN COMPONENT ──────────────────────────────────────────
 export default function CalculatorPage() {
+  const [searchParams] = useSearchParams()
   const { user } = useAuth()
   const toast = useToast()
   const masters = useApp()
@@ -290,9 +293,12 @@ export default function CalculatorPage() {
   const [orderLoadError, setOrderLoadError] = useState('')
   const [linkedOrder, setLinkedOrder] = useState(null)
   const [linkedOrderLoading, setLinkedOrderLoading] = useState(false)
+  const [linkedProfileId, setLinkedProfileId] = useState(null)
+  const [advancedMode, setAdvancedMode] = useState(false)
   const [mastersLoading, setMastersLoading] = useState(true)
   const [masterLoadError, setMasterLoadError] = useState('')
   const orderRequestRef = useRef(0)
+  const deepLinkHandledRef = useRef('')
 
   const loadCalculatorMasters = useCallback(async () => {
     setMastersLoading(true)
@@ -398,10 +404,11 @@ export default function CalculatorPage() {
     processes: s.processes.map(p => p.id === id ? { ...p, ...patch } : p)
   }))
 
-  const fetchLinkedOrder = async (orderId, { hydrateInputs = false, notify = false } = {}) => {
+  const fetchLinkedOrder = useCallback(async (orderId, { lineItemId = '', hydrateInputs = false, notify = false } = {}) => {
     const requestId = ++orderRequestRef.current
     setOrderLoadError('')
     setLinkedOrder(null)
+    setLinkedProfileId(null)
     if (!orderId) {
       setLinkedOrderLoading(false)
       return
@@ -416,32 +423,93 @@ export default function CalculatorPage() {
       return
     }
 
-    const { statePatch, summary } = deriveCalculatorLinkFromOrder(data)
-    if (hydrateInputs) {
-      const productType = (productTypes || []).find(item => item.id === statePatch.product_type_id)
-      const machineType = (machineTypes || []).find(item => item.id === statePatch.machine_type_id)
-      setState(current => ({
-        ...current,
-        ...statePatch,
-        order_id: orderId,
-        chaal_type_id: productType?.default_chaal_id || '',
-        waste_pct: num(productType?.default_waste_pct ?? current.waste_pct),
-        carriers: num(machineType?.default_carriers),
-        speed_m_per_min: num(machineType?.default_speed_m_per_min),
-      }))
+    const orderItems = Array.isArray(data.order_line_items) ? data.order_line_items : []
+    const effectiveLineItemId = lineItemId || (orderItems.length === 1 ? orderItems[0].id : '')
+    const selectedOrderItem = effectiveLineItemId
+      ? orderItems.find(item => item.id === effectiveLineItemId)
+      : null
+    const existingProfile = selectedOrderItem?.calculator_profiles || null
+    const { statePatch, summary } = deriveCalculatorLinkFromOrder(data, effectiveLineItemId)
+    if (!summary.selectedLineFound) {
+      setOrderLoadError('Selected order item was not found. Open the order and try again.')
+      return
     }
+    summary.lineSelectionRequired = orderItems.length > 1 && !effectiveLineItemId
+    if (hydrateInputs) {
+      if (summary.lineSelectionRequired) {
+        setState(current => ({
+          ...current,
+          order_id: orderId,
+          line_item_id: '',
+          order_meters: 0,
+          order_kgs: 0,
+          actual_sell_per_kg: 0,
+          product_type_id: '',
+          machine_type_id: '',
+        }))
+        setLinkedOrder(summary)
+        if (notify) toast.info('Select the order item you want to cost')
+        return
+      }
+      const existingPayload = existingProfile?.payload && Object.keys(existingProfile.payload).length
+        ? existingProfile.payload
+        : null
+      const productTypeId = statePatch.product_type_id || existingPayload?.product_type_id || ''
+      const machineTypeId = statePatch.machine_type_id || existingPayload?.machine_type_id || ''
+      const productType = (productTypes || []).find(item => item.id === productTypeId)
+      const machineType = (machineTypes || []).find(item => item.id === machineTypeId)
+      setState(current => {
+        const base = existingPayload ? { ...defaultState(), ...existingPayload } : current
+        const hasLiveQuantity = statePatch.order_meters > 0 || statePatch.order_kgs > 0
+        return {
+          ...base,
+          ...statePatch,
+          order_id: orderId,
+          line_item_id: effectiveLineItemId,
+          order_meters: hasLiveQuantity ? statePatch.order_meters : base.order_meters,
+          order_kgs: hasLiveQuantity ? statePatch.order_kgs : base.order_kgs,
+          actual_sell_per_kg: statePatch.actual_sell_per_kg || base.actual_sell_per_kg,
+          product_type_id: productTypeId,
+          machine_type_id: machineTypeId,
+          chaal_type_id: productType?.default_chaal_id || base.chaal_type_id || '',
+          waste_pct: num(productType?.default_waste_pct ?? base.waste_pct),
+          carriers: num(machineType?.default_carriers ?? base.carriers),
+          speed_m_per_min: num(machineType?.default_speed_m_per_min ?? base.speed_m_per_min),
+        }
+      })
+    }
+    setLinkedProfileId(existingProfile?.id || null)
     setLinkedOrder(summary)
-    if (notify) toast.success(`Loaded ${summary.orderNumber}`)
-  }
+    if (notify) toast.success(`Loaded ${summary.lineItemName || summary.orderNumber}`)
+  }, [machineTypes, productTypes, toast])
 
   const handleOrderChange = (orderId) => {
-    patch({ order_id: orderId })
+    patch({ order_id: orderId, line_item_id: '' })
     fetchLinkedOrder(orderId, { hydrateInputs: true, notify: true })
   }
+
+  const handleLineItemChange = (lineItemId) => {
+    patch({ line_item_id: lineItemId })
+    fetchLinkedOrder(state.order_id, { lineItemId, hydrateInputs: true, notify: true })
+  }
+
+  useEffect(() => {
+    const orderId = searchParams.get('order') || ''
+    const lineItemId = searchParams.get('item') || ''
+    if (!orderId || ordersLoading || mastersLoading) return
+    const key = `${orderId}:${lineItemId}`
+    if (deepLinkHandledRef.current === key) return
+    deepLinkHandledRef.current = key
+    setState(current => ({ ...current, order_id: orderId, line_item_id: lineItemId }))
+    fetchLinkedOrder(orderId, { lineItemId, hydrateInputs: true })
+  }, [fetchLinkedOrder, mastersLoading, ordersLoading, searchParams])
 
   const reset = () => {
     if (!confirm('Clear all inputs and start fresh?')) return
     setState(defaultState())
+    setLinkedOrder(null)
+    setLinkedProfileId(null)
+    setOrderLoadError('')
     toast.success('Calculator reset')
   }
 
@@ -450,6 +518,12 @@ export default function CalculatorPage() {
     if (!profileName) {
       setSaveError('Enter a profile name')
       toast.error('Enter a profile name')
+      return
+    }
+    if (state.line_item_id && linkedOrder?.lineItemId !== state.line_item_id) {
+      const message = 'Reload the selected order item before applying this costing'
+      setSaveError(message)
+      toast.error(message)
       return
     }
     setSaveError('')
@@ -476,16 +550,33 @@ export default function CalculatorPage() {
         calculated_cost_per_kg: derived.total_cost_per_kg,
         payload: { ...state, profile_name: profileName, product_name: product?.name },
       }
-      const { data, error } = await calculatorProfiles.create(payload)
+      const { data, error } = linkedProfileId
+        ? await calculatorProfiles.update(linkedProfileId, payload)
+        : await calculatorProfiles.create(payload)
       if (error) {
         const message = error.message || 'Save failed'
         setSaveError(message)
         toast.error(message)
         return
       }
-      toast.success(`Saved "${profileName}"`)
+      if (state.line_item_id && !linkedProfileId) {
+        const { error: linkError } = await lineItems.update(state.line_item_id, { calculator_profile_id: data.id })
+        if (linkError) {
+          await calculatorProfiles.delete(data.id)
+          const message = linkError.message || 'Could not apply the calculation to this order item'
+          setSaveError(message)
+          toast.error(message)
+          return
+        }
+      }
+      toast.success(state.line_item_id
+        ? `${linkedProfileId ? 'Updated' : 'Applied'} costing for ${linkedOrder?.lineItemName || 'order item'}`
+        : `Saved "${profileName}"`)
       setShowSaveModal(false)
-      setProfileList(l => [data, ...l])
+      setLinkedProfileId(state.line_item_id ? data.id : null)
+      setProfileList(list => linkedProfileId
+        ? list.map(profile => profile.id === data.id ? data : profile)
+        : [data, ...list])
     } catch (error) {
       const message = error?.message || 'Save failed'
       setSaveError(message)
@@ -497,13 +588,16 @@ export default function CalculatorPage() {
 
   const loadProfile = (p) => {
     const linkedOrderId = p.payload?.order_id || p.order_id || ''
+    const linkedLineItemId = p.payload?.line_item_id || ''
+    setLinkedProfileId(linkedLineItemId ? p.id : null)
     if (p.payload && Object.keys(p.payload).length) {
-      setState({ ...defaultState(), ...p.payload, order_id: linkedOrderId })
+      setState({ ...defaultState(), ...p.payload, order_id: linkedOrderId, line_item_id: linkedLineItemId })
     } else {
       // legacy v1 profile
       setState(s => ({
         ...s,
         order_id: linkedOrderId,
+        line_item_id: linkedLineItemId,
         sample: { ...s.sample, length_m: num(p.sample_length_m), total_wt_g: num(p.sample_weight_kg) * 1000 },
         waste_pct: num(p.waste_percentage),
         labor_per_kg: num(p.labor_cost_per_kg),
@@ -513,7 +607,7 @@ export default function CalculatorPage() {
     }
     setShowProfilesModal(false)
     toast.success(`Loaded "${p.profile_name}"`)
-    fetchLinkedOrder(linkedOrderId)
+    fetchLinkedOrder(linkedOrderId, { lineItemId: linkedLineItemId })
   }
 
   // ─── OPTIONS ──────────────────────────────────────────────
@@ -533,9 +627,9 @@ export default function CalculatorPage() {
     : 0
 
   return (
-    <div className="fade-in h-[calc(100vh-4rem)] flex flex-col">
+    <div className="fade-in min-h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)] flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-1 mb-4 shrink-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-1 mb-4 shrink-0">
         <div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <Factory size={20} className="text-indigo-600" />
@@ -543,28 +637,38 @@ export default function CalculatorPage() {
           </h1>
           <p className="text-[13px] text-slate-400 mt-0.5">Plan cost, material, and production for any order</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="secondary" size="sm" onClick={() => setShowProfilesModal(true)}>
             <FileText size={14} /> Profiles ({profileList.length})
           </Button>
           <Button variant="secondary" size="sm" onClick={reset}>
             <RotateCcw size={14} /> Reset
           </Button>
-          <Button size="sm" onClick={() => { setSaveError(''); setShowSaveModal(true) }}>
-            <Save size={14} /> Save
+          <Button size="sm" disabled={linkedOrderLoading || linkedOrder?.lineSelectionRequired || (state.line_item_id && linkedOrder?.lineItemId !== state.line_item_id)} onClick={() => {
+            setSaveError('')
+            if (!state.profile_name && state.line_item_id && linkedOrder) {
+              patch({ profile_name: `${linkedOrder.orderNumber} · ${linkedOrder.lineItemName}` })
+            }
+            setShowSaveModal(true)
+          }}>
+            <Save size={14} /> {state.line_item_id ? 'Apply to Item' : 'Save Profile'}
           </Button>
         </div>
       </div>
 
       {/* Two-card layout */}
-      <div className="grid lg:grid-cols-2 gap-4 flex-1 min-h-0">
+      <div className="grid lg:grid-cols-2 gap-4 flex-1 lg:min-h-0">
         {/* ═══ LEFT CARD — INPUT ═══════════════════════════════════ */}
         <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden flex flex-col">
-          <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2 shrink-0">
+          <div className="px-4 sm:px-5 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2 shrink-0">
             <Package size={14} className="text-indigo-600" />
             <h2 className="text-[13px] font-bold text-slate-700 uppercase tracking-wide">Inputs</h2>
+            <div className="ml-auto flex rounded-lg bg-slate-200/70 p-0.5" aria-label="Calculator detail level">
+              <button type="button" aria-pressed={!advancedMode} onClick={() => setAdvancedMode(false)} className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition ${!advancedMode ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}`}>Quick</button>
+              <button type="button" aria-pressed={advancedMode} onClick={() => setAdvancedMode(true)} className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition ${advancedMode ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}`}>Advanced</button>
+            </div>
           </div>
-          <div className="overflow-y-auto flex-1 p-5 space-y-6">
+          <div className="lg:overflow-y-auto flex-1 p-4 sm:p-5 space-y-6">
 
             {/* ⓪ ORDER LINK */}
             <div>
@@ -576,6 +680,17 @@ export default function CalculatorPage() {
                 options={orderOptions}
                 placeholder={ordersLoading ? 'Loading orders…' : '— standalone (no order) —'}
               />
+              {linkedOrder?.lineItemOptions?.length > 1 && (
+                <div className="mt-3">
+                  <SelectInput
+                    label="Costing Item"
+                    value={state.line_item_id}
+                    onChange={handleLineItemChange}
+                    options={linkedOrder.lineItemOptions}
+                    placeholder="— select one order item —"
+                  />
+                </div>
+              )}
               {linkedOrderLoading && (
                 <p className="mt-2 text-[11px] text-indigo-600">Fetching order details…</p>
               )}
@@ -587,6 +702,9 @@ export default function CalculatorPage() {
                   <div className="text-[12px] font-semibold text-emerald-800">
                     {linkedOrder.orderNumber} · {linkedOrder.customerName}
                   </div>
+                  {linkedOrder.lineItemName && (
+                    <div className="mt-0.5 text-[11px] font-semibold text-emerald-800">Costing: {linkedOrder.lineItemName}</div>
+                  )}
                   <div className="mt-0.5 text-[11px] text-emerald-700">
                     {linkedOrder.lineCount} item{linkedOrder.lineCount === 1 ? '' : 's'}
                     {linkedOrder.orderMeters > 0 ? ` · ${fmt(linkedOrder.orderMeters)} m` : ''}
@@ -604,9 +722,12 @@ export default function CalculatorPage() {
                       {!linkedOrder.machineTypeMapped && 'Machine type is not mapped in this order.'}
                     </div>
                   )}
+                  {linkedOrder.lineSelectionRequired && (
+                    <div role="alert" className="mt-1 text-[11px] font-semibold text-amber-700">Select one item above before calculating or saving.</div>
+                  )}
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3 mt-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                 <NumInput
                   label="Actual Sell ₹/kg"
                   value={state.actual_sell_per_kg}
@@ -627,7 +748,7 @@ export default function CalculatorPage() {
             {/* ① SAMPLE */}
             <div>
               <SectionHeader num="1" title="Sample Naap-Tol" />
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <NumInput label="Length" value={state.sample.length_m} onChange={v => patchSample('length_m', v)} suffix="m" />
                 <NumInput label="Total Wt" value={state.sample.total_wt_g} onChange={v => patchSample('total_wt_g', v)} suffix="g" />
                 <NumInput label="Covering Wt" value={state.sample.cov_wt_g} onChange={v => patchSample('cov_wt_g', v)} suffix="g" />
@@ -644,7 +765,7 @@ export default function CalculatorPage() {
             {/* ② CUSTOMER ORDER */}
             <div>
               <SectionHeader num="2" title="Customer Order" />
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <NumInput label="Meters" value={state.order_meters} onChange={v => patch({ order_meters: v, order_kgs: 0 })} suffix="m" />
                 <NumInput label="Kgs" value={state.order_kgs} onChange={v => patch({ order_kgs: v, order_meters: 0 })} suffix="kg" />
                 <NumInput label="Waste" value={state.waste_pct} onChange={v => patch({ waste_pct: v })} suffix="%" />
@@ -661,7 +782,7 @@ export default function CalculatorPage() {
                   <button type="button" onClick={loadCalculatorMasters} className="font-semibold underline">Retry</button>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <SelectInput label="Machine" value={state.machine_type_id} onChange={v => patch({ machine_type_id: v })} options={machineOptions} />
                 <SelectInput label="Product" value={state.product_type_id} onChange={v => patch({ product_type_id: v })} options={productOptions} />
                 <SelectInput label="Chaal" value={state.chaal_type_id} onChange={v => patch({ chaal_type_id: v })} options={chaalOptions} className="col-span-2" />
@@ -728,7 +849,7 @@ export default function CalculatorPage() {
             </div>
 
             {/* ④ PROCESS & OPERATORS */}
-            <div>
+            {advancedMode && <div>
               <SectionHeader icon={Activity} num="4" title="Process & Operators">
                 <button onClick={addProcess} className="text-[11px] text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1">
                   <Plus size={12} /> Add Step
@@ -770,12 +891,12 @@ export default function CalculatorPage() {
                 ))}
                 {!state.processes.length && <p className="text-[11px] text-slate-400 italic">No process steps yet</p>}
               </div>
-            </div>
+            </div>}
 
             {/* ⑤ PRICING */}
             <div>
               <SectionHeader icon={IndianRupee} num="5" title="Pricing" />
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <NumInput label="Labor" value={state.labor_per_kg} onChange={v => patch({ labor_per_kg: v })} suffix="₹/kg" />
                 <NumInput label="Overhead" value={state.overhead_per_kg} onChange={v => patch({ overhead_per_kg: v })} suffix="₹/kg" />
                 <NumInput label="Profit" value={state.profit_pct} onChange={v => patch({ profit_pct: v })} suffix="%" />
@@ -783,16 +904,16 @@ export default function CalculatorPage() {
             </div>
 
             {/* ⑥ PRODUCTION PLAN */}
-            <div>
+            {advancedMode && <div>
               <SectionHeader icon={Settings} num="6" title="Production Plan" />
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <NumInput label="Speed" value={state.speed_m_per_min} onChange={v => patch({ speed_m_per_min: v })} suffix="m/min" />
                 <NumInput label="Machines" value={state.machines_count} onChange={v => patch({ machines_count: v })} step="1" />
                 <NumInput label="Efficiency" value={state.efficiency_pct} onChange={v => patch({ efficiency_pct: v })} suffix="%" />
                 <NumInput label="Bobbin Wt" value={state.bobbin_weight_g} onChange={v => patch({ bobbin_weight_g: v })} suffix="g" />
                 <NumInput label="Carriers" value={state.carriers} onChange={v => patch({ carriers: v })} step="1" />
               </div>
-            </div>
+            </div>}
           </div>
         </div>
 
@@ -802,7 +923,7 @@ export default function CalculatorPage() {
             <TrendingUp size={14} className="text-emerald-600" />
             <h2 className="text-[13px] font-bold text-slate-700 uppercase tracking-wide">Output</h2>
           </div>
-          <div className="overflow-y-auto flex-1 p-5 space-y-5">
+          <div className="lg:overflow-y-auto flex-1 p-4 sm:p-5 space-y-5">
 
             {/* Profit comparison */}
             <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-100">
@@ -901,10 +1022,10 @@ export default function CalculatorPage() {
       </div>
 
       {/* Save Modal */}
-      <Modal isOpen={showSaveModal} onClose={() => setShowSaveModal(false)} title="Save Calculator Profile"
+      <Modal isOpen={showSaveModal} onClose={() => setShowSaveModal(false)} title={state.line_item_id ? 'Apply Costing to Order Item' : 'Save Calculator Profile'}
         footer={<>
           <Button variant="secondary" size="sm" onClick={() => setShowSaveModal(false)}>Cancel</Button>
-          <Button size="sm" type="submit" form="calculator-profile-save" loading={saving}>Save</Button>
+          <Button size="sm" type="submit" form="calculator-profile-save" loading={saving}>{state.line_item_id ? 'Apply Costing' : 'Save Profile'}</Button>
         </>}
       >
         <form id="calculator-profile-save" className="space-y-3" onSubmit={(event) => { event.preventDefault(); saveProfile() }}>
@@ -916,7 +1037,7 @@ export default function CalculatorPage() {
             error={saveError}
             onChange={e => { patch({ profile_name: e.target.value }); if (saveError) setSaveError('') }}
           />
-          <p className="text-[12px] text-slate-400">Saves all inputs so you can reload later.</p>
+          <p className="text-[12px] text-slate-400">{state.line_item_id ? 'Saves this calculation and links it to the selected order item.' : 'Saves all inputs so you can reload later.'}</p>
         </form>
       </Modal>
 

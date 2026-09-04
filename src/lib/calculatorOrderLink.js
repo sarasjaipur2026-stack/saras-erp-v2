@@ -25,6 +25,16 @@ const uniqueLabels = (items, keys) => [...new Set(items
   .map(item => keys.map(key => item?.[key]?.name).find(Boolean))
   .filter(Boolean))]
 
+const lineLabel = (line) => line?.products?.name || line?.product?.name || line?.materials?.name || line?.material?.name || 'Item'
+
+const lineQuantityLabel = (line) => {
+  const meters = lineMeters(line)
+  const kgs = lineKgs(line)
+  if (meters > 0) return `${meters} m`
+  if (kgs > 0) return `${kgs} kg`
+  return ''
+}
+
 export function deriveEffectiveOrderQuantity({ orderMeters, orderKgs, metersPerKg }) {
   const meters = asNumber(orderMeters)
   const kgs = asNumber(orderKgs)
@@ -36,8 +46,10 @@ export function deriveEffectiveOrderQuantity({ orderMeters, orderKgs, metersPerK
   }
 }
 
-export function deriveCalculatorLinkFromOrder(order) {
-  const items = Array.isArray(order?.order_line_items) ? order.order_line_items : []
+export function deriveCalculatorLinkFromOrder(order, lineItemId = '') {
+  const allItems = Array.isArray(order?.order_line_items) ? order.order_line_items : []
+  const selectedLine = lineItemId ? allItems.find(line => line?.id === lineItemId) : null
+  const items = lineItemId ? (selectedLine ? [selectedLine] : []) : allItems
   const orderMeters = items.reduce((total, line) => total + lineMeters(line), 0)
   const orderKgs = items.reduce((total, line) => total + lineKgs(line), 0)
   const taxableAmount = asNumber(order?.taxable_amount)
@@ -47,7 +59,12 @@ export function deriveCalculatorLinkFromOrder(order) {
     return total + amount
   }, 0)
   const everyLineHasWeight = items.length > 0 && items.every(line => lineKgs(line) > 0)
-  const sellValue = everyLineHasWeight && taxableAmount > 0 ? taxableAmount : weightedLineRevenue
+  const selectedLineRevenue = selectedLine
+    ? asNumber(selectedLine?.net_amount) || asNumber(selectedLine?.amount)
+    : 0
+  const sellValue = selectedLine
+    ? selectedLineRevenue
+    : (everyLineHasWeight && taxableAmount > 0 ? taxableAmount : weightedLineRevenue)
 
   const productTypeId = items
     .map(line => line?.products?.product_type_id || line?.product?.product_type_id)
@@ -74,6 +91,16 @@ export function deriveCalculatorLinkFromOrder(order) {
       machineNames: uniqueLabels(items, ['machines', 'machine']),
       productTypeMapped: Boolean(productTypeId),
       machineTypeMapped: Boolean(machineTypeId),
+      lineItemId: selectedLine?.id || '',
+      lineItemName: selectedLine ? lineLabel(selectedLine) : '',
+      selectedLineFound: !lineItemId || Boolean(selectedLine),
+      lineItemOptions: allItems.map(line => {
+        const quantity = lineQuantityLabel(line)
+        return {
+          value: line.id,
+          label: `${lineLabel(line)}${quantity ? ` · ${quantity}` : ''}`,
+        }
+      }),
     },
   }
 }
