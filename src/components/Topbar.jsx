@@ -112,7 +112,7 @@ export default function Topbar({ onMenuClick }) {
   const initials = (profile?.full_name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
 
   return (
-    <header className="h-16 bg-white/80 backdrop-blur-sm border-b border-slate-200/60 flex items-center px-6 py-3 gap-3 sticky top-0 z-20">
+    <header className="h-16 bg-white/80 backdrop-blur-sm border-b border-slate-200/60 flex items-center px-3 sm:px-6 py-3 gap-2 sm:gap-3 sticky top-0 z-20">
       <button
         type="button"
         onClick={onMenuClick}
@@ -123,7 +123,7 @@ export default function Topbar({ onMenuClick }) {
       </button>
 
       {/* Global search trigger — opens Cmd+K palette */}
-      <div className="flex-1 max-w-md">
+      <div className="flex-1 min-w-0 max-w-md">
         <button
           type="button"
           onClick={() => {

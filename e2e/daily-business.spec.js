@@ -34,6 +34,15 @@ test('every daily-business screen opens without a runtime failure', async ({ pag
       await expect(page).toHaveURL(new RegExp(`${route.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[?#].*)?$`))
       await expect(page.locator('main')).toBeVisible({ timeout: 15_000 })
       await expect(page.locator('#root')).not.toContainText(/something went wrong|failed to load page/i)
+
+      if (testInfo.project.name === 'mobile') {
+        const viewport = await page.evaluate(() => ({
+          pageWidth: document.documentElement.scrollWidth,
+          viewportWidth: window.innerWidth,
+        }))
+        expect(viewport.pageWidth, `${route} must not overflow the phone viewport`)
+          .toBeLessThanOrEqual(viewport.viewportWidth + 2)
+      }
     })
   }
 
