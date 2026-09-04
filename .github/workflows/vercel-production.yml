@@ -23,6 +23,7 @@ concurrency:
 jobs:
   deploy-production:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
@@ -37,8 +38,23 @@ jobs:
       - name: Install project dependencies
         run: npm ci --no-fund
 
-      - name: Verify lint, tests, build, and dependency audit
-        run: npm run check
+      - name: Verify lint, tests, and build
+        run: npm run lint && npm test && npm run build
+
+      - name: Security audit
+        shell: bash
+        run: |
+          set +e
+          timeout 90s npm audit --audit-level=high
+          audit_status=$?
+          set -e
+
+          if [ "$audit_status" -eq 124 ]; then
+            echo "::warning::Registry audit timed out; checking the local advisory cache instead."
+            npm audit --audit-level=high --offline
+          else
+            exit "$audit_status"
+          fi
 
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
