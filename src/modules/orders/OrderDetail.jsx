@@ -25,6 +25,7 @@ import {
   Calculator,
 } from 'lucide-react';
 import { orders, deliveries, activityLog, attachments } from '../../lib/db';
+import { printOrderDocument } from '../../lib/orderExport';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { Button, Modal, Input, StatusBadge, Badge, Currency, Spinner } from '../../components/ui';
@@ -50,6 +51,8 @@ export default function OrderDetail() {
   const [deliveryForm, setDeliveryForm] = useState({ lineId: '', date: '', qty: '', note: '', challan: '', vehicle: '' });
   const [commentText, setCommentText] = useState('');
   const [cancelReason, setCancelReason] = useState('');
+  const [showSendMenu, setShowSendMenu] = useState(false);
+  const [showPrintMenu, setShowPrintMenu] = useState(false);
 
   const loadOrderData = useCallback(async () => {
     try {
@@ -201,6 +204,11 @@ export default function OrderDetail() {
     }
   };
 
+  const handlePrint = (type) => {
+    setShowPrintMenu(false);
+    printOrderDocument(order, type, orderDeliveries);
+  };
+
   const getDeliveryProgress = (lineItem) => {
     const totalQty = lineItem.meters || lineItem.weight_kg || 0;
     const deliveredQty = orderDeliveries
@@ -272,48 +280,48 @@ export default function OrderDetail() {
 
           <div className="flex flex-wrap gap-2">
             {/* Send Update */}
-            <div className="relative group">
-              <Button variant="secondary" size="sm">
+            <div className="relative no-print">
+              <Button variant="secondary" size="sm" onClick={() => setShowSendMenu(open => !open)} aria-haspopup="menu" aria-expanded={showSendMenu}>
                 <Send size={16} /> Send Update
               </Button>
-              <div className="absolute right-0 mt-1 w-40 bg-white rounded-xl shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity z-10">
+              {showSendMenu && <div role="menu" className="absolute right-0 mt-1 w-40 bg-white rounded-xl shadow-lg border border-slate-100 z-10">
                 <button
-                  onClick={() => handleSendUpdate('whatsapp')}
+                  onClick={() => { setShowSendMenu(false); handleSendUpdate('whatsapp'); }}
                   className="w-full px-4 py-2 text-left hover:bg-slate-100 flex items-center gap-2 text-sm text-slate-700 first:rounded-t-xl"
                 >
                   <Phone className="w-4 h-4" /> WhatsApp
                 </button>
                 <button
-                  onClick={() => handleSendUpdate('email')}
+                  onClick={() => { setShowSendMenu(false); handleSendUpdate('email'); }}
                   className="w-full px-4 py-2 text-left hover:bg-slate-100 flex items-center gap-2 text-sm text-slate-700"
                 >
                   <Mail className="w-4 h-4" /> Email
                 </button>
                 <button
-                  onClick={() => handleSendUpdate('copy')}
+                  onClick={() => { setShowSendMenu(false); handleSendUpdate('copy'); }}
                   className="w-full px-4 py-2 text-left hover:bg-slate-100 flex items-center gap-2 text-sm text-slate-700 last:rounded-b-xl"
                 >
                   <Copy className="w-4 h-4" /> Copy
                 </button>
-              </div>
+              </div>}
             </div>
 
             {/* Print */}
-            <div className="relative group">
-              <Button variant="secondary" size="sm">
+            <div className="relative no-print">
+              <Button variant="secondary" size="sm" onClick={() => setShowPrintMenu(open => !open)} aria-haspopup="menu" aria-expanded={showPrintMenu}>
                 <Printer size={16} /> Print
               </Button>
-              <div className="absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity z-10">
-                <button className="w-full px-4 py-2 text-left hover:bg-slate-100 flex items-center gap-2 text-sm text-slate-700 first:rounded-t-xl">
+              {showPrintMenu && <div role="menu" className="absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-lg border border-slate-100 z-10">
+                <button onClick={() => handlePrint('confirmation')} className="w-full px-4 py-2 text-left hover:bg-slate-100 flex items-center gap-2 text-sm text-slate-700 first:rounded-t-xl">
                   <FileText className="w-4 h-4" /> Order Confirmation
                 </button>
-                <button className="w-full px-4 py-2 text-left hover:bg-slate-100 flex items-center gap-2 text-sm text-slate-700">
+                <button onClick={() => handlePrint('production')} className="w-full px-4 py-2 text-left hover:bg-slate-100 flex items-center gap-2 text-sm text-slate-700">
                   <FileText className="w-4 h-4" /> Production Slip
                 </button>
-                <button className="w-full px-4 py-2 text-left hover:bg-slate-100 flex items-center gap-2 text-sm text-slate-700 last:rounded-b-xl">
+                <button onClick={() => handlePrint('challan')} className="w-full px-4 py-2 text-left hover:bg-slate-100 flex items-center gap-2 text-sm text-slate-700 last:rounded-b-xl">
                   <FileText className="w-4 h-4" /> Delivery Challan
                 </button>
-              </div>
+              </div>}
             </div>
 
             {!['completed', 'cancelled', 'dispatch'].includes(order.status) && (

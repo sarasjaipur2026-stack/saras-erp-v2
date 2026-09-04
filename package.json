@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "eslint . --max-warnings=0",
     "test": "node --test tests/unit/*.test.js",
+    "test:e2e": "playwright test",
     "check": "npm run lint && npm run test && npm run build && npm audit --audit-level=high",
     "preview": "vite preview"
   },

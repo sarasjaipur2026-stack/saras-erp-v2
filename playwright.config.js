@@ -1,5 +1,5 @@
 /* global process */
-import { defineConfig } from '@playwright/test'
+import { defineConfig, devices } from '@playwright/test'
 
 const BASE_URL = process.env.BASE_URL || 'https://saras-erp-v2-rebuild.vercel.app'
 
@@ -21,9 +21,17 @@ export default defineConfig({
       testMatch: /auth\.setup\.js/,
     },
     {
-      name: 'e2e',
+      name: 'desktop',
       dependencies: ['setup'],
       use: {
+        storageState: './e2e/.auth/user.json',
+      },
+    },
+    {
+      name: 'mobile',
+      dependencies: ['setup'],
+      use: {
+        ...devices['Pixel 7'],
         storageState: './e2e/.auth/user.json',
       },
     },
