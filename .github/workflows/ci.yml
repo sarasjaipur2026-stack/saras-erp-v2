@@ -26,4 +26,17 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
-      - run: npm audit --audit-level=high
+      - name: Security audit
+        shell: bash
+        run: |
+          set +e
+          timeout 90s npm audit --audit-level=high
+          audit_status=$?
+          set -e
+
+          if [ "$audit_status" -eq 124 ]; then
+            echo "::warning::Registry audit timed out; checking the local advisory cache instead."
+            npm audit --audit-level=high --offline
+          else
+            exit "$audit_status"
+          fi
