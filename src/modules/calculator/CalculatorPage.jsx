@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback, useId, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useApp } from '../../contexts/AppContext'
 import { useAuth } from '../../contexts/AuthContext'
@@ -185,26 +185,33 @@ const SectionHeader = ({ icon: Icon, num: n, title, children }) => (
 )
 
 // ─── COMPACT INPUT ───────────────────────────────────────────
-const NumInput = ({ label, value, onChange, suffix, step = '0.01', className = '' }) => (
-  <div className={`flex flex-col gap-1 ${className}`}>
-    {label && <label className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">{label}</label>}
-    <div className="relative">
-      <input
-        type="number"
-        step={step}
-        value={value ?? ''}
-        onChange={e => onChange(e.target.value === '' ? 0 : parseFloat(e.target.value))}
-        className="w-full px-3 py-2 pr-8 text-sm font-mono bg-white border border-slate-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none"
-      />
-      {suffix && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 font-medium pointer-events-none">{suffix}</span>}
+const NumInput = ({ label, ariaLabel, value, onChange, suffix, step = '0.01', className = '' }) => {
+  const inputId = useId()
+  return (
+    <div className={`flex flex-col gap-1 ${className}`}>
+      {label && <label htmlFor={inputId} className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">{label}</label>}
+      <div className="relative">
+        <input
+          id={inputId}
+          aria-label={label ? undefined : ariaLabel || suffix || 'Numeric value'}
+          type="number"
+          step={step}
+          value={value ?? ''}
+          onChange={e => onChange(e.target.value === '' ? 0 : parseFloat(e.target.value))}
+          className="w-full px-3 py-2 pr-8 text-sm font-mono bg-white border border-slate-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none"
+        />
+        {suffix && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 font-medium pointer-events-none">{suffix}</span>}
+      </div>
     </div>
-  </div>
-)
+  )
+}
 
-const SelectInput = ({ label, value, onChange, options, placeholder = '— select —', className = '' }) => {
+const SelectInput = ({ label, ariaLabel, value, onChange, options, placeholder = '— select —', className = '' }) => {
   const [search, setSearch] = useState('')
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
+  const inputId = useId()
+  const listboxId = `${inputId}-options`
 
   // Close on outside click
   useEffect(() => {
@@ -224,33 +231,51 @@ const SelectInput = ({ label, value, onChange, options, placeholder = '— selec
 
   return (
     <div className={`flex flex-col gap-1 ${className}`} ref={ref}>
-      {label && <label className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">{label}</label>}
+      {label && <label htmlFor={inputId} className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">{label}</label>}
       <div className="relative">
         <input
+          id={inputId}
+          role="combobox"
+          aria-label={label ? undefined : ariaLabel || placeholder}
+          aria-expanded={open}
+          aria-controls={open ? listboxId : undefined}
+          aria-autocomplete="list"
           type="text"
           value={open ? search : (selected?.label || '')}
           onChange={e => { setSearch(e.target.value); if (!open) setOpen(true) }}
           onFocus={() => { setOpen(true); setSearch('') }}
+          onKeyDown={event => {
+            if (event.key === 'Escape') {
+              setOpen(false)
+              setSearch('')
+            }
+          }}
           placeholder={placeholder}
           className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 focus:outline-none"
         />
         {value && !open && (
-          <button onClick={() => { onChange(''); setSearch('') }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500">
+          <button type="button" aria-label={`Clear ${label || ariaLabel || 'selection'}`} onClick={() => { onChange(''); setSearch('') }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500">
             <X size={12} />
           </button>
         )}
         {open && (
-          <div className="absolute top-full mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-30 max-h-48 overflow-auto">
-            <div
-              className="px-3 py-1.5 text-sm text-slate-400 cursor-pointer hover:bg-slate-50"
+          <div id={listboxId} role="listbox" className="absolute top-full mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg z-30 max-h-48 overflow-auto">
+            <button
+              type="button"
+              role="option"
+              aria-selected={!value}
+              className="block w-full px-3 py-1.5 text-left text-sm text-slate-400 cursor-pointer hover:bg-slate-50"
               onClick={() => { onChange(''); setOpen(false); setSearch('') }}
-            >{placeholder}</div>
+            >{placeholder}</button>
             {filtered.map(o => (
-              <div
+              <button
+                type="button"
+                role="option"
+                aria-selected={o.value === value}
                 key={o.value}
-                className={`px-3 py-1.5 text-sm cursor-pointer hover:bg-indigo-50 ${o.value === value ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-slate-700'}`}
+                className={`block w-full px-3 py-1.5 text-left text-sm cursor-pointer hover:bg-indigo-50 ${o.value === value ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-slate-700'}`}
                 onClick={() => { onChange(o.value); setOpen(false); setSearch('') }}
-              >{o.label}</div>
+              >{o.label}</button>
             ))}
             {!filtered.length && <div className="px-3 py-2 text-sm text-slate-400 italic">No matches</div>}
           </div>
@@ -794,6 +819,7 @@ export default function CalculatorPage() {
                 <div className="flex bg-slate-100 rounded-lg p-0.5">
                   {['weight', 'carriers'].map(m => (
                     <button
+                      type="button"
                       key={m}
                       onClick={() => patch({ blend_mode: m })}
                       className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all ${state.blend_mode === m ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}
@@ -808,7 +834,7 @@ export default function CalculatorPage() {
               <div className="mt-2">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Covering Yarns</span>
-                  <button onClick={() => addYarn('covering_yarns')} className="text-[11px] text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1">
+                  <button type="button" onClick={() => addYarn('covering_yarns')} className="text-[11px] text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1">
                     <Plus size={12} /> Add
                   </button>
                 </div>
@@ -828,7 +854,7 @@ export default function CalculatorPage() {
                 <div className="mt-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Filler Yarns</span>
-                    <button onClick={() => addYarn('filler_yarns')} className="text-[11px] text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1">
+                    <button type="button" onClick={() => addYarn('filler_yarns')} className="text-[11px] text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1">
                       <Plus size={12} /> Add
                     </button>
                   </div>
@@ -851,7 +877,7 @@ export default function CalculatorPage() {
             {/* ④ PROCESS & OPERATORS */}
             {advancedMode && <div>
               <SectionHeader icon={Activity} num="4" title="Process & Operators">
-                <button onClick={addProcess} className="text-[11px] text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1">
+                <button type="button" onClick={addProcess} className="text-[11px] text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1">
                   <Plus size={12} /> Add Step
                 </button>
               </SectionHeader>
@@ -860,6 +886,7 @@ export default function CalculatorPage() {
                   <div key={p.id} className="grid grid-cols-12 gap-2 items-end bg-slate-50/60 rounded-lg p-2">
                     <SelectInput
                       className="col-span-4"
+                      ariaLabel="Process type"
                       value={p.process_type_id}
                       onChange={v => {
                         const pt = processTypes?.find(x => x.id === v)
@@ -873,6 +900,7 @@ export default function CalculatorPage() {
                     />
                     <SelectInput
                       className="col-span-4"
+                      ariaLabel="Operator"
                       value={p.operator_id}
                       onChange={v => updateProcess(p.id, { operator_id: v })}
                       options={operatorOptions}
@@ -880,11 +908,12 @@ export default function CalculatorPage() {
                     />
                     <NumInput
                       className="col-span-3"
+                      ariaLabel="Process duration"
                       value={p.duration_mins_per_kg}
                       onChange={v => updateProcess(p.id, { duration_mins_per_kg: v })}
                       suffix="min/kg"
                     />
-                    <button onClick={() => removeProcess(p.id)} className="col-span-1 p-2 text-slate-400 hover:text-red-600">
+                    <button type="button" aria-label={`Remove ${p.process_name || 'process'} step`} onClick={() => removeProcess(p.id)} className="col-span-1 p-2 text-slate-400 hover:text-red-600">
                       <X size={14} />
                     </button>
                   </div>
@@ -1074,6 +1103,7 @@ function YarnRow({ yarn, options, mode, onChange, onRemove, yarnTypesData }) {
     <div className="grid grid-cols-12 gap-2 items-end bg-slate-50/60 rounded-lg p-2">
       <SelectInput
         className="col-span-5"
+        ariaLabel="Yarn type"
         value={yarn.yarn_type_id}
         onChange={onSelectYarn}
         options={options}
@@ -1081,19 +1111,21 @@ function YarnRow({ yarn, options, mode, onChange, onRemove, yarnTypesData }) {
       />
       <NumInput
         className="col-span-3"
+        ariaLabel="Yarn rate per kilogram"
         value={yarn.rate_per_kg}
         onChange={v => onChange({ rate_per_kg: v })}
         suffix="₹/kg"
       />
       <NumInput
         className="col-span-3"
+        ariaLabel={mode === 'carriers' ? 'Yarn carriers' : 'Yarn weight percentage'}
         value={mode === 'carriers' ? yarn.carriers : yarn.weight_pct}
         onChange={v => onChange(mode === 'carriers' ? { carriers: v } : { weight_pct: v })}
         suffix={mode === 'carriers' ? 'carr' : '%'}
         step={mode === 'carriers' ? '1' : '0.1'}
       />
       {onRemove ? (
-        <button onClick={onRemove} className="col-span-1 p-2 text-slate-400 hover:text-red-600">
+        <button type="button" aria-label="Remove yarn" onClick={onRemove} className="col-span-1 p-2 text-slate-400 hover:text-red-600">
           <X size={14} />
         </button>
       ) : <div className="col-span-1" />}
