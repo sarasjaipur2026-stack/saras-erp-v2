@@ -3,7 +3,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { suppliers as supplierDb } from '../../lib/db'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, Input, Modal, DataTable, PaginationBar } from '../../components/ui'
-import { Plus, Edit2 } from 'lucide-react'
+import { Plus, Edit2, Search } from 'lucide-react'
 
 const PAGE_SIZE = 50
 const EMPTY_FORM = { name: '', phone: '', firm: '', gstin: '', address: '', city: '', state: '' }
@@ -15,6 +15,8 @@ export default function SuppliersPage() {
   const [currentPage, setCurrentPage] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -24,7 +26,7 @@ export default function SuppliersPage() {
   const load = useCallback(async () => {
     setIsLoading(true)
     setLoadError('')
-    const { data, error, count } = await supplierDb.getPage({ page: currentPage, pageSize: PAGE_SIZE })
+    const { data, error, count } = await supplierDb.getPage({ page: currentPage, pageSize: PAGE_SIZE, search: searchTerm })
     if (error) {
       setLoadError(error.message || 'Could not load suppliers')
       setSuppliers([])
@@ -34,9 +36,16 @@ export default function SuppliersPage() {
       setTotalCount(count || 0)
     }
     setIsLoading(false)
-  }, [currentPage])
+  }, [currentPage, searchTerm])
 
   useEffect(() => { load() }, [load])
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setCurrentPage(0)
+      setSearchTerm(searchInput.trim())
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [searchInput])
 
   const handleSave = async () => {
     if (!form.name) { toast.error('Name required'); return }
@@ -76,12 +85,16 @@ export default function SuppliersPage() {
         </Button>
       </div>
 
+      <div className="mb-4">
+        <Input icon={Search} placeholder="Search supplier, firm, phone, city, or GSTIN..." value={searchInput} onChange={event => setSearchInput(event.target.value)} />
+      </div>
+
       <DataTable
         columns={columns}
         data={suppliers}
         isLoading={isLoading}
         emptyTitle={loadError ? 'Suppliers could not be loaded' : 'No suppliers yet'}
-        emptyDescription={loadError || 'Add the first supplier to start purchase and jobwork flows.'}
+        emptyDescription={loadError || (searchTerm ? 'Try a different supplier search.' : 'Add the first supplier to start purchase and jobwork flows.')}
         emptyAction={loadError
           ? <Button variant="secondary" onClick={load}>Retry</Button>
           : <Button onClick={() => { setEditing(null); setForm(EMPTY_FORM); setShowForm(true) }}><Plus size={15} /> Add Supplier</Button>}

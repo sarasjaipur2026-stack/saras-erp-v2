@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useDeferredValue, useMemo } from 'react'
 import { colors } from '../../lib/db'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
-import { Button, Input, Modal } from '../../components/ui'
-import { Plus, Palette } from 'lucide-react'
+import { Button, Input, Modal, PaginationBar } from '../../components/ui'
+import { Plus, Palette, Search } from 'lucide-react'
+
+const PAGE_SIZE = 50
 
 export default function ColorsPage() {
   const { user } = useAuth()
@@ -12,6 +14,8 @@ export default function ColorsPage() {
   const [list, setList] = useState([])
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ name: '', hex_code: '#6366f1' })
+  const [searchTerm, setSearchTerm] = useState('')
+  const [currentPage, setCurrentPage] = useState(0)
 
   const fetchData = useCallback(async () => {
     if (!userId) return
@@ -20,6 +24,14 @@ export default function ColorsPage() {
   }, [userId])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  const deferredSearchTerm = useDeferredValue(searchTerm)
+  const needle = deferredSearchTerm.trim().toLowerCase()
+  const filtered = useMemo(() => needle ? list.filter(color =>
+    [color.name, color.hex_code].some(value => String(value || '').toLowerCase().includes(needle)),
+  ) : list, [list, needle])
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+  const page = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE)
 
   const handleAdd = async () => {
     if (!form.name) { toast.error('Enter a color name'); return }
@@ -40,9 +52,14 @@ export default function ColorsPage() {
         </Button>
       </div>
 
-      {list.length > 0 ? (
+      <div className="mb-4">
+        <Input icon={Search} placeholder="Search color name or hex code..." value={searchTerm} onChange={event => { setSearchTerm(event.target.value); setCurrentPage(0) }} />
+      </div>
+
+      {filtered.length > 0 ? (
+        <>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {list.map(color => (
+          {page.map(color => (
             <div key={color.id} className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden hover:shadow-md hover:shadow-slate-100 transition-all duration-200 group">
               <div className="h-24 transition-transform duration-300 group-hover:scale-[1.03]" style={{ backgroundColor: color.hex_code }} />
               <div className="p-3">
@@ -52,13 +69,24 @@ export default function ColorsPage() {
             </div>
           ))}
         </div>
+        {totalPages > 1 && (
+          <div className="mt-4">
+            <PaginationBar
+              currentPage={currentPage}
+              totalPages={totalPages}
+              rangeLabel={`${currentPage * PAGE_SIZE + 1}–${Math.min((currentPage + 1) * PAGE_SIZE, filtered.length)} of ${filtered.length.toLocaleString('en-IN')}`}
+              onPageChange={setCurrentPage}
+            />
+          </div>
+        )}
+        </>
       ) : (
         <div className="text-center py-16">
           <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
             <Palette size={24} className="text-slate-400" />
           </div>
-          <p className="text-sm text-slate-400 mb-4">No colors added yet</p>
-          <Button variant="secondary" onClick={() => setShowModal(true)}>Add First Color</Button>
+          <p className="text-sm text-slate-400 mb-4">{needle ? 'No matching colors' : 'No colors added yet'}</p>
+          {!needle && <Button variant="secondary" onClick={() => setShowModal(true)}>Add First Color</Button>}
         </div>
       )}
 

@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useApp } from '../../contexts/AppContext'
 import { useAuth } from '../../contexts/AuthContext'
 import { materials as matDb } from '../../lib/db'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, Input, Select, Modal, DataTable, Badge } from '../../components/ui'
-import { Plus, Edit2 } from 'lucide-react'
+import { Plus, Edit2, Search } from 'lucide-react'
 
 const CATEGORIES = ['Cotton', 'PolyCotton', 'Polyester DTY', 'Spun Polyester', 'Viscose', 'Filler', 'Other']
 
@@ -17,11 +17,18 @@ export default function MaterialsPage() {
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
   const [filter, setFilter] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
   const toast = useToast()
 
   useEffect(() => { ensureCritical() }, [ensureCritical])
 
-  const filtered = filter ? materials.filter(m => m.category === filter) : materials
+  const deferredSearchTerm = useDeferredValue(searchTerm)
+  const needle = deferredSearchTerm.trim().toLowerCase()
+  const filtered = useMemo(() => materials.filter(material =>
+    (!filter || material.category === filter)
+    && (!needle || [material.name, material.category, material.hsn_code]
+      .some(value => String(value || '').toLowerCase().includes(needle))),
+  ), [filter, materials, needle])
 
   const handleSave = async () => {
     if (!form.name || !form.category) { toast.error('Name and Category required'); return }
@@ -53,6 +60,10 @@ export default function MaterialsPage() {
         <Button onClick={() => { setEditing(null); setForm(emptyForm); setShowForm(true) }}>
           <Plus size={15} /> Add Material
         </Button>
+      </div>
+
+      <div className="mb-4">
+        <Input icon={Search} placeholder="Search material, category, or HSN..." value={searchTerm} onChange={event => setSearchTerm(event.target.value)} />
       </div>
 
       <div className="flex gap-2 mb-4 flex-wrap">

@@ -1,5 +1,6 @@
 import { supabase } from '../supabase'
 import { ensureFreshSession } from '../authGate'
+import { normalizePageSearch } from '../pageSearch.js'
 import { isJwtStaleError } from './requestPolicy'
 
 // ─── GENERIC CRUD FACTORY ──────────────────────────────────
@@ -114,7 +115,7 @@ export const fetchAll = async (buildQuery) => {
 }
 
 export function createTable(table, opts = {}) {
-  const { orderBy = 'created_at', orderAsc = false, select = '*', ownerFilter = true } = opts
+  const { orderBy = 'created_at', orderAsc = false, select = '*', ownerFilter = true, searchColumns = [] } = opts
 
   return {
     list: async (userId) => safe(() => fetchAll(() => {
@@ -127,11 +128,15 @@ export function createTable(table, opts = {}) {
       supabase.from(table).select(select).order(orderBy, { ascending: orderAsc })
     )),
 
-    getPage: async ({ page = 0, pageSize = 50, userId = null } = {}) => safe(() => {
+    getPage: async ({ page = 0, pageSize = 50, userId = null, search = '' } = {}) => safe(() => {
       const from = Math.max(0, page) * pageSize
       const to = from + pageSize - 1
       let q = supabase.from(table).select(select, { count: 'exact' })
       if (ownerFilter && userId) q = q.eq('user_id', userId)
+      const safeSearch = normalizePageSearch(search)
+      if (safeSearch && searchColumns.length) {
+        q = q.or(searchColumns.map(column => `${column}.ilike.%${safeSearch}%`).join(','))
+      }
       return q.order(orderBy, { ascending: orderAsc }).range(from, to)
     }),
 

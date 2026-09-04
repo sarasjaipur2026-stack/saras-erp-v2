@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useApp } from '../../contexts/AppContext'
 import { useAuth } from '../../contexts/AuthContext'
 import { products as productDb } from '../../lib/db'
 import { useToast } from '../../contexts/ToastContext'
 import { Button, Input, Select, Modal, DataTable, Badge } from '../../components/ui'
-import { Plus, Edit2 } from 'lucide-react'
+import { Plus, Edit2, Search } from 'lucide-react'
 
 export default function ProductsPage() {
   const { products, loadMasterData, ensureCritical } = useApp()
@@ -14,9 +14,17 @@ export default function ProductsPage() {
   const emptyForm = { code: '', name: '', name_hi: '', uses_filler: false, hsn_code: '5607', gst_rate: 12, default_rate_unit: 'per_meter' }
   const [form, setForm] = useState(emptyForm)
   const [saving, setSaving] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
   const toast = useToast()
 
   useEffect(() => { ensureCritical() }, [ensureCritical])
+
+  const deferredSearchTerm = useDeferredValue(searchTerm)
+  const needle = deferredSearchTerm.trim().toLowerCase()
+  const filtered = useMemo(() => needle ? products.filter(product =>
+    [product.code, product.name, product.name_hi, product.hsn_code]
+      .some(value => String(value || '').toLowerCase().includes(needle)),
+  ) : products, [needle, products])
 
   const handleSave = async () => {
     if (!form.code || !form.name) { toast.error('Code and Name required'); return }
@@ -51,7 +59,11 @@ export default function ProductsPage() {
         </Button>
       </div>
 
-      <DataTable columns={columns} data={products} emptyMessage="No products" />
+      <div className="mb-4">
+        <Input icon={Search} placeholder="Search product, code, or HSN..." value={searchTerm} onChange={event => setSearchTerm(event.target.value)} />
+      </div>
+
+      <DataTable columns={columns} data={filtered} emptyMessage={needle ? 'No matching products' : 'No products'} />
 
       <Modal isOpen={showForm} onClose={() => setShowForm(false)} title={editing ? 'Edit Product' : 'New Product'} size="md"
         footer={<><Button variant="secondary" size="sm" onClick={() => setShowForm(false)}>Cancel</Button><Button size="sm" onClick={handleSave} loading={saving}>Save</Button></>}

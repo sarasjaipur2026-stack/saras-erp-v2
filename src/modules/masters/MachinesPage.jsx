@@ -1,11 +1,20 @@
-import { useEffect } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useApp } from '../../contexts/AppContext'
-import { DataTable, Badge } from '../../components/ui'
+import { DataTable, Badge, Input } from '../../components/ui'
+import { Search } from 'lucide-react'
 
 export default function MachinesPage() {
   const { machines, ensureCritical } = useApp()
+  const [searchTerm, setSearchTerm] = useState('')
 
   useEffect(() => { ensureCritical() }, [ensureCritical])
+
+  const deferredSearchTerm = useDeferredValue(searchTerm)
+  const needle = deferredSearchTerm.trim().toLowerCase()
+  const filtered = useMemo(() => needle ? machines.filter(machine =>
+    [machine.code, machine.name, machine.name_hi]
+      .some(value => String(value || '').toLowerCase().includes(needle)),
+  ) : machines, [machines, needle])
 
   const columns = [
     { key: 'code', label: 'Code', render: v => <span className="font-mono text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-semibold">{v}</span> },
@@ -21,7 +30,10 @@ export default function MachinesPage() {
         <h1 className="text-xl font-bold text-slate-900 tracking-tight">Machines</h1>
         <p className="text-[13px] text-slate-400 mt-0.5">{machines.length} machine types configured</p>
       </div>
-      <DataTable columns={columns} data={machines} emptyMessage="No machines" />
+      <div className="mb-4">
+        <Input icon={Search} placeholder="Search machine or code..." value={searchTerm} onChange={event => setSearchTerm(event.target.value)} />
+      </div>
+      <DataTable columns={columns} data={filtered} emptyMessage={needle ? 'No matching machines' : 'No machines'} />
     </div>
   )
 }

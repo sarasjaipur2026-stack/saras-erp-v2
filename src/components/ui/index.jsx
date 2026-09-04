@@ -571,6 +571,7 @@ export const DataTable = ({
           <div className="flex items-center gap-1">
             <button
               type="button"
+              aria-label="Previous page"
               onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
               disabled={currentPage === 0}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
@@ -582,6 +583,7 @@ export const DataTable = ({
             </span>
             <button
               type="button"
+              aria-label="Next page"
               onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
               disabled={currentPage >= totalPages - 1}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"

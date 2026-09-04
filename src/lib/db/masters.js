@@ -6,7 +6,10 @@ export const products = createTable('products', { ownerFilter: false })
 export const materials = createTable('materials', { ownerFilter: false })
 export const machines = createTable('machines', { orderBy: 'id', orderAsc: true, ownerFilter: false })
 export const colors = createTable('colors', { ownerFilter: false })
-export const suppliers = createTable('suppliers', { ownerFilter: false })
+export const suppliers = createTable('suppliers', {
+  ownerFilter: false,
+  searchColumns: ['name', 'firm', 'phone', 'city', 'gstin'],
+})
 export const brokers = createTable('brokers', { ownerFilter: false })
 export const chargeTypes = createTable('charge_types', { ownerFilter: false })
 export const orderTypes = createTable('order_types', { ownerFilter: false })
