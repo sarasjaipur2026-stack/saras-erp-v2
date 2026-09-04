@@ -843,7 +843,7 @@ begin
         if nullif(trim(v_row ->> 'name'), '') is null or nullif(trim(v_row ->> 'code'), '') is null then
           raise exception 'Product name and code are required';
         end if;
-        if coalesce(nullif(v_row ->> 'default_rate_unit', ''), 'per_meter') not in ('per_meter', 'per_kg') then
+        if coalesce(nullif(v_row ->> 'default_rate_unit', ''), 'per_meter') not in ('per_meter', 'per_kg', 'per_piece') then
           raise exception 'Invalid product rate unit';
         end if;
         insert into public.products (
