@@ -1,3 +1,4 @@
+import { orderQuantity } from '../../../lib/orderQuantity';
 import { Badge, Currency } from '../../../components/ui';
 
 const formatDate = (value) => new Intl.DateTimeFormat('en-IN', {
@@ -95,7 +96,7 @@ export function StepReview({
                 <Currency amount={item.amount} />
               </div>
               <p className="text-sm text-slate-600">
-                {item.meters} meters @ {item.rate_per_unit}/unit
+                {orderQuantity(item).quantity} {orderQuantity(item).unit} @ {item.rate_per_unit}/unit
               </p>
             </div>
           ))}

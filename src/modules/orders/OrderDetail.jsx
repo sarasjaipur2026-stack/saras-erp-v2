@@ -1,3 +1,4 @@
+import { orderQuantity, deliveryProgress } from '../../lib/orderQuantity';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -209,14 +210,7 @@ export default function OrderDetail() {
     printOrderDocument(order, type, orderDeliveries);
   };
 
-  const getDeliveryProgress = (lineItem) => {
-    const totalQty = lineItem.meters || lineItem.weight_kg || 0;
-    const deliveredQty = orderDeliveries
-      .filter(d => d.line_item_id === lineItem.id)
-      .reduce((sum, d) => sum + d.delivered_qty, 0);
-    const percentage = totalQty > 0 ? Math.round((deliveredQty / totalQty) * 100) : 0;
-    return { deliveredQty, totalQty, percentage };
-  };
+  const getDeliveryProgress = lineItem => deliveryProgress(lineItem, orderDeliveries);
 
   const getTotalAmount = () => {
     return order?.grand_total || 0;
@@ -407,8 +401,7 @@ export default function OrderDetail() {
               const progress = getDeliveryProgress(line);
               const barColor = progress.percentage === 100 ? 'bg-emerald-500' : 'bg-indigo-600';
               const productName = line.products?.name || line.materials?.name || 'Item';
-              const quantity = line.meters || line.weight_kg || 0;
-              const unit = line.meters ? 'meters' : 'kg';
+              const { quantity, unit } = orderQuantity(line);
               return (
                 <div key={line.id} className="border border-slate-200 rounded-xl p-4">
                   <div className="flex items-center justify-between mb-3">
@@ -437,8 +430,7 @@ export default function OrderDetail() {
             {order.order_line_items?.map(line => {
               const productName = line.products?.name || line.materials?.name || 'Item';
               const isJobwork = line.line_type === 'jobwork';
-              const quantity = line.meters || line.weight_kg || 0;
-              const unit = line.meters ? 'meters' : 'kg';
+              const { quantity, unit } = orderQuantity(line);
               return (
                 <div key={line.id} className="border border-slate-200 rounded-xl p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3">
@@ -578,8 +570,7 @@ export default function OrderDetail() {
             <option value="">Select Line Item</option>
             {order.order_line_items?.map(line => {
               const productName = line.products?.name || line.materials?.name || 'Item';
-              const quantity = line.meters || line.weight_kg || 0;
-              const unit = line.meters ? 'meters' : 'kg';
+              const { quantity, unit } = orderQuantity(line);
               return (
                 <option key={line.id} value={line.id}>
                   {productName} - {quantity} {unit}
