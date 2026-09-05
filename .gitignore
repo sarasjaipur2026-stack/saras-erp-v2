@@ -31,3 +31,5 @@ npm-debug.log*
 # Local audit/tool caches
 .npm-cache/
 .docker-config/
+supabase/.temp/
+.env*

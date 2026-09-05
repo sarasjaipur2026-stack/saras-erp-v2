@@ -27,7 +27,7 @@ export function StepPricingCharges({
         ) : (
           <div className="space-y-3">
             {formData.charges.map((charge) => (
-              <div key={charge.id} className="flex gap-4 items-end p-4 bg-slate-50 rounded-lg">
+              <div key={charge.id} className="flex flex-col sm:flex-row gap-4 sm:items-end p-4 bg-slate-50 rounded-lg">
                 <div className="flex-1">
                   <Select
                     label="Charge Type"
@@ -47,7 +47,7 @@ export function StepPricingCharges({
                     value={charge.amount || 0}
                     onChange={(e) => {
                       onUpdateCharge(charge.id, { amount: parseFloat(e.target.value) });
-                      recalculatePricing();
+
                     }}
                     placeholder="0.00"
                   />
@@ -69,7 +69,7 @@ export function StepPricingCharges({
                     checked={charge.is_taxable}
                     onChange={(e) => {
                       onUpdateCharge(charge.id, { is_taxable: e.target.checked });
-                      recalculatePricing();
+
                     }}
                     className="w-4 h-4 rounded"
                   />
@@ -148,17 +148,8 @@ export function StepPricingCharges({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">Advance Paid</label>
-            <Input
-              type="number"
-              min="0"
-              value={formData.advance_paid || 0}
-              onChange={(e) => {
-                const val = parseFloat(e.target.value);
-                setFormData((prev) => ({ ...prev, advance_paid: val }));
-                recalculatePricing();
-              }}
-              placeholder="0.00"
-            />
+            <Currency amount={formData.advance_paid || 0} />
+            <p className="text-sm text-slate-500 mt-2">Record advances in Payments after saving the order. Receipts update this balance automatically.</p>
           </div>
         </div>
       </div>
@@ -190,17 +181,17 @@ export function StepPricingCharges({
           {formData.gst_type === 'intra_state' ? (
             <>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-700">CGST (9%)</span>
+                <span className="text-slate-700">CGST</span>
                 <Currency amount={formData.cgst_amount} />
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-700">SGST (9%)</span>
+                <span className="text-slate-700">SGST</span>
                 <Currency amount={formData.sgst_amount} />
               </div>
             </>
           ) : (
             <div className="flex justify-between text-sm">
-              <span className="text-slate-700">IGST (18%)</span>
+              <span className="text-slate-700">IGST</span>
               <Currency amount={formData.igst_amount} />
             </div>
           )}

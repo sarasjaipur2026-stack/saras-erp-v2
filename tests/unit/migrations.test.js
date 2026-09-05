@@ -58,6 +58,57 @@ async function runMigrations(db) {
   }
 }
 
+test('atomic order save rolls back children, protects ownership and makes retries idempotent', async () => {
+  const db = new PGlite()
+  const userId = '00000000-0000-4000-8000-000000000091'
+  const customerId = '00000000-0000-4000-8000-000000000092'
+  const requestId = '00000000-0000-4000-8000-000000000093'
+  const productId = '00000000-0000-4000-8000-000000000094'
+  const save = (id, request, order, lines = [], charges = []) => db.query(
+    'select public.save_order_transactional($1,$2,$3,$4,$5) as result',
+    [id, request, JSON.stringify(order), JSON.stringify(lines), JSON.stringify(charges)],
+  )
+  try {
+    await db.waitReady
+    await createSupabaseHarness(db)
+    await runMigrations(db)
+    await db.query('insert into auth.users(id,email) values($1,$2)', [userId, 'audit@example.test'])
+    await db.query("update public.profiles set role='admin' where id=$1", [userId])
+    await db.query("select set_config('request.jwt.claim.sub',$1,false)", [userId])
+    await db.query('insert into public.customers(id,user_id,firm_name) values($1,$2,$3)', [customerId,userId,'Audit Customer'])
+    await db.query('insert into public.products(id,user_id,code,name) values($1,$2,$3,$4)', [productId,userId,'AUD','Audit Product'])
+    const order = { customer_id: customerId, status: 'draft', grand_total: 100, advance_paid: 90 }
+    await assert.rejects(save(null,requestId,order,[{product_id:'00000000-0000-4000-8000-000000000099',quantity:1}]), /foreign key/)
+    assert.equal((await db.query('select count(*)::int as n from public.orders')).rows[0].n, 0)
+    const lines = [{product_id:productId,quantity:1,rate_per_unit:100,amount:100}]
+    const first = (await save(null,requestId,order,lines)).rows[0].result
+    const retry = (await save(null,requestId,order,lines)).rows[0].result
+    assert.equal(first.id,retry.id)
+    assert.equal(first.advance_paid,0)
+    assert.equal(first.balance_due,100)
+    assert.equal((await db.query('select count(*)::int as n from public.orders')).rows[0].n,1)
+    await assert.rejects(save(null,requestId,{...order,grand_total:200},lines),/different save/)
+    const line = (await db.query('select id from public.order_line_items where order_id=$1',[first.id])).rows[0]
+    const editRequest = '00000000-0000-4000-8000-000000000095'
+    await assert.rejects(save(first.id,editRequest,{...order,grand_total:200},[{...lines[0],id:line.id,amount:200}],[{charge_type_id:'00000000-0000-4000-8000-000000000099'}]),/foreign key/)
+    assert.equal(Number((await db.query('select amount from public.order_line_items where id=$1',[line.id])).rows[0].amount),100)
+    assert.equal(Number((await db.query('select grand_total from public.orders where id=$1',[first.id])).rows[0].grand_total),100)
+    await assert.rejects(save(first.id,editRequest,order,[{...lines[0],id:'00000000-0000-4000-8000-000000000099'}]),/does not belong/)
+    const updated=(await save(first.id,editRequest,{...order,grand_total:200},[{...lines[0],id:line.id,amount:200,rate_per_unit:200}])).rows[0].result
+    assert.equal(updated.grand_total,200)
+    const priced=(await save(first.id,'00000000-0000-4000-8000-000000000096',
+      {...order, grand_total:1, order_discount_type:'flat',order_discount_value:100},
+      [{...lines[0],id:line.id,quantity:10,gst_rate:18}],
+      [{amount:100,is_taxable:false}])).rows[0].result
+    assert.equal(priced.grand_total,1162, 'server recalculates instead of trusting the UI total')
+    assert.equal(priced.taxable_amount,900)
+    await assert.rejects(save(first.id,'00000000-0000-4000-8000-000000000097',
+      {...order,expected_updated_at:'2000-01-01T00:00:00Z'},lines),/changed since/)
+    await db.query("update public.profiles set role='viewer',permissions='{}' where id=$1",[userId])
+    await assert.rejects(save(first.id,editRequest,order,lines),/Permission denied/)
+  } finally { await db.close() }
+})
+
 test('all database migrations execute in filename order on a clean database', async () => {
   const db = new PGlite()
   try {
@@ -328,6 +379,18 @@ test('core transactional, import, dashboard, and search RPCs preserve invariants
     await db.waitReady
     await createSupabaseHarness(db)
     await runMigrations(db)
+    // The real installation retains these enums, actor FKs and required columns.
+    // A text-only clean schema previously hid live dispatch/invoice failures.
+    await db.exec(`
+      create type public.activity_action as enum ('created','updated','status_changed','delivery_added','payment_received');
+      alter table public.activity_log alter column action type public.activity_action using action::public.activity_action;
+      alter table public.activity_log add constraint audit_staff_actor_fk foreign key(staff_id) references public.staff(id);
+      create type public.invoice_status as enum ('draft','issued','paid','partially_paid','cancelled');
+      alter table public.invoices alter column status drop default;
+      alter table public.invoices alter column status type public.invoice_status using status::public.invoice_status;
+      alter table public.invoices alter column status set default 'draft';
+      alter table public.payments alter column user_id set not null;
+    `)
     await db.query(
       'insert into auth.users (id, email) values ($1, $2)',
       [userId, 'admin@example.test'],

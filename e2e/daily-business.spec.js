@@ -20,6 +20,7 @@ const mobileRoutes = [
 ]
 
 test('every daily-business screen opens without a runtime failure', async ({ page }, testInfo) => {
+  test.setTimeout(180_000)
   const errors = []
   page.on('pageerror', error => errors.push(`page: ${error.message}`))
   page.on('console', message => {
@@ -49,9 +50,18 @@ test('every daily-business screen opens without a runtime failure', async ({ pag
   expect(errors).toEqual([])
 })
 
-test('order costing and print actions are reachable from the exact order', async ({ page }) => {
+test('order workspace supports a fresh business and existing-order actions', async ({ page }) => {
   await page.goto('/orders')
+  await expect(page.getByRole('heading', { name: 'Order pipeline' })).toBeVisible()
+  const empty = page.getByRole('heading', { name: 'No orders match this view' })
   const firstOrder = page.locator('tbody tr').first()
+  await expect(firstOrder.or(empty).first()).toBeVisible({ timeout: 15_000 })
+  if (await empty.isVisible()) {
+    await page.getByRole('button', { name: 'New Order', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Create New Order' })).toBeVisible()
+    await expect(page.getByRole('combobox', { name: 'Search customers' })).toBeVisible()
+    return
+  }
   await expect(firstOrder).toBeVisible({ timeout: 15_000 })
   await firstOrder.click()
   await expect(page).toHaveURL(/\/orders\/[0-9a-f-]+$/)

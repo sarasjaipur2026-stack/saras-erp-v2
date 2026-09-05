@@ -12,7 +12,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { useApp } from '../../contexts/AppContext';
 import { useToast } from '../../contexts/ToastContext';
-import { orders, lineItems, orderCharges } from '../../lib/db';
+import { orders } from '../../lib/db';
 import { Button, Spinner } from '../../components/ui';
 import { StepCustomer } from './steps/StepCustomer';
 import { StepLineItems } from './steps/StepLineItems';
@@ -20,12 +20,11 @@ import { StepPricingCharges } from './steps/StepPricingCharges';
 import { StepReview } from './steps/StepReview';
 import { useUnsavedChangesPrompt } from '../../hooks/useUnsavedChangesPrompt';
 import {
-  buildChargePayload,
-  buildLinePayload,
-  buildOrderPayload,
   DEFAULT_ORDER,
   normalizeOrderForForm,
 } from '../../lib/orderFormModel';
+
+import { calculateOrderPricing } from '../../lib/orderPricing';
 
 const STEPS = [
   { id: 1, name: 'Customer', icon: Users },
@@ -55,8 +54,8 @@ export default function OrderForm() {
   const [validationErrors, setValidationErrors] = useState({});
   const [warnings, setWarnings] = useState([]);
   const [dirty, setDirty] = useState(false);
-  const persistedLineIds = React.useRef(new Set());
-  const persistedChargeIds = React.useRef(new Set());
+  const saveRequest = React.useRef(null);
+  const savingRef = React.useRef(false);
 
   // Warn on navigation away when form has unsaved changes
   useUnsavedChangesPrompt(dirty && !saving);
@@ -87,13 +86,12 @@ export default function OrderForm() {
         const { data: order, error } = await orders.get(sourceId);
         if (error) throw error;
         if (order && !cancelled) {
+          if (isEdit && !['draft', 'booking'].includes(order.status)) {
+            toast.error('This order has progressed. Use its production, dispatch and payment actions.');
+            navigate(`/orders/${order.id}`);
+            return;
+          }
           const normalized = normalizeOrderForForm(order, { duplicate: isDuplicate });
-          persistedLineIds.current = new Set(
-            isDuplicate ? [] : normalized.line_items.map(item => item.id).filter(Boolean),
-          );
-          persistedChargeIds.current = new Set(
-            isDuplicate ? [] : normalized.charges.map(charge => charge.id).filter(Boolean),
-          );
           initialFormRef.current = isDuplicate
             ? JSON.stringify(DEFAULT_ORDER)
             : JSON.stringify(normalized);
@@ -113,7 +111,7 @@ export default function OrderForm() {
 
     loadOrder();
     return () => { cancelled = true; };
-  }, [duplicateId, isDuplicate, navigate, orderId, toast]);
+  }, [duplicateId, isDuplicate, isEdit, navigate, orderId, toast]);
 
   const handleCustomerSelect = async (customer) => {
     if (!customer) {
@@ -123,12 +121,12 @@ export default function OrderForm() {
     }
     const customerStateCode = customer.state_code || customer.gstin?.substring(0, 2);
     setSelectedCustomer(customer);
-    setFormData((prev) => ({
+    setFormData((prev) => calculateOrderPricing({
       ...prev,
       customer_id: customer.id,
       shipping_address: customer.shipping_addresses?.[0] || null,
       gst_type: customerStateCode && customerStateCode !== companyStateCode ? 'inter_state' : 'intra_state',
-    }));
+    }, products, hsnCodes));
 
     // Smart defaults — pre-fill order_type / payment_terms / broker /
     // currency / priority / nature from this customer's most recent order,
@@ -138,7 +136,7 @@ export default function OrderForm() {
       try {
         const { data: last } = await orders.getLastForCustomer(customer.id);
         if (last) {
-          setFormData((prev) => ({
+          setFormData((prev) => prev.customer_id !== customer.id ? prev : ({
             ...prev,
             order_type_id:   prev.order_type_id   || last.order_type_id   || prev.order_type_id,
             payment_terms_id: prev.payment_terms_id || last.payment_terms_id || prev.payment_terms_id,
@@ -171,7 +169,7 @@ export default function OrderForm() {
       item_discount_type: 'flat',
       item_discount_value: 0,
       item_discount_amount: 0,
-      gst_rate: 0,
+      gst_rate: 18,
       gst_amount: 0,
       instructions: '',
     };
@@ -241,81 +239,12 @@ export default function OrderForm() {
   };
 
   const recalculatePricing = useCallback((lineItemsOverride = null, chargesOverride = null) => {
-    setFormData((prev) => {
-      const items = lineItemsOverride || prev.line_items || [];
-      const chargesList = chargesOverride || prev.charges || [];
-
-      let subtotal = 0;
-      let totalItemDiscount = 0;
-      let totalTax = 0;
-
-      // Determine interstate vs intrastate from the locally-selected customer.
-      // (Previously this did customers.find(...) on a 3,400-row preloaded array,
-      //  which was the biggest page-load cost. Now selectedCustomer is populated
-      //  by CustomerSearch / order load and carries state_code + gstin directly.)
-      const customerState = selectedCustomer?.state_code || selectedCustomer?.gstin?.substring(0, 2);
-      const isInterstate = customerState && customerState !== companyStateCode;
-
-      // Calculate tax per line item using HSN-based GST rates
-      items.forEach((item) => {
-        subtotal += item.amount || 0;
-        totalItemDiscount += item.item_discount_amount || 0;
-
-        // Look up GST rate: product -> hsn_code -> hsnCodes table -> gst_rate
-        const product = products?.find((p) => p.id === item.product_id);
-        const hsnCode = hsnCodes?.find((h) => h.code === product?.hsn_code);
-        const hsnRate = hsnCode
-          ? (isInterstate
-              ? Number(hsnCode.igst_pct || 0)
-              : Number(hsnCode.cgst_pct || 0) + Number(hsnCode.sgst_pct || 0))
-          : null;
-        const gstRate = hsnRate ?? product?.gst_rate ?? 18; // default 18%
-
-        const itemTaxable = (item.amount || 0) - (item.item_discount_amount || 0);
-        const itemTax = itemTaxable * (gstRate / 100);
-        totalTax += itemTax;
-      });
-
-      const totalCharges = chargesList.reduce((sum, charge) => sum + (charge.amount || 0), 0);
-
-      let orderDiscountAmount = prev.order_discount_amount || 0;
-      if (prev.order_discount_type === 'percentage') {
-        orderDiscountAmount = (subtotal * (prev.order_discount_value || 0)) / 100;
-      }
-
-      const totalTaxable = subtotal - totalItemDiscount - orderDiscountAmount + totalCharges;
-
-      // Tax on charges/order-level adjustments using weighted average rate
-      const itemSubtotalNet = subtotal - totalItemDiscount;
-      const avgGstRate = itemSubtotalNet > 0 ? (totalTax / itemSubtotalNet) : 0.18;
-      const adjustmentTaxable = totalCharges - orderDiscountAmount;
-      totalTax += adjustmentTaxable * avgGstRate;
-
-      // Split tax into CGST/SGST or IGST based on interstate determination
-      const { cgst, sgst, igst } = isInterstate
-        ? { cgst: 0, sgst: 0, igst: totalTax }
-        : { cgst: totalTax / 2, sgst: totalTax / 2, igst: 0 };
-
-      const grandTotal = totalTaxable + cgst + sgst + igst;
-
-      return {
-        ...prev,
-        line_items: items,
-        charges: chargesList,
-        gst_type: isInterstate ? 'inter_state' : 'intra_state',
-        subtotal,
-        total_item_discount: totalItemDiscount,
-        total_charges: totalCharges,
-        order_discount_amount: orderDiscountAmount,
-        taxable_amount: totalTaxable,
-        cgst_amount: cgst,
-        sgst_amount: sgst,
-        igst_amount: igst,
-        grand_total: grandTotal,
-        balance_due: grandTotal - (prev.advance_paid || 0),
-      };
-    });
-  }, [selectedCustomer, products, hsnCodes, companyStateCode]);
+    setFormData(prev => calculateOrderPricing({
+      ...prev,
+      line_items: lineItemsOverride || prev.line_items,
+      charges: chargesOverride || prev.charges,
+    }, products, hsnCodes));
+  }, [products, hsnCodes]);
 
   const validateStep = (step) => {
     const errors = {};
@@ -341,7 +270,7 @@ export default function OrderForm() {
         const quantityFieldCount = [item.quantity, item.meters, item.weight_kg]
           .filter((value) => Number(value) > 0).length;
         if (quantityFieldCount !== 1) {
-          errors[`lineItemQuantity${idx}`] = `Line item ${idx + 1}: Enter exactly one quantity — meters or weight`;
+          errors[`lineItemQuantity${idx}`] = `Line item ${idx + 1}: Enter exactly one quantity — meters, weight or pieces`;
         }
         if (!item.rate_per_unit || item.rate_per_unit <= 0) {
           newWarnings.push(`Line item ${idx + 1}: Rate must be greater than 0`);
@@ -369,123 +298,37 @@ export default function OrderForm() {
     setCurrentStep((prev) => Math.max(prev - 1, 1));
   };
 
-  const persistChildren = async (finalOrderId) => {
-    const currentLines = formData.line_items || [];
-    const currentCharges = formData.charges || [];
-    const lineCreates = currentLines.filter(item => item.id?.toString().startsWith('temp_'));
-    const chargeCreates = currentCharges.filter(charge => charge.id?.toString().startsWith('temp_'));
-    const lineUpdates = currentLines.filter(item => item.id && !item.id.toString().startsWith('temp_'));
-    const chargeUpdates = currentCharges.filter(charge => charge.id && !charge.id.toString().startsWith('temp_'));
-    const currentLineIds = new Set(lineUpdates.map(item => item.id));
-    const currentChargeIds = new Set(chargeUpdates.map(charge => charge.id));
-    const removedLineIds = [...persistedLineIds.current].filter(id => !currentLineIds.has(id));
-    const removedChargeIds = [...persistedChargeIds.current].filter(id => !currentChargeIds.has(id));
-
-    const operations = [];
-    if (lineCreates.length) {
-      operations.push(lineItems.createMany(lineCreates.map(item => buildLinePayload(item, finalOrderId))));
+  const saveOrder = async (draft) => {
+    if (savingRef.current) return;
+    if (!formData.customer_id) { toast.error('Please select a customer first'); return; }
+    if (!draft && ![1, 2, 4].every(step => validateStep(step))) {
+      toast.error('Please complete the customer and line item details'); return;
     }
-    if (chargeCreates.length) {
-      operations.push(orderCharges.createMany(chargeCreates.map(charge => buildChargePayload(charge, finalOrderId))));
+    const status = isEdit && formData.status !== 'draft'
+      ? formData.status : draft ? 'draft' : 'booking';
+    const priced = calculateOrderPricing(formData, products, hsnCodes);
+    // Preserve the request ID after an ambiguous network failure so retry cannot duplicate an order.
+    const fingerprint = JSON.stringify({ orderId, priced, status });
+    if (!saveRequest.current || saveRequest.current.fingerprint !== fingerprint) {
+      saveRequest.current = { fingerprint, id: crypto.randomUUID() };
     }
-    operations.push(
-      ...lineUpdates.map(item => lineItems.update(item.id, buildLinePayload(item, finalOrderId))),
-      ...chargeUpdates.map(charge => orderCharges.update(charge.id, buildChargePayload(charge, finalOrderId))),
-      ...removedLineIds.map(id => lineItems.delete(id)),
-      ...removedChargeIds.map(id => orderCharges.delete(id)),
-    );
-
-    const results = await Promise.all(operations);
-    const failed = results.find(result => result?.error);
-    if (failed?.error) throw failed.error;
-  };
-
-  const handleSaveDraft = async () => {
+    savingRef.current = true;
     setSaving(true);
     try {
-      const draftData = buildOrderPayload(formData, 'draft');
-
-      let finalOrderId;
-      if (isEdit) {
-        const { error } = await orders.update(orderId, draftData);
-        if (error) throw error;
-        finalOrderId = orderId;
-      } else {
-        if (!draftData.customer_id) {
-          toast.error('Please select a customer first');
-          setSaving(false);
-          return;
-        }
-        const { data: newOrder, error } = await orders.create(draftData);
-        if (error) throw error;
-        finalOrderId = newOrder.id;
-      }
-
-      try {
-        await persistChildren(finalOrderId);
-      } catch (childError) {
-        toast.error(`Draft saved, but its items could not be saved: ${childError.message}`);
-        navigate(`/orders/${finalOrderId}/edit`);
-        return;
-      }
-
-      if (isEdit) {
-        toast.success('Order updated as draft');
-        navigate(`/orders/${finalOrderId}`);
-      } else {
-        navigate(`/orders/${finalOrderId}`);
-        toast.success('Draft saved');
-      }
+      const { data, error } = await orders.save(priced, status, orderId, saveRequest.current.id);
+      if (error) throw error;
+      setDirty(false);
+      toast.success(draft ? 'Order saved' : isEdit ? 'Order updated' : 'Order created');
+      navigate('/orders/' + data.id);
     } catch (error) {
-      toast.error('Failed to save draft: ' + error.message);
+      toast.error('Could not save order: ' + error.message);
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
-
-  const handleCreateOrder = async () => {
-    if (!validateStep(4)) {
-      toast.error('Please fix validation errors');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      // 'booking' is the first non-draft state per ALLOWED_TRANSITIONS in orders.js.
-      // Previously used 'confirmed' which isn't in the state machine and stranded orders.
-      const orderData = buildOrderPayload(formData, 'booking');
-
-      let finalOrderId;
-      if (isEdit) {
-        const { error } = await orders.update(orderId, orderData);
-        if (error) throw error;
-        finalOrderId = orderId;
-        toast.success('Order updated');
-      } else {
-        const { data: newOrder, error } = await orders.create(orderData);
-        if (error) throw error;
-        finalOrderId = newOrder.id;
-        toast.success('Order created');
-      }
-
-      // Keep parent and children consistent. A child failure leaves the parent
-      // visibly in draft so the user can safely retry from the edit screen.
-      try {
-        await persistChildren(finalOrderId);
-      } catch (childError) {
-        await orders.update(finalOrderId, { status: 'draft' });
-        toast.error(`Order saved as draft because its items could not be saved: ${childError.message}`);
-        navigate(`/orders/${finalOrderId}/edit`);
-        return;
-      }
-
-      navigate('/orders');
-    } catch (error) {
-      toast.error('Failed to create order: ' + error.message);
-    } finally {
-      setSaving(false);
-    }
-  };
+  const handleSaveDraft = () => saveOrder(true);
+  const handleCreateOrder = () => saveOrder(false);
 
   if (loading) {
     return (

@@ -73,14 +73,14 @@ export function StepCustomer({
           <Select
             label="Currency"
             value={formData.currency_id || ''}
-            onChange={(e) => { const value = e.target.value; setFormData((prev) => ({ ...prev, currency_id: value })); }}
+            onChange={(e) => { const value = e.target.value; setFormData((prev) => ({ ...prev, currency_id: value || null, currency_code: currencies.find(c => c.id === value)?.code || 'INR' })); }}
             options={[
               { value: '', label: 'Select currency' },
               ...(currencies || []).map((c) => ({ value: c.id, label: c.code })),
             ]}
           />
 
-          <div className="col-span-2 pt-6 border-t border-slate-200">
+          <div className="lg:col-span-2 pt-6 border-t border-slate-200">
             <label className="block text-sm font-semibold text-slate-900 mb-4">Delivery Dates</label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>

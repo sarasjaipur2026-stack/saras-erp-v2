@@ -2,6 +2,7 @@ import { supabase } from '../supabase'
 import { safe, createTable } from './core'
 import { lineItems, orderCharges } from './masters'
 import { notifications } from './notifications'
+import { buildOrderPayload, buildLinePayload, buildChargePayload } from '../orderFormModel'
 
 const ALLOWED_TRANSITIONS = {
   draft: ['booking', 'cancelled'],
@@ -20,6 +21,20 @@ export const orders = {
     select: '*, customers(firm_name, contact_name, city)',
     ownerFilter: false,
   }),
+
+  save: (form, status, orderId, requestId) => safe(() => supabase.rpc('save_order_transactional', {
+    p_order_id: orderId || null,
+    p_request_id: requestId,
+    p_order: { ...buildOrderPayload(form, status), expected_updated_at: form.updated_at || null },
+    p_lines: (form.line_items || []).map(line => ({
+      ...buildLinePayload(line, orderId),
+      id: line.id && !String(line.id).startsWith('temp_') ? line.id : null,
+    })),
+    p_charges: (form.charges || []).map(charge => ({
+      ...buildChargePayload(charge, orderId),
+      id: charge.id && !String(charge.id).startsWith('temp_') ? charge.id : null,
+    })),
+  })),
 
   // userId accepted for call-site consistency but not used in the query —
   // row-level security (RLS) on the orders table handles per-user filtering.

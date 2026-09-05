@@ -130,17 +130,17 @@ export function StepReview({
           {formData.gst_type === 'intra_state' ? (
             <>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-700">CGST (9%)</span>
+                <span className="text-slate-700">CGST</span>
                 <Currency amount={formData.cgst_amount} />
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-700">SGST (9%)</span>
+                <span className="text-slate-700">SGST</span>
                 <Currency amount={formData.sgst_amount} />
               </div>
             </>
           ) : (
             <div className="flex justify-between text-sm">
-              <span className="text-slate-700">IGST (18%)</span>
+              <span className="text-slate-700">IGST</span>
               <Currency amount={formData.igst_amount} />
             </div>
           )}

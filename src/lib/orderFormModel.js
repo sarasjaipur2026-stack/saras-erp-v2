@@ -75,6 +75,7 @@ export const normalizeOrderForForm = (order, { duplicate = false, now = Date.now
     // Read-only display metadata. buildOrderPayload deliberately omits this,
     // while the edit workspace still needs it for a useful page heading.
     order_number: order?.order_number || null,
+    updated_at: duplicate ? null : order?.updated_at || null,
     line_items: lineItems.map((line, index) => ({
       ...pick(line, LINE_FIELDS),
       ...pick(line, LINE_DISPLAY_FIELDS),
@@ -88,7 +89,15 @@ export const normalizeOrderForForm = (order, { duplicate = false, now = Date.now
 
   if (normalized.order_discount_type === 'percent') normalized.order_discount_type = 'percentage'
 
-  if (duplicate) normalized.status = 'draft'
+  if (duplicate) {
+    normalized.status = 'draft'
+    normalized.advance_paid = 0
+    normalized.balance_due = normalized.grand_total
+    normalized.order_number = null
+    normalized.delivery_date_1 = null
+    normalized.delivery_date_2 = null
+    normalized.delivery_date_3 = null
+  }
   return normalized
 }
 

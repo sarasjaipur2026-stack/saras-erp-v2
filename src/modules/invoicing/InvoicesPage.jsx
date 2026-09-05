@@ -44,7 +44,7 @@ export default function InvoicesPage() {
     try {
       const { data, error } = await ordersApi.getAll()
       if (error) { toast.error('Failed to load orders'); return }
-      setAvailableOrders((data || []).filter(o => ['dispatch', 'completed', 'approved', 'production'].includes(o.status)))
+      setAvailableOrders((data || []).filter(o => ['dispatch', 'completed', 'approved', 'production', 'qc'].includes(o.status)))
       setPicked('')
       setShowCreate(true)
     } catch {
