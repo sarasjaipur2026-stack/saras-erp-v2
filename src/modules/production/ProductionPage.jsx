@@ -71,12 +71,16 @@ export default function ProductionPage() {
   const updateStatus = async (job, newStatus) => {
     const patch = { status: newStatus }
     if (newStatus === 'in_progress' && !job.actual_start) patch.actual_start = new Date().toISOString()
-    if (newStatus === 'completed') patch.actual_end = new Date().toISOString()
-    const { error } = await productionPlans.update(job.id, patch)
-    if (error) { toast.error('Update failed'); return }
+    if (newStatus === 'completed') {
+      if (!(Number(job.completed_qty) > 0)) { toast.error('Enter and save output quantity before completing'); return }
+      patch.completed_qty = Number(job.completed_qty)
+      patch.actual_end = new Date().toISOString()
+    }
+    const { data: saved, error } = await productionPlans.update(job.id, patch)
+    if (error) { toast.error(error.message || 'Update failed'); return }
     toast.success(`Status: ${STATUS[newStatus]?.label || newStatus}`)
     loadData()
-    if (detailJob?.id === job.id) setDetailJob({ ...detailJob, ...patch })
+    if (detailJob?.id === job.id) setDetailJob({ ...detailJob, ...saved })
   }
 
   const filtered = useMemo(() => {
@@ -248,16 +252,15 @@ export default function ProductionPage() {
           {detailJob.status === 'planned' && <Button size="sm" onClick={() => updateStatus(detailJob, 'in_progress')}><Play size={13} /> Start</Button>}
           {detailJob.status === 'in_progress' && <>
             <Button variant="secondary" size="sm" onClick={() => updateStatus(detailJob, 'on_hold')}>Hold</Button>
-            <Button size="sm" variant="success" onClick={() => updateStatus(detailJob, 'completed')}><CheckCircle2 size={13} /> Complete</Button>
           </>}
           {detailJob.status === 'on_hold' && <Button size="sm" onClick={() => updateStatus(detailJob, 'in_progress')}><RotateCw size={13} /> Resume</Button>}
         </>}
       >
         {detailJob && <ProductionDetailBody job={detailJob} onPatch={async (p) => {
-          const { error } = await productionPlans.update(detailJob.id, p)
-          if (error) return toast.error('Save failed')
+          const { data: saved, error } = await productionPlans.update(detailJob.id, p)
+          if (error) return toast.error(error.message || 'Save failed')
           toast.success('Saved')
-          setDetailJob(prev => prev ? { ...prev, ...p } : null)
+          setDetailJob(prev => prev ? { ...prev, ...saved } : null)
           loadData()
         }} />}
       </Modal>
@@ -313,11 +316,16 @@ function ProductionDetailBody({ job, onPatch }) {
             className="flex-1"
             placeholder="Completed qty"
           />
-          <Button size="sm" onClick={() => onPatch({ completed_qty: completed })}>
+          <Button size="sm" disabled={job.status === 'completed'} onClick={() => onPatch({ completed_qty: completed })}>
             <TrendingUp size={13} /> Update
           </Button>
         </div>
       </div>
+
+      {job.status === 'in_progress' && <Button variant="success" disabled={!(Number(completed) > 0)}
+        onClick={() => onPatch({ status: 'completed', completed_qty: completed, actual_end: new Date().toISOString(), notes })}>
+        <CheckCircle2 size={13} /> Complete with {fmt(completed)} {job.unit}
+      </Button>}
 
       {/* Timestamps */}
       <div className="grid grid-cols-2 gap-3 bg-slate-50/60 rounded-xl p-3 text-[12px]">

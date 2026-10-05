@@ -1,4 +1,4 @@
-import { useCallback, useState, useMemo } from 'react'
+import { useCallback, useRef, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { enquiries } from '../../lib/db'
 import { useAuth } from '../../contexts/AuthContext'
@@ -37,12 +37,22 @@ export default function EnquiriesPage() {
   const [viewFilter, setViewFilter] = useQueryState('view', 'open')
   const [lostTarget, setLostTarget] = useState(null)
   const [lostLoading, setLostLoading] = useState(false)
+  const converting = useRef(false)
+  const [convertLoading, setConvertLoading] = useState(false)
 
   const handleConvert = async (e, row) => {
     e.stopPropagation()
-    const { error } = await enquiries.convertToOrder(row.id)
-    if (error) toast.error('Failed to convert')
-    else { toast.success('Converted to order'); fetchData() }
+    if (converting.current) return
+    converting.current = true
+    setConvertLoading(true)
+    try {
+      const { error } = await enquiries.convertToOrder(row.id)
+      if (error) toast.error(error.message || 'Failed to convert')
+      else { toast.success('Converted to order'); fetchData() }
+    } finally {
+      converting.current = false
+      setConvertLoading(false)
+    }
   }
 
   const handleMarkLostClick = (e, row) => {
@@ -102,7 +112,7 @@ export default function EnquiriesPage() {
       if (outcome !== 'open') return null
       return (
         <div className="flex gap-1">
-          <button onClick={(e) => handleConvert(e, row)} className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors" title="Convert to Order">
+          <button disabled={convertLoading} onClick={(e) => handleConvert(e, row)} className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors" title="Convert to Order">
             <CheckCircle size={15} />
           </button>
           <button onClick={(e) => handleMarkLostClick(e, row)} className="p-1.5 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors" title="Mark Lost">

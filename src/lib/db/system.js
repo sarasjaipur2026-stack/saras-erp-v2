@@ -49,6 +49,13 @@ export const appSettings = {
 // ─── ATTACHMENTS ──────────────────────────────────────────
 export const attachments = {
   ...createTable('attachments', { orderBy: 'created_at', orderAsc: false, ownerFilter: false }),
+  delete: async (id) => {
+    const { data: row, error } = await safe(() => supabase.from('attachments').select('storage_path').eq('id', id).single())
+    if (error) return { data: null, error }
+    const removed = await safe(() => supabase.storage.from(ATTACHMENT_BUCKET).remove([row.storage_path]))
+    if (removed.error) return removed
+    return safe(() => supabase.from('attachments').delete().eq('id', id))
+  },
 
   listByEntity: async (entityType, entityId) => safe(() =>
     supabase
@@ -71,7 +78,7 @@ export const attachments = {
       const originalName = safeDisplayName(file.name)
       const extension = originalName.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'bin'
       const objectName = `${crypto.randomUUID()}.${extension}`
-      const storagePath = `${entityType}/${entityId}/${objectName}`
+      const storagePath = `${entityType}/${entityId}/${authenticatedUserId}/${objectName}`
 
       const { error: uploadErr } = await supabase.storage
         .from(ATTACHMENT_BUCKET)

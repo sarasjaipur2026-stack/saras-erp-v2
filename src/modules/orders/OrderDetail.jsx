@@ -110,6 +110,10 @@ export default function OrderDetail() {
     const nextIndex = currentIndex + 1;
     if (nextIndex >= states.length || order?.status === 'cancelled') return null;
     const nextState = states[nextIndex];
+    if (!hasPermission('orders', 'edit')) return null;
+    if (nextState === 'approved' && !hasPermission('orders', 'approve')) return null;
+    if (nextState === 'production' && !hasPermission('production', 'manage')) return null;
+    if (nextState === 'dispatch' && !hasPermission('dispatch', 'create')) return null;
     // eslint-disable-next-line no-unused-vars
     const labels = { draft: 'Create Booking', booking: 'Approve', approved: 'Start Production', production: 'QC', qc: 'Dispatch', dispatch: 'Complete' };
     return { nextState, label: `Move to ${nextState} →`, current: order?.status };
@@ -182,9 +186,8 @@ export default function OrderDetail() {
       setCancelReason('');
       await loadOrderData();
       toast.success(`Order moved to ${progression.nextState}`);
-    // eslint-disable-next-line no-unused-vars
     } catch (error) {
-      toast.error('Failed to update status');
+      toast.error(error?.message || 'Failed to update status');
     }
   };
 

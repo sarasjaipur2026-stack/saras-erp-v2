@@ -10,6 +10,9 @@ const stockMovementsBase = createTable('stock_movements', {
 })
 export const stockMovements = {
   ...stockMovementsBase,
+  create: (payload, requestId = crypto.randomUUID()) => safe(() => supabase.rpc('adjust_stock_transactional', {
+    p_payload: payload, p_request_id: requestId,
+  })),
 
   getAll: async () => safe(() => fetchAll(() => supabase
       .from('stock_movements')

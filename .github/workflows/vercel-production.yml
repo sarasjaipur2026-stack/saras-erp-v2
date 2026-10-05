@@ -63,6 +63,8 @@ jobs:
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Build for production
+        env:
+          REQUIRE_SCHEMA_CHECK: '1'
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy + promote to production

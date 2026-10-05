@@ -2,6 +2,8 @@ import { supabase } from '../supabase'
 import { ensureFreshSession } from '../authGate'
 import { normalizePageSearch } from '../pageSearch.js'
 import { isJwtStaleError } from './requestPolicy'
+import { withDeadline } from '../deadline'
+import { ensureSchemaCompatibility } from '../schemaCompatibility'
 
 // ─── GENERIC CRUD FACTORY ──────────────────────────────────
 // Creates list/get/create/update/delete for ANY Supabase table.
@@ -35,7 +37,7 @@ const safeOnce = async (fn) => {
 let inFlightRefresh = null
 const refreshSessionOnce = () => {
   if (!inFlightRefresh) {
-    inFlightRefresh = supabase.auth.refreshSession()
+    inFlightRefresh = withDeadline(() => supabase.auth.refreshSession())
       .catch(() => null)
       .finally(() => { inFlightRefresh = null })
   }
@@ -49,7 +51,8 @@ export const safe = async (fn) => {
   // where a user's click fires a query with a stale JWT while a separate
   // refresh is in flight.
   try {
-    await ensureFreshSession()
+    await withDeadline(() => ensureFreshSession())
+    await withDeadline(() => ensureSchemaCompatibility(supabase))
     const result = await safeOnce(fn)
     // Belt-and-braces: if the gate missed (e.g. server clock skew, token
     // rotated mid-flight), still self-heal on 401.

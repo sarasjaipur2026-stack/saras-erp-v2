@@ -1,3 +1,5 @@
+import { toCsv } from '../../lib/csv'
+import { businessDate, invoiceDateRange, dateDaysAgo } from '../../lib/reportDates'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { reports } from '../../lib/db'
 import { Button, Input, Badge, PaginationBar } from '../../components/ui'
@@ -21,42 +23,23 @@ const daysAgo = (iso) => {
 }
 
 // Date range presets
-const todayISO = () => new Date().toISOString().slice(0, 10)
-const monthsAgo = (n) => {
-  const d = new Date()
-  d.setMonth(d.getMonth() - n)
-  return d.toISOString().slice(0, 10)
-}
-const startOfMonth = () => {
-  const d = new Date()
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10)
-}
+const todayISO = () => businessDate()
+const startOfMonth = () => todayISO().slice(0, 7) + '-01'
 const startOfFy = () => {
-  const now = new Date()
-  const y = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1
-  return new Date(y, 3, 1).toISOString().slice(0, 10) // April 1
+ const day = todayISO()
+ const year = Number(day.slice(0, 4)) - (Number(day.slice(5, 7)) < 4 ? 1 : 0)
+ return year + '-04-01'
 }
 
 const PRESETS = [
   { key: 'thisMonth', label: 'This Month', from: startOfMonth, to: todayISO },
-  { key: 'last30', label: 'Last 30 Days', from: () => monthsAgo(1), to: todayISO },
-  { key: 'last90', label: 'Last 90 Days', from: () => monthsAgo(3), to: todayISO },
+  { key: 'last30', label: 'Last 30 Days', from: () => dateDaysAgo(todayISO(), 29), to: todayISO },
+  { key: 'last90', label: 'Last 90 Days', from: () => dateDaysAgo(todayISO(), 89), to: todayISO },
   { key: 'fy', label: 'This FY', from: startOfFy, to: todayISO },
   { key: 'all', label: 'All Time', from: () => null, to: () => null },
 ]
 
 // CSV download (no deps — small enough to inline)
-const toCsv = (rows, columns) => {
-  const escape = (v) => {
-    if (v == null) return ''
-    const s = String(v)
-    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
-    return s
-  }
-  const header = columns.map(c => escape(c.label)).join(',')
-  const body = rows.map(r => columns.map(c => escape(c.value(r))).join(',')).join('\n')
-  return `${header}\n${body}`
-}
 const downloadCsv = (filename, csv) => {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
@@ -103,7 +86,7 @@ export default function ReportsPage() {
     try {
       let result
       const range = currentTab?.hasDateRange
-        ? { from: from ? `${from}T00:00:00` : undefined, to: to ? `${to}T23:59:59` : undefined }
+        ? invoiceDateRange(from, to)
         : {}
       switch (activeTab) {
         case 'sales':
@@ -143,7 +126,7 @@ export default function ReportsPage() {
             <BarChart3 size={20} className="text-indigo-600" /> Reports
           </h1>
           <p className="text-[13px] text-slate-400 mt-0.5">
-            Sales · GST · Customer Outstanding · Stock · Purchase
+            Sales/GST: issued invoices · Outstanding: active orders · Stock · Purchase
           </p>
         </div>
         <Button variant="secondary" size="sm" onClick={load}>
@@ -254,7 +237,7 @@ function SalesRegister({ rows }) {
   const { pageData: salesPageData, currentPage: salesPage, totalPages: salesTotalPages, needsPagination: salesNeedsPagination, rangeLabel: salesRangeLabel, setCurrentPage: setSalesPage } = usePagination(rows)
   const totals = useMemo(() => ({
     count: rows.length,
-    taxable: rows.reduce((s, o) => s + Number(o.taxable_amount || o.subtotal || 0), 0),
+    taxable: rows.reduce((s, o) => s + Number(o.taxable_amount ?? o.subtotal ?? 0), 0),
     cgst: rows.reduce((s, o) => s + Number(o.cgst_amount || 0), 0),
     sgst: rows.reduce((s, o) => s + Number(o.sgst_amount || 0), 0),
     igst: rows.reduce((s, o) => s + Number(o.igst_amount || 0), 0),
@@ -265,12 +248,12 @@ function SalesRegister({ rows }) {
 
   const exportCsv = () => {
     const csv = toCsv(rows, [
-      { label: 'Order #', value: r => r.order_number },
+      { label: 'Invoice #', value: r => r.order_number },
       { label: 'Date', value: r => r.created_at?.slice(0, 10) || '' },
       { label: 'Customer', value: r => r.customers?.firm_name || '' },
       { label: 'GSTIN', value: r => r.customers?.gstin || '' },
       { label: 'Status', value: r => r.status },
-      { label: 'Taxable', value: r => Number(r.taxable_amount || r.subtotal || 0).toFixed(2) },
+      { label: 'Taxable', value: r => Number(r.taxable_amount ?? r.subtotal ?? 0).toFixed(2) },
       { label: 'CGST', value: r => Number(r.cgst_amount || 0).toFixed(2) },
       { label: 'SGST', value: r => Number(r.sgst_amount || 0).toFixed(2) },
       { label: 'IGST', value: r => Number(r.igst_amount || 0).toFixed(2) },
@@ -284,7 +267,7 @@ function SalesRegister({ rows }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatTile label="Orders" value={fmt(totals.count)} />
+        <StatTile label="Invoices" value={fmt(totals.count)} />
         <StatTile label="Taxable" value={fmtMoneyCompact(totals.taxable)} />
         <StatTile label="Total Tax" value={fmtMoneyCompact(totals.cgst + totals.sgst + totals.igst)} />
         <StatTile label="Grand Total" value={fmtMoneyCompact(totals.grand)} accent="indigo" />
@@ -301,7 +284,7 @@ function SalesRegister({ rows }) {
           <table className="w-full text-sm">
             <thead className="bg-slate-50/60 border-b border-slate-100">
               <tr>
-                {['Order #', 'Date', 'Customer', 'Status', 'Taxable', 'Tax', 'Grand Total', 'Balance'].map(h => (
+                {['Invoice #', 'Date', 'Customer', 'Status', 'Taxable', 'Tax', 'Grand Total', 'Balance'].map(h => (
                   <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -313,14 +296,14 @@ function SalesRegister({ rows }) {
                   <td className="px-4 py-3 text-[12px] text-slate-500 font-mono">{fmtDate(o.created_at)}</td>
                   <td className="px-4 py-3 text-slate-700">{o.customers?.firm_name || '—'}</td>
                   <td className="px-4 py-3"><Badge variant="default">{o.status}</Badge></td>
-                  <td className="px-4 py-3 font-mono text-[13px]">{fmtMoney(o.taxable_amount || o.subtotal)}</td>
+                  <td className="px-4 py-3 font-mono text-[13px]">{fmtMoney(o.taxable_amount ?? o.subtotal)}</td>
                   <td className="px-4 py-3 font-mono text-[13px] text-slate-500">{fmtMoney((Number(o.cgst_amount || 0) + Number(o.sgst_amount || 0) + Number(o.igst_amount || 0)))}</td>
                   <td className="px-4 py-3 font-mono font-semibold text-slate-800">{fmtMoney(o.grand_total)}</td>
                   <td className={`px-4 py-3 font-mono ${Number(o.balance_due) > 0 ? 'text-amber-700 font-semibold' : 'text-slate-400'}`}>{fmtMoney(o.balance_due)}</td>
                 </tr>
               ))}
               {!rows.length && (
-                <tr><td colSpan={8} className="text-center py-12 text-sm text-slate-400">No orders in this date range.</td></tr>
+                <tr><td colSpan={8} className="text-center py-12 text-sm text-slate-400">No issued invoices in this date range.</td></tr>
               )}
             </tbody>
           </table>
@@ -348,7 +331,7 @@ function GstSummary({ payload }) {
   const exportCsv = () => {
     const csv = toCsv(monthly, [
       { label: 'Month', value: r => r.month },
-      { label: 'Orders', value: r => r.count },
+      { label: 'Invoices', value: r => r.count },
       { label: 'Taxable', value: r => r.taxable.toFixed(2) },
       { label: 'CGST', value: r => r.cgst.toFixed(2) },
       { label: 'SGST', value: r => r.sgst.toFixed(2) },
@@ -361,7 +344,7 @@ function GstSummary({ payload }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <StatTile label="Orders" value={fmt(summary.order_count)} />
+        <StatTile label="Invoices" value={fmt(summary.order_count)} />
         <StatTile label="Taxable" value={fmtMoneyCompact(summary.total_taxable)} />
         <StatTile label="CGST" value={fmtMoneyCompact(summary.total_cgst)} />
         <StatTile label="SGST" value={fmtMoneyCompact(summary.total_sgst)} />
@@ -383,7 +366,7 @@ function GstSummary({ payload }) {
         <table className="w-full text-sm">
           <thead className="bg-slate-50/60 border-b border-slate-100">
             <tr>
-              {['Month', 'Orders', 'Taxable', 'CGST', 'SGST', 'IGST', 'Grand Total'].map(h => (
+              {['Month', 'Invoices', 'Taxable', 'CGST', 'SGST', 'IGST', 'Grand Total'].map(h => (
                 <th key={h} className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{h}</th>
               ))}
             </tr>
@@ -425,7 +408,7 @@ function CustomerOutstanding({ rows }) {
     const csv = toCsv(rows, [
       { label: 'Customer', value: r => r.firm_name },
       { label: 'Phone', value: r => r.phone },
-      { label: 'Orders', value: r => r.order_count },
+      { label: 'Invoices', value: r => r.order_count },
       { label: 'Total Billed', value: r => r.total_billed.toFixed(2) },
       { label: 'Paid', value: r => r.total_paid.toFixed(2) },
       { label: 'Outstanding', value: r => r.total_outstanding.toFixed(2) },

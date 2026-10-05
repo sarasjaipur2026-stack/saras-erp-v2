@@ -4,7 +4,7 @@ export const aggregateCustomerOutstanding = (orders = []) => {
   const customers = new Map()
 
   for (const order of orders) {
-    if (!order?.customer_id) continue
+    if (!order?.customer_id || ['draft', 'cancelled'].includes(order.status)) continue
     const current = customers.get(order.customer_id) || {
       customer_id: order.customer_id,
       firm_name: order.customers?.firm_name || 'Unknown customer',

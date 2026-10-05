@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { withDeadline } from './deadline'
 
 // ─── AUTH GATE ─────────────────────────────────────────────
 // Single authoritative "is the JWT fresh right now?" check that every
@@ -47,7 +48,7 @@ export const ensureFreshSession = async () => {
   // synchronous I/O under the hood, so it's cheap (~1 ms).
   let session
   try {
-    const { data } = await supabase.auth.getSession()
+    const { data } = await withDeadline(() => supabase.auth.getSession())
     session = data?.session ?? null
   } catch {
     session = null
@@ -67,7 +68,7 @@ export const ensureFreshSession = async () => {
   inFlight = (async () => {
     const t0 = performance.now()
     try {
-      const { data, error } = await supabase.auth.refreshSession()
+      const { data, error } = await withDeadline(() => supabase.auth.refreshSession())
       if (error) {
         devLog('refreshSession error:', error.message)
       }

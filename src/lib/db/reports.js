@@ -3,20 +3,22 @@ import { aggregateCustomerOutstanding, isMissingRpcError } from '../reportFallba
 import { fetchAll, safe } from './core'
 import { stockMovements } from './inventory'
 
-const legacySalesRegister = ({ from, to } = {}) => safe(() => fetchAll(() => {
-  let query = supabase
-    .from('orders')
-    .select('*, customers(firm_name, gstin)')
-    .order('created_at', { ascending: false })
-  if (from) query = query.gte('created_at', from)
-  if (to) query = query.lte('created_at', to)
+const legacySalesRegister = async ({ from, to } = {}) => {
+ const result = await safe(() => fetchAll(() => {
+  let query = supabase.from('invoices').select('*, customers(firm_name, gstin)').neq('status', 'draft').neq('status', 'cancelled').order('invoice_date', { ascending: false })
+  if (from) query = query.gte('invoice_date', from.slice(0, 10))
+  if (to) query = query.lt('invoice_date', to.slice(0, 10))
   return query
-}))
+ }))
+ if (result.error) return result
+ return { data: (result.data || []).map(i => ({ ...i, order_number: i.invoice_number, created_at: i.invoice_date, taxable_amount: i.subtotal, advance_paid: i.amount_paid })), error: null }
+}
 
 const legacyPurchaseRegister = ({ from, to } = {}) => safe(() => fetchAll(() => {
   let query = supabase
     .from('purchase_orders')
     .select('*, suppliers(name, firm, gstin)')
+    .neq('status', 'cancelled')
     .order('po_date', { ascending: false })
   if (from) query = query.gte('po_date', from)
   if (to) query = query.lte('po_date', to)
@@ -39,7 +41,7 @@ export const reports = {
     const rows = data || []
     const summary = {
       order_count: rows.length,
-      total_taxable: rows.reduce((s, o) => s + Number(o.taxable_amount || o.subtotal || 0), 0),
+      total_taxable: rows.reduce((s, o) => s + Number(o.taxable_amount ?? o.subtotal ?? 0), 0),
       total_cgst: rows.reduce((s, o) => s + Number(o.cgst_amount || 0), 0),
       total_sgst: rows.reduce((s, o) => s + Number(o.sgst_amount || 0), 0),
       total_igst: rows.reduce((s, o) => s + Number(o.igst_amount || 0), 0),
@@ -51,7 +53,7 @@ export const reports = {
       const key = (o.created_at || '').slice(0, 7)
       const cur = monthly.get(key) || { month: key, count: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0, grand: 0 }
       cur.count += 1
-      cur.taxable += Number(o.taxable_amount || o.subtotal || 0)
+      cur.taxable += Number(o.taxable_amount ?? o.subtotal ?? 0)
       cur.cgst += Number(o.cgst_amount || 0)
       cur.sgst += Number(o.sgst_amount || 0)
       cur.igst += Number(o.igst_amount || 0)
@@ -70,7 +72,8 @@ export const reports = {
 
     const fallback = await safe(() => fetchAll(() => supabase
       .from('orders')
-      .select('customer_id, grand_total, advance_paid, balance_due, created_at, customers(firm_name, phone)')
+      .select('customer_id, status, grand_total, advance_paid, balance_due, created_at, customers(firm_name, phone)')
+      .not('status', 'in', '(draft,cancelled)')
       .order('created_at', { ascending: false })
     ))
     if (fallback.error) return fallback

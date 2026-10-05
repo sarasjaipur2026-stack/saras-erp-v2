@@ -49,22 +49,20 @@ export const payments = {
       }))
       if (pErr) return { data: null, error: pErr }
 
-      try {
-        const { data: orderRow } = await supabase
+      ;(async () => {
+        const { data: orderRow } = await safe(() => supabase
           .from('orders')
           .select('order_number, customers(firm_name)')
           .eq('id', order_id)
-          .single()
-        notifications.emit({
+          .single())
+        await notifications.emit({
           type: 'payment_received',
           title: `Payment received · ₹${numAmount.toLocaleString('en-IN')}`,
           message: `${orderRow?.customers?.firm_name || 'Customer'} · ${orderRow?.order_number || ''} · balance ₹${Number(inserted?.balance_due || 0).toLocaleString('en-IN')}`,
           entity_type: 'order',
           entity_id: order_id,
         }).catch(() => {})
-      } catch {
-        // Notification failures must never break the payment flow
-      }
+      })().catch(() => {})
 
       return { data: inserted, error: null }
     } catch (error) {
