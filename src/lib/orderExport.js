@@ -1,10 +1,4 @@
-const csvCell = (value) => {
-  if (value == null) return ''
-  let text = String(value)
-  if (typeof value === 'string' && /^[=+\-@]/.test(text)) text = `'${text}`
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
-}
-
+import { csvCell } from './csv.js'
 export const ordersToCsv = (orders) => {
   const columns = [
     ['Order #', row => row.order_number || ''],

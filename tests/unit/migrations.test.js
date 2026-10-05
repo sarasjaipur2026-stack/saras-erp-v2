@@ -1,62 +1,10 @@
 import assert from 'node:assert/strict'
-import { readdir, readFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import test from 'node:test'
 import { PGlite } from '@electric-sql/pglite'
 
-const migrationDir = new URL('../../supabase/migrations/', import.meta.url)
+import { createSupabaseHarness, runMigrations } from '../helpers/supabase.js'
 const legacySchema = new URL('../../src/db/schema.sql', import.meta.url)
-
-async function createSupabaseHarness(db) {
-  await db.exec(`
-    create role authenticated;
-    create role anon;
-    create role service_role;
-
-    create schema auth;
-    create table auth.users (
-      id uuid primary key default gen_random_uuid(),
-      email text,
-      raw_user_meta_data jsonb not null default '{}'::jsonb
-    );
-    create function auth.uid() returns uuid
-      language sql stable as $$
-        select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
-      $$;
-
-    create schema storage;
-    create table storage.buckets (
-      id text primary key,
-      name text,
-      public boolean not null default false,
-      file_size_limit bigint,
-      allowed_mime_types text[]
-    );
-    create table storage.objects (
-      id uuid primary key default gen_random_uuid(),
-      bucket_id text not null references storage.buckets(id),
-      name text not null
-    );
-    create function storage.foldername(name text) returns text[]
-      language sql immutable as $$
-        select case
-          when strpos(name, '/') = 0 then array[]::text[]
-          else string_to_array(regexp_replace(name, '/[^/]*$', ''), '/')
-        end
-      $$;
-  `)
-}
-
-async function runMigrations(db) {
-  const files = (await readdir(migrationDir))
-    .filter(file => file.endsWith('.sql'))
-    .sort()
-
-  assert.ok(files.length >= 3, 'expected the versioned database migrations')
-  for (const file of files) {
-    const sql = await readFile(new URL(file, migrationDir), 'utf8')
-    await db.exec(sql)
-  }
-}
 
 test('atomic order save rolls back children, protects ownership and makes retries idempotent', async () => {
   const db = new PGlite()
@@ -113,6 +61,7 @@ test('atomic order save rolls back children, protects ownership and makes retrie
     assert.equal(priced.taxable_amount,900)
     await assert.rejects(save(first.id,'00000000-0000-4000-8000-000000000097',
       {...order,expected_updated_at:'2000-01-01T00:00:00Z'},lines),/changed since/)
+    await db.exec("insert into auth.users(id,email) values('00000000-0000-4000-8000-000000000999','backup@example.test'); update public.profiles set role='admin' where id='00000000-0000-4000-8000-000000000999'")
     await db.query("update public.profiles set role='viewer',permissions='{}' where id=$1",[userId])
     await assert.rejects(save(first.id,editRequest,order,lines),/Permission denied/)
   } finally { await db.close() }
@@ -143,6 +92,7 @@ test('enquiry conversion is idempotent, marks won, checks permissions and rolls 
     assert.equal((await convert()).rows[0].result.id,first.id)
     assert.equal((await db.query('select count(*)::int as n from public.orders')).rows[0].n,1)
     assert.equal((await db.query('select outcome from public.enquiries where id=$1',[enquiry])).rows[0].outcome,'won')
+    await db.exec("insert into auth.users(id,email) values('00000000-0000-4000-8000-000000000999','backup@example.test'); update public.profiles set role='admin' where id='00000000-0000-4000-8000-000000000999'")
     await db.query("update public.profiles set role='viewer',permissions='{}' where id=$1",[uid])
     await assert.rejects(convert(),/Permission denied/)
   } finally { await db.close() }
@@ -195,7 +145,7 @@ test('all database migrations execute in filename order on a clean database', as
       from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
       cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
-      where n.nspname = 'public' and acl.privilege_type = 'EXECUTE'
+      where n.nspname = 'public' and p.proname <> 'erp_schema_version' and acl.privilege_type = 'EXECUTE'
         and acl.grantee in (0, (select oid from pg_roles where rolname = 'anon'))
     `)
     assert.deepEqual(publicOrAnonFunctions.rows, [], 'public functions must not be callable by PUBLIC or anon')
@@ -567,6 +517,7 @@ test('core transactional, import, dashboard, and search RPCs preserve invariants
     assert.ok(result.rows.some(row => row.entity_type === 'customer' && row.primary_label === 'Test Customer'))
     assert.ok(result.rows.some(row => row.entity_type === 'product' && row.primary_label === 'Test Product'))
 
+    await db.exec("insert into auth.users(id,email) values('00000000-0000-4000-8000-000000000999','backup@example.test'); update public.profiles set role='admin' where id='00000000-0000-4000-8000-000000000999'")
     await db.query("update public.profiles set role = 'viewer', permissions = '{}'::jsonb where id = $1", [userId])
     result = await db.query('select public.dashboard_stats() as stats')
     assert.equal(Number(result.rows[0].stats.total_orders), 0)

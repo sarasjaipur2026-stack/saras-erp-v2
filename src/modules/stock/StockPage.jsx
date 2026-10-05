@@ -9,7 +9,7 @@ import { fmt, fmtDate } from '../../lib/format'
 
 export default function StockPage() {
   const toast = useToast()
-  const { yarnTypes, productTypes, warehouses, ensureDeferred } = useApp()
+  const { yarnTypes, productTypes, products, materials, warehouses, ensureDeferred } = useApp()
   useEffect(() => { ensureDeferred() }, [ensureDeferred])
   const [balances, setBalances] = useState([])
   const [movements, setMovements] = useState([])
@@ -19,11 +19,15 @@ export default function StockPage() {
   const [loadError, setLoadError] = useState(null)
 
   // Manual adjustment modal
+  const [adjustRequestId, setAdjustRequestId] = useState(() => crypto.randomUUID())
+  const [adjustSaving, setAdjustSaving] = useState(false)
   const [showAdjust, setShowAdjust] = useState(false)
   const [adjustForm, setAdjustForm] = useState({
     item_type: 'yarn', // yarn | product
     yarn_type_id: '',
     product_type_id: '',
+    product_id: '',
+    material_id: '',
     warehouse_id: '',
     direction: 'in', // in | out
     quantity: 0,
@@ -67,10 +71,13 @@ export default function StockPage() {
   const totalOut = movements.filter(m => m.kind === 'out').reduce((s, m) => s + Number(m.quantity || 0), 0)
 
   const openAdjust = () => {
+    setAdjustRequestId(crypto.randomUUID())
     setAdjustForm({
       item_type: 'yarn',
       yarn_type_id: '',
       product_type_id: '',
+      product_id: '',
+      material_id: '',
       warehouse_id: '',
       direction: 'in',
       quantity: 0,
@@ -81,27 +88,34 @@ export default function StockPage() {
   }
 
   const submitAdjust = async () => {
+    if (adjustSaving) return
     const {
-      item_type, yarn_type_id, product_type_id, warehouse_id,
+      item_type, yarn_type_id, product_type_id, product_id, material_id, warehouse_id,
       direction, quantity, unit, notes,
     } = adjustForm
     if (item_type === 'yarn' && !yarn_type_id) { toast.error('Select a yarn'); return }
     if (item_type === 'product' && !product_type_id) { toast.error('Select a product'); return }
+    if (item_type === 'sku' && !product_id) { toast.error('Select a product SKU'); return }
+    if (item_type === 'material' && !material_id) { toast.error('Select a material'); return }
     if (!(Number(quantity) > 0)) { toast.error('Enter a quantity greater than zero'); return }
     // Create a stock_movements row of kind='adjustment' with a signed sign — we
     // model corrections by inserting either an `in` or `out` movement explicitly
     // so computeBalances picks it up without special-casing the 'adjustment' kind.
+    setAdjustSaving(true)
     const { error } = await stockMovements.create({
       kind: direction, // 'in' or 'out'
       yarn_type_id: item_type === 'yarn' ? yarn_type_id : null,
       product_type_id: item_type === 'product' ? product_type_id : null,
+      product_id: item_type === 'sku' ? product_id : null,
+      material_id: item_type === 'material' ? material_id : null,
       warehouse_id: warehouse_id || null,
       quantity: Number(quantity),
       unit: unit || 'kg',
       source_type: 'adjustment',
       source_id: null,
       notes: notes || `Manual ${direction === 'in' ? 'increase' : 'decrease'}`,
-    })
+    }, adjustRequestId)
+    setAdjustSaving(false)
     if (error) { toast.error(error.message || 'Adjustment failed'); return }
     toast.success(`Stock ${direction === 'in' ? 'increased' : 'decreased'} by ${quantity} ${unit}`)
     setShowAdjust(false)
@@ -240,6 +254,7 @@ export default function StockPage() {
             size="sm"
             variant={adjustForm.direction === 'out' ? 'danger' : 'success'}
             onClick={submitAdjust}
+            loading={adjustSaving}
           >
             {adjustForm.direction === 'in' ? <><Plus size={13} /> Add to Stock</> : <><Minus size={13} /> Remove from Stock</>}
           </Button>
@@ -272,7 +287,9 @@ export default function StockPage() {
           <div className="flex bg-slate-100 rounded-lg p-0.5">
             {[
               { k: 'yarn', label: 'Raw Material (Yarn)' },
-              { k: 'product', label: 'Finished Good (Product)' },
+              { k: 'product', label: 'Jobwork Product Type' },
+              { k: 'sku', label: 'Product SKU' },
+              { k: 'material', label: 'Material' },
             ].map(t => (
               <button
                 key={t.k}
@@ -281,7 +298,9 @@ export default function StockPage() {
                   item_type: t.k,
                   yarn_type_id: '',
                   product_type_id: '',
-                  unit: t.k === 'yarn' ? 'kg' : 'pcs',
+                  product_id: '',
+                  material_id: '',
+                  unit: ['yarn', 'material'].includes(t.k) ? 'kg' : 'pcs',
                 }))}
                 className={`flex-1 px-3 py-1.5 text-[12px] font-semibold rounded-md transition ${
                   adjustForm.item_type === t.k ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'
@@ -293,7 +312,17 @@ export default function StockPage() {
           </div>
 
           {/* Item picker */}
-          {adjustForm.item_type === 'yarn' ? (
+          {['sku', 'material'].includes(adjustForm.item_type) ? (
+            <div>
+              <label className="text-[11px] font-semibold text-slate-500 block mb-1.5">{adjustForm.item_type === 'sku' ? 'Product SKU' : 'Material'}</label>
+              <select className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl"
+                value={adjustForm.item_type === 'sku' ? adjustForm.product_id : adjustForm.material_id}
+                onChange={e => setAdjustForm(f => ({ ...f, [f.item_type === 'sku' ? 'product_id' : 'material_id']: e.target.value }))}>
+                <option value="">— select item —</option>
+                {(adjustForm.item_type === 'sku' ? products : materials)?.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </div>
+          ) : adjustForm.item_type === 'yarn' ? (
             <div>
               <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Yarn</label>
               <select

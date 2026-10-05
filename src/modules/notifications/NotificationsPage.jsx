@@ -88,11 +88,12 @@ export default function NotificationsPage() {
       const { error } = await notifications.emit({
         type: 'general',
         title: 'Test notification',
+        waitForWebhook: true,
         message: 'This is a test from sarasERP · if you see this in WhatsApp, the webhook is live.',
         entity_type: null,
         entity_id: null,
       })
-      if (error) toast.error('Emit failed — check the config')
+      if (error) toast.error(error.message || 'Webhook test failed — check the config')
       else toast.success('Test sent — check the bell + your WhatsApp inbox')
       load()
     } finally {

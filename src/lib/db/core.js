@@ -3,6 +3,7 @@ import { ensureFreshSession } from '../authGate'
 import { normalizePageSearch } from '../pageSearch.js'
 import { isJwtStaleError } from './requestPolicy'
 import { withDeadline } from '../deadline'
+import { ensureSchemaCompatibility } from '../schemaCompatibility'
 
 // ─── GENERIC CRUD FACTORY ──────────────────────────────────
 // Creates list/get/create/update/delete for ANY Supabase table.
@@ -51,6 +52,7 @@ export const safe = async (fn) => {
   // refresh is in flight.
   try {
     await withDeadline(() => ensureFreshSession())
+    await withDeadline(() => ensureSchemaCompatibility(supabase))
     const result = await safeOnce(fn)
     // Belt-and-braces: if the gate missed (e.g. server clock skew, token
     // rotated mid-flight), still self-heal on 401.

@@ -35,41 +35,10 @@ export const activityLog = {
 export const notifications = {
   ...createTable('notifications', { orderBy: 'created_at', orderAsc: false, ownerFilter: false }),
 
-  getUnread: async (staffId) => safe(() =>
-    supabase
-      .from('notifications')
-      .select('*')
-      .eq('staff_id', staffId)
-      .is('read_at', null)
-      .order('created_at', { ascending: false })
-      .limit(50)
-  ),
-
-  listForUser: async (staffId) => safe(() =>
-    supabase
-      .from('notifications')
-      .select('*')
-      .or(`staff_id.eq.${staffId},staff_id.is.null`)
-      .order('created_at', { ascending: false })
-      .limit(200)
-  ),
-
-  markAsRead: async (id) => safe(() =>
-    supabase
-      .from('notifications')
-      .update({ read_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single()
-  ),
-
-  markAllAsRead: async (staffId) => safe(() =>
-    supabase
-      .from('notifications')
-      .update({ read_at: new Date().toISOString() })
-      .eq('staff_id', staffId)
-      .is('read_at', null)
-  ),
+  getUnread: () => safe(() => supabase.rpc('list_user_notifications', { p_unread: true, p_limit: 50 })),
+  listForUser: () => safe(() => supabase.rpc('list_user_notifications', { p_unread: false, p_limit: 200 })),
+  markAsRead: (id) => safe(() => supabase.rpc('mark_notifications_read', { p_id: id })),
+  markAllAsRead: () => safe(() => supabase.rpc('mark_notifications_read', { p_id: null })),
 
   emit: async (n) => {
     try {
@@ -95,9 +64,14 @@ export const notifications = {
       if (error) {
         if (import.meta.env.DEV) console.error('[notifications.emit] insert failed', error)
       }
-      fireWebhook(row).catch(err => {
-        if (import.meta.env.DEV) console.error('[notifications.emit] webhook failed', err)
-      })
+      if (!error && data?.id) {
+        if (n.waitForWebhook) {
+          try { await fireWebhook(data.id) }
+          catch (webhookError) { return { data, error: webhookError } }
+        } else fireWebhook(data.id).catch(err => {
+          if (import.meta.env.DEV) console.error('[notifications.emit] webhook failed', err)
+        })
+      }
       return { data, error }
     } catch (err) {
       if (import.meta.env.DEV) console.error('[notifications.emit] unexpected', err)
@@ -106,34 +80,15 @@ export const notifications = {
   },
 }
 
-async function fireWebhook(notification) {
-  try {
-    const { data: rows, error } = await supabase
-      .from('app_settings')
-      .select('key, value')
-      .in('key', ['notifications.whatsapp_webhook_url', 'notifications.whatsapp_enabled'])
-    if (error) return
-    const cfg = {}
-    for (const r of rows || []) cfg[r.key] = r.value || {}
-    const enabled = cfg['notifications.whatsapp_enabled']?.enabled === true
-    const url = cfg['notifications.whatsapp_webhook_url']?.url
-    if (!enabled || !url) return
-    await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      mode: 'no-cors',
-      body: JSON.stringify({
-        type: notification.type,
-        title: notification.title,
-        message: notification.message,
-        entity_type: notification.entity_type,
-        entity_id: notification.entity_id,
-        text: `*${notification.title}*\n${notification.message}`,
-        sent_at: new Date().toISOString(),
-      }),
-    })
-  } catch (err) {
-    // Webhook failures must never break business flows, but log for debugging
-    if (import.meta.env.DEV) console.warn('[fireWebhook] failed silently:', err?.message || err)
-  }
+async function fireWebhook(notificationId) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) return
+  const response = await fetch('/api/notification-webhook', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+    body: JSON.stringify({ notificationId }), signal: AbortSignal.timeout(10000),
+  })
+  if (!response.ok) throw new Error('Notification webhook delivery failed')
+  const result = await response.json()
+  if (result.status === 'disabled') throw new Error('Webhook is disabled')
+  return result
 }

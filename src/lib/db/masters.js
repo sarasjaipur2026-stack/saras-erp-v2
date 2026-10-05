@@ -1,4 +1,5 @@
-import { createTable } from './core'
+import { createTable, safe } from './core'
+import { supabase } from '../supabase'
 
 // ─── SIMPLE TABLE INSTANCES ────────────────────────────────
 export const customers = createTable('customers', { ownerFilter: false })
@@ -37,6 +38,14 @@ export const chaalTypes = createTable('chaal_types', { orderBy: 'name', orderAsc
 export const customFieldDefinitions = createTable('custom_field_definitions', { ownerFilter: false })
 
 // ─── SIMPLE MODULE TABLES ──────────────────────────────────
-export const lineItems = createTable('order_line_items', { ownerFilter: false })
+export const lineItems = {
+  ...createTable('order_line_items', { ownerFilter: false }),
+  update: (id, patch) => {
+    if (Object.keys(patch).some(key => key !== 'calculator_profile_id')) {
+      return Promise.resolve({ data: null, error: new Error('Edit line items through the order form') })
+    }
+    return safe(() => supabase.rpc('link_order_calculator', { p_line_id: id, p_profile_id: patch.calculator_profile_id }))
+  },
+}
 export const orderCharges = createTable('order_charges', { ownerFilter: false })
 export const importLog = createTable('import_log', { orderBy: 'created_at', orderAsc: false, ownerFilter: false })

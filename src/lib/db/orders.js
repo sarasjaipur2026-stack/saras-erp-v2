@@ -1,19 +1,8 @@
 import { supabase } from '../supabase'
 import { safe, createTable } from './core'
-import { lineItems, orderCharges } from './masters'
 import { notifications } from './notifications'
-import { buildOrderPayload, buildLinePayload, buildChargePayload } from '../orderFormModel'
+import { buildOrderPayload, buildLinePayload, buildChargePayload, normalizeOrderForForm } from '../orderFormModel'
 
-const ALLOWED_TRANSITIONS = {
-  draft: ['booking', 'cancelled'],
-  booking: ['approved', 'cancelled'],
-  approved: ['production', 'cancelled'],
-  production: ['qc', 'cancelled'],
-  qc: ['dispatch', 'cancelled'],
-  dispatch: ['completed'],
-  completed: [],
-  cancelled: [],
-}
 
 // ─── ORDERS (custom select with joins) ─────────────────────
 export const orders = {
@@ -103,26 +92,9 @@ export const orders = {
   ),
 
   updateStatus: async (id, status) => {
-    // Fetch current order to validate transition
-    const { data: current, error: fetchErr } = await safe(() =>
-      supabase.from('orders').select('status').eq('id', id).single()
-    )
-    if (fetchErr || !current) {
-      return { data: null, error: fetchErr || { message: 'Order not found' } }
-    }
-
-    const currentStatus = current.status
-    const allowed = ALLOWED_TRANSITIONS[currentStatus] || []
-    if (!allowed.includes(status)) {
-      return {
-        data: null,
-        error: { message: `Invalid status transition: ${currentStatus} → ${status}` },
-      }
-    }
-
-    const result = await safe(() =>
-      supabase.from('orders').update({ status }).eq('id', id).select('*, customers(firm_name)').single()
-    )
+    const result = await safe(() => supabase.rpc('transition_order_transactional', {
+      p_order_id: id, p_status: status,
+    }))
     if (!result?.error && result?.data) {
       notifications.emit({
         type: status === 'approved' ? 'order_approved' : 'status_changed',
@@ -135,95 +107,15 @@ export const orders = {
     return result
   },
 
-  create: async (order) => {
-    try {
-      let prefix = 'ORD'
-      if (order.order_type_id) {
-        const { data: ot } = await supabase
-          .from('order_types')
-          .select('prefix')
-          .eq('id', order.order_type_id)
-          .single()
-        if (ot?.prefix) prefix = ot.prefix
-      }
+  create: (order) => orders.save({ ...order, line_items: [], charges: [] }, 'draft', null, crypto.randomUUID()),
 
-      const { data: sess } = await supabase.auth.getSession()
-      const userId = sess?.session?.user?.id
-      if (!userId) return { data: null, error: new Error('Not authenticated') }
-
-      const { data: result, error: fnErr } = await supabase.rpc('generate_order_number', {
-        p_user_id: userId,
-        p_prefix: prefix,
-      })
-      if (fnErr) return { data: null, error: fnErr }
-
-      return await safe(() =>
-        supabase.from('orders').insert([{ ...order, order_number: result, user_id: userId }]).select().single()
-      )
-    } catch (error) {
-      return { data: null, error }
-    }
-  },
+  delete: (id) => safe(() => supabase.rpc('delete_draft_order', { p_order_id: id })),
 
   duplicate: async (id) => {
-    try {
-      const { data: order, error: getErr } = await orders.get(id)
-      if (getErr || !order) return { data: null, error: getErr }
-
-      const {
-        order_line_items,
-        order_charges: oc,
-        deliveries: _d,
-        payments: _p,
-        customers: _c,
-        order_types: _ot,
-        brokers: _b,
-        payment_terms: _pt,
-        id: _id,
-        order_number: _on,
-        created_at: _ca,
-        updated_at: _ua,
-        approved_by: _ab,
-        approved_at: _aa,
-        ...orderData
-      } = order
-
-      const preview = {
-        originalOrderNumber: _on,
-        lineItemCount: order_line_items?.length || 0,
-        chargeCount: oc?.length || 0,
-        status: 'Will be created as draft',
-      }
-
-      const { data: newOrder, error: createErr } = await orders.create(orderData)
-      if (createErr || !newOrder) return { data: null, error: createErr, preview }
-
-      if (order_line_items?.length) {
-        /* eslint-disable no-unused-vars */
-        const items = order_line_items.map(({
-          id: _iid, order_id: _oid2, created_at: _ic,
-          products: _pr, materials: _m, machines: _mc,
-          colors: _cl, calculator_profiles: _cp, ...rest
-        /* eslint-enable no-unused-vars */
-        }) => ({ ...rest, order_id: newOrder.id }))
-        const { error: lineErr } = await lineItems.createMany(items)
-        if (lineErr) return { data: newOrder, error: lineErr, preview }
-      }
-
-      if (oc?.length) {
-        /* eslint-disable no-unused-vars */
-        const charges = oc.map(({
-          id: _cid, order_id: _oid, charge_types: _ct, created_at: _cc, ...rest
-        /* eslint-enable no-unused-vars */
-        }) => ({ ...rest, order_id: newOrder.id }))
-        const { error: chargeErr } = await orderCharges.createMany(charges)
-        if (chargeErr) return { data: newOrder, error: chargeErr, preview }
-      }
-
-      return { data: newOrder, error: null, preview }
-    } catch (error) {
-      return { data: null, error }
-    }
+    const { data: original, error } = await orders.get(id)
+    if (error || !original) return { data: null, error }
+    const form = normalizeOrderForForm(original, { duplicate: true })
+    return orders.save(form, 'draft', null, crypto.randomUUID())
   },
 
   checkLinked: async (orderId, table) => safe(() =>
@@ -235,14 +127,7 @@ export const orders = {
       const { data: sampleOrder, error: getErr } = await orders.get(id)
       if (getErr || !sampleOrder) return { data: null, error: getErr }
 
-      const { data: fullOrder, error: createErr } = await orders.create({
-        customer_id: sampleOrder.customer_id,
-        order_type_id: sampleOrder.order_type_id,
-        broker_id: sampleOrder.broker_id,
-        payment_terms_id: sampleOrder.payment_terms_id,
-        parent_sample_id: id,
-        status: 'draft',
-      })
+      const { data: fullOrder, error: createErr } = await safe(() => supabase.rpc('create_full_order_from_sample', { p_sample_id: id }))
       if (createErr || !fullOrder) return { data: null, error: createErr }
 
       return { data: fullOrder, error: null }

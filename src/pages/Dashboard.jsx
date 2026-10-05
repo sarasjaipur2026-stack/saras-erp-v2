@@ -44,6 +44,7 @@ export default function Dashboard() {
     try {
       setLoadError(null)
       const d = await stats.getDashboard()
+      if (d.error) throw d.error
       // getDashboard returns an object, not { data, error } — normalise it.
       return { data: [d], error: null }
     } catch (err) {

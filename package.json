@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/check-schema.mjs && vite build",
     "lint": "eslint . --max-warnings=0",
     "test": "node --test tests/unit/*.test.js",
     "test:e2e": "playwright test",
