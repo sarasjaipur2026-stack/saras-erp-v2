@@ -83,6 +83,15 @@ test('atomic order save rolls back children, protects ownership and makes retrie
     const lines = [{product_id:productId,quantity:1,rate_per_unit:100,amount:100}]
     const first = (await save(null,requestId,order,lines)).rows[0].result
     const retry = (await save(null,requestId,order,lines)).rows[0].result
+    const stored = (await db.query('select payload,payload_hash from saras_private.order_save_requests where request_id=$1',[requestId])).rows[0]
+    assert.equal(stored.payload,null)
+    assert.equal(stored.payload_hash.length,64)
+    await db.query('update saras_private.order_save_requests set payload=$1,payload_hash=null where request_id=$2',
+      [JSON.stringify({id:null,order,lines,charges:[]}),requestId])
+    assert.equal((await save(null,requestId,order,lines)).rows[0].result.id,first.id,'legacy request retries remain compatible')
+    const beforeNoop=(await db.query('select count(*)::int as n from public.audit_log')).rows[0].n
+    await db.query('update public.orders set updated_at=clock_timestamp() where id=$1',[first.id])
+    assert.equal((await db.query('select count(*)::int as n from public.audit_log')).rows[0].n,beforeNoop,'timestamp-only writes do not create snapshots')
     assert.equal(first.id,retry.id)
     assert.equal(first.advance_paid,0)
     assert.equal(first.balance_due,100)
@@ -106,6 +115,36 @@ test('atomic order save rolls back children, protects ownership and makes retrie
       {...order,expected_updated_at:'2000-01-01T00:00:00Z'},lines),/changed since/)
     await db.query("update public.profiles set role='viewer',permissions='{}' where id=$1",[userId])
     await assert.rejects(save(first.id,editRequest,order,lines),/Permission denied/)
+  } finally { await db.close() }
+})
+
+test('enquiry conversion is idempotent, marks won, checks permissions and rolls back failures', async () => {
+  const db = new PGlite()
+  const uid='00000000-0000-4000-8000-000000000081'
+  const customer='00000000-0000-4000-8000-000000000082'
+  const enquiry='00000000-0000-4000-8000-000000000083'
+  try {
+    await db.waitReady
+    await createSupabaseHarness(db)
+    await runMigrations(db)
+    await db.query('insert into auth.users(id,email) values($1,$2)',[uid,'convert@example.test'])
+    await db.query("update public.profiles set role='admin' where id=$1",[uid])
+    await db.query("select set_config('request.jwt.claim.sub',$1,false)",[uid])
+    await db.query("insert into public.customers(id,user_id,firm_name) values($1,$2,'Conversion')",[customer,uid])
+    await db.query("insert into public.enquiries(id,user_id,customer_id,enquiry_number) values($1,$2,$3,'E1')",[enquiry,uid,customer])
+    await db.exec(`create function public.reject_conversion_test() returns trigger language plpgsql as $$
+      begin raise exception 'simulated enquiry failure'; end $$;
+      create trigger reject_conversion before update on public.enquiries for each row execute function public.reject_conversion_test();`)
+    await assert.rejects(db.query('select public.convert_enquiry_transactional($1)',[enquiry]),/simulated enquiry failure/)
+    assert.equal((await db.query('select count(*)::int as n from public.orders')).rows[0].n,0)
+    await db.exec('drop trigger reject_conversion on public.enquiries')
+    const convert=()=>db.query('select public.convert_enquiry_transactional($1) as result',[enquiry])
+    const first=(await convert()).rows[0].result
+    assert.equal((await convert()).rows[0].result.id,first.id)
+    assert.equal((await db.query('select count(*)::int as n from public.orders')).rows[0].n,1)
+    assert.equal((await db.query('select outcome from public.enquiries where id=$1',[enquiry])).rows[0].outcome,'won')
+    await db.query("update public.profiles set role='viewer',permissions='{}' where id=$1",[uid])
+    await assert.rejects(convert(),/Permission denied/)
   } finally { await db.close() }
 })
 

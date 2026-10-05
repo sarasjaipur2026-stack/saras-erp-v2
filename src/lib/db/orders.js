@@ -307,32 +307,7 @@ export const enquiries = {
     supabase.from('enquiries').select('*, customers(*)').eq('id', id).single()
   ),
 
-  convertToOrder: async (enquiryId) => {
-    try {
-      const { data: enquiry, error: getErr } = await enquiries.get(enquiryId)
-      if (getErr || !enquiry) return { data: null, error: getErr }
-
-      const { data: order, error: createErr } = await orders.create({
-        customer_id: enquiry.customer_id,
-        order_type_id: enquiry.order_type_id,
-        broker_id: enquiry.broker_id,
-        payment_terms_id: enquiry.payment_terms_id,
-        status: 'draft',
-        converted_enquiry_id: enquiryId,
-      })
-      if (createErr || !order) return { data: null, error: createErr }
-
-      const { error: updateErr } = await safe(() =>
-        supabase
-          .from('enquiries')
-          .update({ status: 'converted', converted_order_id: order.id })
-          .eq('id', enquiryId)
-          .select()
-          .single()
-      )
-      return { data: order, error: updateErr }
-    } catch (error) {
-      return { data: null, error }
-    }
-  },
+  convertToOrder: (enquiryId) => safe(() =>
+    supabase.rpc('convert_enquiry_transactional', { p_enquiry_id: enquiryId })
+  ),
 }

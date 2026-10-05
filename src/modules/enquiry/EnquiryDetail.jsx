@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { enquiries } from '../../lib/db'
 import { useAuth } from '../../contexts/AuthContext'
@@ -29,6 +29,8 @@ export default function EnquiryDetail() {
   const [tabIdx, setTabIdx] = useState(0)
   const [lostOpen, setLostOpen] = useState(false)
   const [lostLoading, setLostLoading] = useState(false)
+  const converting = useRef(false)
+  const [convertLoading, setConvertLoading] = useState(false)
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -53,10 +55,18 @@ export default function EnquiryDetail() {
   useEffect(() => { loadAll() }, [loadAll])
 
   const handleConvert = async () => {
-    const { error } = await enquiries.convertToOrder(id)
-    if (error) { toast.error('Failed to convert'); return }
-    toast.success('Converted to order')
-    navigate('/orders')
+    if (converting.current) return
+    converting.current = true
+    setConvertLoading(true)
+    try {
+      const { data, error } = await enquiries.convertToOrder(id)
+      if (error) { toast.error(error.message || 'Failed to convert'); return }
+      toast.success('Converted to order')
+      navigate('/orders/' + data.id)
+    } finally {
+      converting.current = false
+      setConvertLoading(false)
+    }
   }
 
   const handleMarkLost = async (payload) => {
@@ -128,7 +138,7 @@ export default function EnquiryDetail() {
           </Button>
           {isOpen && (
             <>
-              <Button onClick={handleConvert}>
+              <Button onClick={handleConvert} disabled={convertLoading}>
                 <CheckCircle size={14} /> Convert to Order
               </Button>
               <Button variant="danger" onClick={() => setLostOpen(true)}>
